@@ -1,0 +1,128 @@
+
+```agda
+{-# OPTIONS --safe --erased-cubical #-}
+
+module Prim.Data.Path where
+
+open import Prim.Type
+open import Prim.Cubical
+open import Prim.Data.Sigma
+
+```
+
+Open Paths here
+
+```
+infixr 2 pathp-syntax
+
+open import Agda.Builtin.Cubical.Path public
+  renaming ( _≡_ to infix 2 _＝_ )
+
+Path : ∀ {ℓ} (A : Type ℓ) → A → A → Type ℓ
+Path A = PathP (λ _ → A)
+
+pathp-syntax : ∀ {ℓ} (A : I → Type ℓ) → A i0 → A i1 → Type ℓ
+pathp-syntax = PathP
+syntax pathp-syntax (λ i → b) x y = ∂ i ↦ b , x ＝ y
+
+{-# INLINE pathp-syntax #-}
+{-# DISPLAY pathp-syntax A x y = PathP A x y #-}
+
+```
+
+Open basic helpers and fundamental lemmas
+
+```
+import Agda.Builtin.Cubical.HCompU
+private module H = Agda.Builtin.Cubical.HCompU.Helpers
+
+-- We use standard HoTT terminology for `cong`
+open H using ( refl; sym; fiber ) renaming ( cong to ap ) public
+{-# INLINE refl #-}
+{-# INLINE sym #-}
+{-# INLINE fiber #-}
+
+erefl : ∀ {ℓ} {A : Type ℓ} (x : A) → x ＝ x
+erefl x = refl
+{-# INLINE erefl #-}
+
+```
+
+We'll also define the PathP version of sym:
+
+```
+
+symd : ∀ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
+     → PathP A x y → PathP (λ i → A (~ i)) y x
+symd p i = p (~ i)
+
+```
+
+Define Square syntax
+
+```
+
+Square : ∀ {ℓ} {A : Type ℓ}
+       → {a00 a01 : A} (p : a00 ＝ a01)
+       → {a10 : A} (q : a00 ＝ a10)
+       → {a11 : A} (r : a10 ＝ a11) (s : a01 ＝ a11)
+       → Type ℓ
+Square p q r s = PathP (λ i → q i ＝ s i) p r
+syntax Square p q r s = p ⌞ q ⌟ r ⇒ s
+
+SquareP : ∀ {ℓ} (A : I → I → Type ℓ)
+        → {a₀₀ : A i0 i0} {a₀₁ : A i0 i1}
+        → {a₁₀ : A i1 i0} {a₁₁ : A i1 i1}
+        → PathP (λ i → A i i0) a₀₀ a₁₀
+        → PathP (λ j → A i0 j) a₀₀ a₀₁
+        → PathP (λ i → A i i1) a₀₁ a₁₁
+        → PathP (λ j → A i1 j) a₁₀ a₁₁
+        → Type ℓ
+SquareP A p q r s = PathP (λ i → PathP (λ j → A i j) (p i) (r i)) q s
+
+module Square {ℓ} {A : Type ℓ} {a00 a01 a10 a11 : A}
+  {p : a00 ＝ a01} {q : a00 ＝ a10} {r : a10 ＝ a11} {s : a01 ＝ a11}
+  where
+  hsym : Square p q r s → Square r (sym q) p (sym s)
+  hsym α i j = α (~ i) j
+
+  vsym : Square p q r s → Square (sym p) s (sym r) q
+  vsym α i j = α i (~ j)
+
+  lrotate : Square p q r s → Square (sym q) r (sym s) p
+  lrotate α i j = α (~ j) i
+
+  rrotate : Square p q r s → Square s (sym p) q (sym r)
+  rrotate α i j = α j (~ i)
+
+  transpose : Square p q r s → Square q p s r
+  transpose α i j = α j i
+
+  itranspose : Square p q r s → Square (sym s) (sym r) (sym q) (sym p)
+  itranspose α i j = α (~ j) (~ i)
+
+transport : ∀ {ℓ} {A B : Type ℓ} (P : A ＝ B) → P i0 → P i1
+transport p = transp (λ i → p i) i0
+
+tr : ∀ {ℓ ℓ'} {A : Type ℓ} (P : A → Type ℓ')
+  → {x y : A} → x ＝ y → P x → P y
+tr P {x} q = transp (λ i → P (q i)) i0
+
+-- Introduce path induction along with its computation rule
+𝓙 : ∀ {ℓ ℓ'} {A : Type ℓ} (C : (x y : A) → x ＝ y → Type ℓ')
+         → (∀ x → C x x refl) → ∀ {u v} (w : u ＝ v) → C u v w
+𝓙 C c {u} w = transp (λ i → C u (w i) λ j → w (i ∧ j)) i0 (c u)
+
+tr2 : ∀ {u v w} {A : Type u} {B : A → Type v}
+    → (P : (x : A) → B x → Type w)
+    → {a a' : A} {b : B a} {b' : B a'}
+    → (p : a ＝ a') → (∂ i ↦ B (p i) , b ＝ b')
+    → P a b → P a' b'
+tr2 P p q = transp (λ i → P (p i) (q i)) i0
+
+module _ {ℓ} {A : Type ℓ} where
+  ⟨_⟩₁ : A → Type ℓ
+  ⟨_⟩₁ x = Σ y ∶ A , x ＝ y
+
+  singl-contr : {x : A} (y : ⟨ x ⟩₁) → (x , refl) ＝ y
+  singl-contr (y , p) = λ i → p i , λ j → p (i ∧ j)

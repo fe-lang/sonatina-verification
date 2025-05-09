@@ -1,0 +1,15 @@
+name: sonatina-verification
+include: src
+depend:
+flags:
+  --erasure
+  --auto-inline
+  --erased-matches
+  --exact-split
+  --hidden-argument-puns
+  --no-import-sorts
+  --postfix-projections
+  --qualified-instances
+
+  -Werror
+  -WnoUnsupportedIndexedMatch
