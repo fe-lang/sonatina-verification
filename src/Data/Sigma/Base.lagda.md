@@ -1,7 +1,7 @@
 ```agda
-{-# OPTIONS --safe --erased-cubical #-}
+
+{-# OPTIONS --safe --cubical-compatible #-}
 
 module Data.Sigma.Base where
 
-open import Prim.Type
-```
+open import Prim.Data.Sigma public

@@ -2,7 +2,7 @@
 
 {-# OPTIONS --safe --erased-cubical #-}
 
-module Prim.Cartesian where
+module Prim.Interval where
 
 open import Prim.Type
 open import Prim.Cubical
