@@ -52,9 +52,9 @@ We'll also define the PathP version of sym:
 
 ```
 
-symd : ∀ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
+symP : ∀ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
      → PathP A x y → PathP (λ i → A (~ i)) y x
-symd p i = p (~ i)
+symP p i = p (~ i)
 
 ```
 
@@ -85,33 +85,47 @@ module Square {ℓ} {A : Type ℓ} {a00 a01 a10 a11 : A}
   where
   hsym : Square p q r s → Square r (sym q) p (sym s)
   hsym α i j = α (~ i) j
+  {-# INLINE hsym #-}
 
   vsym : Square p q r s → Square (sym p) s (sym r) q
   vsym α i j = α i (~ j)
+  {-# INLINE vsym #-}
 
   lrotate : Square p q r s → Square (sym q) r (sym s) p
   lrotate α i j = α (~ j) i
+  {-# INLINE lrotate #-}
 
   rrotate : Square p q r s → Square s (sym p) q (sym r)
   rrotate α i j = α j (~ i)
+  {-# INLINE rrotate #-}
+
+  sflip : Square p q r s → Square (sym r) (sym s) (sym p) (sym q)
+  sflip α i j = α (~ i) (~ j)
+  {-# INLINE sflip #-}
 
   transpose : Square p q r s → Square q p s r
   transpose α i j = α j i
+  {-# INLINE transpose #-}
 
   itranspose : Square p q r s → Square (sym s) (sym r) (sym q) (sym p)
   itranspose α i j = α (~ j) (~ i)
+  {-# INLINE itranspose #-}
 
-transport : ∀ {ℓ} {A B : Type ℓ} (P : A ＝ B) → P i0 → P i1
-transport p = transp (λ i → p i) i0
+⟨_⟩₁ : ∀ {ℓ} {A : Type ℓ} → A → Type ℓ
+⟨_⟩₁ {A = A} x = Σ (x ＝_)
 
+singl-contr : ∀ {ℓ} {A : Type ℓ} {x : A} (y : ⟨ x ⟩₁) → (x , refl) ＝ y
+singl-contr (y , p) = λ i → p i , λ j → p (i ∧ j)
+
+-- Introduce path induction. Find its computation rule in Prim.Interval
+𝓙 : ∀ {ℓ ℓ'} {A : Type ℓ} (C : (x y : A) → x ＝ y → Type ℓ')
+         → (∀ x → C x x refl) → ∀ {u v} (w : u ＝ v) → C u v w
+𝓙 C c {u} w = transp (λ i → C u (w i) (λ j → w (i ∧ j))) i0 (c u)
+
+-- Finally we have transport along with its 2-dimensional variant
 tr : ∀ {ℓ ℓ'} {A : Type ℓ} (P : A → Type ℓ')
   → {x y : A} → x ＝ y → P x → P y
 tr P {x} q = transp (λ i → P (q i)) i0
-
--- Introduce path induction along with its computation rule
-𝓙 : ∀ {ℓ ℓ'} {A : Type ℓ} (C : (x y : A) → x ＝ y → Type ℓ')
-         → (∀ x → C x x refl) → ∀ {u v} (w : u ＝ v) → C u v w
-𝓙 C c {u} w = transp (λ i → C u (w i) λ j → w (i ∧ j)) i0 (c u)
 
 tr2 : ∀ {u v w} {A : Type u} {B : A → Type v}
     → (P : (x : A) → B x → Type w)
@@ -119,10 +133,3 @@ tr2 : ∀ {u v w} {A : Type u} {B : A → Type v}
     → (p : a ＝ a') → (∂ i ↦ B (p i) , b ＝ b')
     → P a b → P a' b'
 tr2 P p q = transp (λ i → P (p i) (q i)) i0
-
-module _ {ℓ} {A : Type ℓ} where
-  ⟨_⟩₁ : A → Type ℓ
-  ⟨_⟩₁ x = Σ y ∶ A , x ＝ y
-
-  singl-contr : {x : A} (y : ⟨ x ⟩₁) → (x , refl) ＝ y
-  singl-contr (y , p) = λ i → p i , λ j → p (i ∧ j)

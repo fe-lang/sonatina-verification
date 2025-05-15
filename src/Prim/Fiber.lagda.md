@@ -4,103 +4,129 @@
 module Prim.Fiber where
 
 open import Prim.Type
-open import Prim.Data.Path
 open import Prim.Cubical
-open import Prim.Kan using (hcomp; hfill)
-open import Prim.Fill
-  using (hcomp-fill; neutral-square; sq-refl-top)
 open import Prim.Kan
+  using (hcomp; hfill; path-filler)
   renaming (path-comp to _∙_)
-  using ()
+open import Prim.Fill using (neutral-square; module tri)
 
-open import Agda.Builtin.Sigma
+open import Prim.Data.Path
+open import Prim.Data.Contr
+open import Prim.Data.Qinv
+open import Prim.Data.Sigma
 
-strict-fibers : ∀ {ℓ ℓ'} {A : Type ℓ} {B : Type ℓ'} {f : A → B}
-              → (g : B → A) (y : B)
-              → Σ (fiber f (f (g y)))
-                  (λ (z : fiber f (f (g y)))
-                        → ((x , p) : fiber f y)
-                        → z ＝ g (f x) , ap (λ z → f (g z)) p)
-strict-fibers {f = f} g b .fst = (g b , refl)
-strict-fibers {f = f} g b .snd (a , p) i =
+record is-fequiv {u v} {A : Type u} {B : Type v} (f : A → B) : Type (u ⊔ v) where
+  no-eta-equality
+  field
+    is-feqv : (y : B) → is-contr (fiber f y)
+
+open is-fequiv public
+
+strict-fibers : ∀ {ℓ ℓ'} {A : Type ℓ} {B : Type ℓ'}
+              → (f : A → B) (g : B → A) (y : B)
+              → Σ (λ (z : (fiber f (f (g y)))) →
+                  ((x , p) : fiber f y) → z ＝ g (f x) , ap (λ z → f (g z)) p)
+strict-fibers f g b .fst = (g b , refl)
+strict-fibers f g b .snd (a , p) i =
   (g (p (~ i)) , λ j → f (g (p (~ i ∨ j))))
 
-module contr-fibers {u v} {A : Type u} {B : Type v}
-  (f : A → B) (g : B → A)
-  (η : (x : A) → g (f x) ＝ x)
-  (ε : (y : B) → f (g y) ＝ y)
-  {y : B} ((x , p) : fiber f y)
+module qinv→contr-fibers {u v} {A : Type u} {B : Type v}
+  (q : Qinv A B)
   where
-  faces0 : (i j : I) → Partial (∂ i ∨ ~ j) A
-  faces0 i = λ where
-    k (i = i0) → g y
-    k (i = i1) → η (g y) k
-    k (k = i0) → g (ε y (~ i))
-
-  faces1 : (i j : I) → Partial (∂ i ∨ ~ j) A
-  faces1 i = λ where
-    k (i = i0) → g y
-    k (i = i1) → η x k
-    k (k = i0) → g (p (~ i))
-
   private
-    π₀ : g y ＝ g y
-    π₀ i = hcomp (∂ i) (faces0 i)
+    f = q .fst
+    g = q .snd .qinv-inv
+    η = q .snd .qinv-sec
+    ε = q .snd .qinv-retr
 
-    θ₀ : refl ⌞ ap g (sym (ε y)) ⌟ η (g y) ⇒ π₀
-    θ₀ i j = hfill (∂ i) j (faces0 i)
+  module _ {y : B} ((x , p) : fiber f y) where
+    faces0 : (i j : I) → Partial (∂ i ∨ ~ j) A
+    faces0 i = λ where
+      k (i = i0) → g y
+      k (i = i1) → η (g y) k
+      k (k = i0) → g (ε y (~ i))
 
-    π₁ : g y ＝ x
-    π₁ i = hcomp (∂ i) (faces1 i)
+    faces1 : (i j : I) → Partial (∂ i ∨ ~ j) A
+    faces1 i = λ where
+      k (i = i0) → g y
+      k (i = i1) → η x k
+      k (k = i0) → g (p (~ i))
 
-    θ₁ : refl ⌞ ap g (sym p) ⌟ η x  ⇒ π₁
-    θ₁ i j = hfill (∂ i) j (faces1 i)
+    private
+      π₀ : g y ＝ g y
+      π₀ i = hcomp (∂ i) (faces0 i)
 
-  path-faces : (i j : I) → Partial (∂ i ∨ ~ j) A
-  path-faces i = λ where
-    j (i = i0) → π₀ j
-    j (i = i1) → π₁ j
-    j (j = i0) → g y
+      θ₀ : refl ⌞ ap g (sym (ε y)) ⌟ η (g y) ⇒ π₀
+      θ₀ i j = hfill (∂ i) j (faces0 i)
 
-  path : g y ＝ x
-  path i = hcomp (∂ i) (path-faces i)
+      π₁ : g y ＝ x
+      π₁ i = hcomp (∂ i) (faces1 i)
 
-  path-filler : π₀ ⌞ refl ⌟ π₁ ⇒ path
-  path-filler i j = hfill (∂ i) j (path-faces i)
+      θ₁ : refl ⌞ ap g (sym p) ⌟ η x  ⇒ π₁
+      θ₁ i j = hfill (∂ i) j (faces1 i)
 
-  private
-    ι : ap g (ε y) ⌞ ap (λ z → g (f z)) path ⌟ ap g p ⇒ refl
-    ι i j = hcomp (∂ i ∨ ∂ j) λ where
-      k (i = i0) → θ₀ (~ j) (~ k)
-      k (i = i1) → θ₁ (~ j) (~ k)
-      k (j = i0) → η (path i) (~ k)
-      k (j = i1) → g y
-      k (k = i0) → path-filler i (~ j)
+      fiber-faces : (i j : I) → Partial (∂ i ∨ ~ j) A
+      fiber-faces i = λ where
+        j (i = i0) → π₀ j
+        j (i = i1) → π₁ j
+        j (j = i0) → g y
 
-  filler : ε y ⌞ ap f path ⌟ p ⇒ refl
-  filler i j = hcomp (∂ i ∨ ∂ j) λ where
-    k (i = i0) → ε (ε y j) k
-    k (i = i1) → ε (p j) k
-    k (j = i0) → ε (f (path i)) k
-    k (j = i1) → ε y k
-    k (k = i0) → f (ι i j)
+      path : g y ＝ x
+      path i = hcomp (∂ i) (fiber-faces i)
 
-  unit : g (f x) ＝ x
-  unit = ap g p ∙ path
+      fiber-filler : π₀ ⌞ refl ⌟ π₁ ⇒ path
+      fiber-filler i j = hfill (∂ i) j (fiber-faces i)
 
-  counit : f (g y) ＝ y
-  counit = ε y
+      ι : ap g (ε y) ⌞ ap (λ z → g (f z)) path ⌟ ap g p ⇒ refl
+      ι i j = hcomp (∂ i ∨ ∂ j) λ where
+        k (i = i0) → θ₀ (~ j) (~ k)
+        k (i = i1) → θ₁ (~ j) (~ k)
+        k (j = i0) → η (path i) (~ k)
+        k (j = i1) → g y
+        k (k = i0) → fiber-filler i (~ j)
 
-  zig : ap f unit ＝ ε (f x)
-  zig i j = hcomp (∂ i ∨ ∂ j) λ where
-    k (i = i0) → f (hcomp-fill refl (ap g p) path j k)
-    k (i = i1) → ε (p (~ k)) j
-    k (j = i0) → f (g (p (i ∧ ~ k)))
-    k (j = i1) → sq-refl-top (ε y) (ap f path) p filler i k
-    k (k = i0) → neutral-square (ap (λ z → (f (g z))) p) (ε y) i j
+      filler : ε y ⌞ ap f path ⌟ p ⇒ refl
+      filler i j = hcomp (∂ i ∨ ∂ j) λ where
+        k (i = i0) → ε (ε y j) k
+        k (i = i1) → ε (p j) k
+        k (j = i0) → ε (f (path i)) k
+        k (j = i1) → ε y k
+        k (k = i0) → f (ι i j)
 
-  contr-fibers : Path (fiber f y) (g y , ε y) (x , p)
-  contr-fibers i .fst = path i
-  contr-fibers i .snd = filler i
+    unit : g (f x) ＝ x
+    unit i = hcomp (∂ i) λ where
+      j (i = i0) → g (f x)
+      j (i = i1) → path j
+      j (j = i0) → g (p i)
 
-open contr-fibers using ( contr-fibers ) public
+    counit : f (g y) ＝ y
+    counit = ε y
+
+    private
+      φ : Square refl p (sym (ε y)) (ap f (sym path))
+      φ = tri.by-comp (sym (ε y)) (ap f path) (sym p) (Square.rrotate filler)
+
+    adj : ap f unit ＝ ε (f x)
+    adj i j = hcomp (∂ i ∨ ∂ j) λ where
+      k (i = i0) → f (path-filler refl (ap g p) path j k)
+      k (i = i1) → ε (p (~ k)) j
+      k (j = i0) → f (g (p (i ∧ ~ k)))
+      k (j = i1) → φ (~ k) (~ i)
+      k (k = i0) → neutral-square (ap (λ z → (f (g z))) p) (ε y) i j
+
+    fiber-path : Path (fiber f y) (g y , ε y) (x , p)
+    fiber-path i .fst = path i
+    fiber-path i .snd = filler i
+
+  contr : (y : B) → is-contr (fiber f y)
+  contr y .ctr = g y , ε y
+  contr y .paths = fiber-path
+
+  fequiv : is-fequiv f
+  fequiv .is-fequiv.is-feqv = contr
+  {-# INLINE fequiv #-}
+
+open qinv→contr-fibers public
+  renaming ( contr to qinv→contr-fibers
+           ; fequiv to qinv→fequiv )
+  using ()

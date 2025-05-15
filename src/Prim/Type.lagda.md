@@ -35,8 +35,8 @@ id : ∀ {u} {A : Type u} → A → A
 id = λ x → x
 {-# INLINE id #-}
 
-idfun : ∀ {u} (A : Type u) → A → A
-idfun A = λ x → x
+id-of : ∀ {u} (A : Type u) → A → A
+id-of A = λ x → x
 {-# INLINE id #-}
 
 const : ∀ {u v} {A : Type u} {B : Type v} → A → B → A
@@ -46,3 +46,8 @@ const a ._ = a
 rconst : ∀ {u v} {A : Type u} {B : Type v} → A → B → B
 rconst ._ b = b
 {-# INLINE rconst #-}
+
+funcomp : ∀ {u v w} {A : Type u} {B : Type v} {C : B → Type w}
+     → ((y : B) → C y) → (f : A → B) (x : A) → C (f x)
+funcomp g f = λ x → g (f x)
+{-# INLINE funcomp #-}

@@ -4,8 +4,9 @@
 module Prim.Data.Contr where
 
 open import Prim.Type
-open import Prim.Data.Path using (_＝_; Path)
+open import Prim.Data.Path using (_＝_; Path; fiber)
 open import Prim.Data.Nat using (Nat; zero; suc)
+open import Prim.Data.Sigma
 
 record is-contr {ℓ} (A : Type ℓ) : Type ℓ where
   constructor _,_
@@ -17,6 +18,10 @@ open is-contr public
 
 is-prop : ∀ {ℓ} → Type ℓ → Type ℓ
 is-prop A = (x y : A) → x ＝ y
+
+contractible : ∀ {ℓ} {A : Type ℓ} → A → is-prop A → is-contr A
+contractible c p .ctr = c
+contractible c p .paths = p c
 
 is-set : ∀ {ℓ} → Type ℓ → Type ℓ
 is-set A = {x y : A} (p q : x ＝ y) → p ＝ q
@@ -35,4 +40,17 @@ is-hlevelₑ zero A = is-contr A
 is-hlevelₑ (suc zero) A = is-prop A
 is-hlevelₑ (suc (suc n)) A = (x y : A) → is-hlevel n (Path A x y)
 
-```
+-- 1lab's definitions are to the point
+record n-Type ℓ n : Type₊ ℓ where
+  no-eta-equality
+  constructor el
+  field
+    ∣_∣ : Type ℓ
+    is-tr : is-hlevel n ∣_∣
+
+open n-Type public
+
+-- Unique existence
+∃! : ∀ {u v} {A : Type u} (B : A → Type v)
+   → Type (u ⊔ v)
+∃! B = is-contr (Σ B)

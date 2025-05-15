@@ -9,11 +9,11 @@ open import Agda.Builtin.Nat renaming ( _<_ to _<₂_ ) public
 
 infix 7 _≤_ _<_
 
-ind-Nat : ∀ {ℓ} (P : Nat → Type ℓ)
-      → P zero → (∀ k → P k → P (suc k))
-      → (n : Nat) → P n
-ind-Nat P b s zero = b
-ind-Nat P b s (suc n) = s n (ind-Nat P b s n)
+Nat-ind : ∀ {ℓ} (P : Nat → Type ℓ)
+        → P zero → (∀ k → P k → P (suc k))
+        → (n : Nat) → P n
+Nat-ind P b s zero = b
+Nat-ind P b s (suc n) = s n (Nat-ind P b s n)
 
 data _≤_ : Nat → Nat → Type where
   instance 0≤x : ∀ {x} → 0 ≤ x

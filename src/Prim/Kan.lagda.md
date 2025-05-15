@@ -6,7 +6,7 @@ module Prim.Kan where
 
 open import Prim.Type using (Level; Type)
 open import Prim.Pi using (flip)
-open import Prim.Data.Path using (_＝_; refl; sym)
+open import Prim.Data.Path using (_＝_; refl; sym; Square)
 open import Prim.Cubical
 
 open import Agda.Primitive.Cubical using (primComp; primHComp) public
@@ -115,6 +115,11 @@ _⌞_⌟_ : ∀ {ℓ} {A : Type ℓ} {w x y z : A} → x ＝ w → x ＝ y → y
 (p ⌞ q ⌟ r) i = hcomp (∂ i) (path-faces p q r i)
 {-# NOINLINE _⌞_⌟_ #-}
 
+path-filler : ∀ {ℓ} {A : Type ℓ}  {w x y z : A}
+            → (p : x ＝ w) (q : x ＝ y) (r : y ＝ z)
+            → p ⌞ q ⌟ r ⇒ (p ⌞ q ⌟ r)
+path-filler p q r i j = hfill (∂ i) j (path-faces p q r i)
+
 -- The traditional double-composition operator
 _∙∙_∙∙_ : ∀ {ℓ} {A : Type ℓ} {w x y z : A} → w ＝ x → x ＝ y → y ＝ z → w ＝ z
 p ∙∙ q ∙∙ r = sym p ⌞ q ⌟ r
@@ -127,5 +132,3 @@ From which we choose a canonical single-composition definition
 
 path-comp : ∀ {ℓ} {A : Type ℓ} {x y z : A} → x ＝ y → y ＝ z → x ＝ z
 path-comp {x = x} {y} p q = refl ⌞ p ⌟ q
-
-

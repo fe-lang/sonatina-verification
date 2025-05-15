@@ -48,7 +48,7 @@ ieq : I → I → I
 ieq i j = (i ∧ j) ∨ (~ i ∧ ~ j)
 
 ierp : I → I → I → I
-ierp t i j = (~ t ∧ i) ∨ (t ∧ j) ∨ (i ∧ j)
+ierp i j k = (~ k ∧ i) ∨ (k ∧ j) ∨ (i ∧ j)
 
 imid : I → I → I
 imid i j = ierp (i ∧ j ∨ ~ i ∧ ~ j) i j

@@ -4,17 +4,19 @@
 
 module Prim.Equiv where
 
-open import Prim.Type using (Type; _⊔_)
+open import Prim.Type using (Level; Type; _⊔_) renaming (funcomp to infixr 40 _∘_) using ()
+open import Prim.Pi
 open import Prim.Cubical
-open import Prim.Kan
-  using (hcomp; hfill)
-  renaming (path-comp to _∙_)
+open import Prim.Interval using (coe; transport; transport-refl; module coe)
+open import Prim.Kan using (hcomp; _⌞_⌟_; path-filler)
 open import Prim.Fill
-  using (hcomp-fill; neutral-square; sq-rwhisker; sq-lswap)
+  using (neutral-square; module tri; path-cfiller)
+open import Prim.Fiber
 
 open import Prim.Data.Path
 open import Prim.Data.Sigma
 open import Prim.Data.Contr
+open import Prim.Data.Qinv
 
 record is-equiv {u v} {A : Type u} {B : Type v} (f : A → B) : Type (u ⊔ v) where
   no-eta-equality
@@ -27,20 +29,19 @@ record is-equiv {u v} {A : Type u} {B : Type v} (f : A → B) : Type (u ⊔ v) w
 
   fun = f
 
-  abstract
-    inv-adj : ∀ y → ap inv (retr y) ＝ sec (inv y)
-    inv-adj b =
-      let
-        pf : (x : A) → ap inv (retr (f x)) ＝ sec (inv (f x))
-        pf x i j = hcomp (∂ i ∨ ∂ j) λ where
-          k (i = i0) → inv (retr (f x) (j ∨ ~ k))
-          k (i = i1) → sec (sec x (~ k)) j
-          k (j = i0) → inv (adj x (~ i) (~ k))
-          k (j = i1) → sec x (i ∧ ~ k)
-          k (k = i0) → sec x (i ∧ j)
-      in
-        transp (λ i → ap inv (retr (retr b i)) ＝ sec (inv (retr b i)))
-          i0 (pf (inv b))
+  inv-adj : ∀ y → ap inv (retr y) ＝ sec (inv y)
+  inv-adj y =
+    let
+      pf : (x : A) → ap inv (retr (f x)) ＝ sec (inv (f x))
+      pf x i j = hcomp (∂ i ∨ ∂ j) λ where
+        k (i = i0) → inv (retr (f x) (j ∨ ~ k))
+        k (i = i1) → sec (sec x (~ k)) j
+        k (j = i0) → inv (adj x (~ i) (~ k))
+        k (j = i1) → sec x (i ∧ ~ k)
+        k (k = i0) → sec x (i ∧ j)
+    in
+      transp (λ i → ap inv (retr (retr y i)) ＝ sec (inv (retr y i)))
+        i0 (pf (inv y))
 
 open is-equiv public
   renaming ( fun to eqv-fun
@@ -50,58 +51,88 @@ open is-equiv public
            ; adj to eqv-adj
            ; inv-adj to eqv-inv-adj )
 
+
 _≃_ : ∀ {u v} → Type u → Type v → Type (u ⊔ v)
-A ≃ B = Σ f ∶ (A → B) , is-equiv f
+A ≃ B = Σ {A = A → B} is-equiv
 {-# BUILTIN EQUIV      _≃_   #-}
 
-eqtofun : ∀ {u v} {A : Type u} {B : Type v} → A ≃ B → A → B
-eqtofun e = fst e
-{-# BUILTIN EQUIVFUN   eqtofun   #-}
+eqvtofun : ∀ {u v} {A : Type u} {B : Type v} → A ≃ B → A → B
+eqvtofun e = fst e
+{-# BUILTIN EQUIVFUN   eqvtofun  #-}
 
-module equiv-fibers {u v} {A : Type u} {B : Type v}
-  (f : A → B) (g : B → A)
-  (η : (x : A) → g (f x) ＝ x)
-  (ε : (y : B) → f (g y) ＝ y)
-  (α : (x : A) → ap f (η x) ＝ ε (f x))
-  {y : B} (z : fiber f y)
-  where
-  open Σ z renaming (fst to x; snd to p)
-
-  path : g y ＝ x
-  path = ap g (sym p) ∙ η x
-
+module _ {u v} {A : Type u} {B : Type v} (e : Qinv A B) where
   private
-    σ : refl  ⌞ ap f path ⌟ p ⇒ ε y
-    σ i j = hcomp (∂ i ∨ ∂ j) λ where
-      k (i = i0) → f (g (p (~ j ∨ k)))
-      k (i = i1) → sq-rwhisker (ap f (η x)) (ε (f x)) p (α x) j k
-      k (j = i0) → f (hcomp-fill refl (ap g (sym p)) (η x) i k)
-      k (j = i1) → ε (p k) i
-      k (k = i0) → neutral-square (ap f (ap g (sym p))) (ε (f x)) i j
+    f = e .fst
+    module e = qinv→contr-fibers e
 
-  filler : ε y ⌞ ap f path ⌟ p ⇒ refl
-  filler = sq-lswap (ap f path) p (ε y) σ
+  qinv→equiv : is-equiv f
+  qinv→equiv .is-equiv.inv = e .snd .qinv-inv
+  qinv→equiv .is-equiv.sec x = e.unit (x , refl)
+  qinv→equiv .is-equiv.retr = e .snd .qinv-retr
+  qinv→equiv .is-equiv.adj x = e.adj (x , refl)
 
-  contr : Path (fiber f y) (g y , ε y) (x , p)
-  contr i .fst = path i
-  contr i .snd = filler i
+transport-is-equiv : ∀ {ℓ} (A : I → Type ℓ) → is-equiv (coe A i1)
+transport-is-equiv A .eqv-inv = coe (λ i → A (~ i)) i1
+transport-is-equiv A .eqv-sec = transport.unit A
+transport-is-equiv A .eqv-retr = transport.counit A
+transport-is-equiv A .eqv-adj = transport.adj A
 
-equiv-fibers : ∀ {u v} (A : Type u) (B : Type v) (w : A ≃ B) {y : B}
-            → (let f = w .fst)
-            → is-contr (fiber f y)
-equiv-fibers A B w {(y)} .ctr = w .snd .eqv-inv y , w .snd .eqv-retr y
-equiv-fibers A B w .paths z = equiv-fibers.contr e.fun e.inv e.sec e.retr e.adj z
-  where module e = is-equiv (w .snd)
+id-is-equiv : ∀ {u} {A : Type u} → is-equiv {A = A} (λ x → x)
+id-is-equiv .eqv-inv = λ x → x
+id-is-equiv .eqv-sec = erefl
+id-is-equiv .eqv-retr = erefl
+id-is-equiv .eqv-adj x = refl
 
-equiv-proof : ∀ {u v} (T : Type u) (A : Type v) → (w : T ≃ A) → (a : A)
-            → ∀ ψ (f : Partial ψ (fiber (w .fst) a)) → fiber (w .fst) a [ ψ ↦ f ]
-equiv-proof A B w a ψ fb =
-  inS (contr' {A = fiber (w .fst) a} (equiv-fibers A B w) ψ fb)
+pathtoeqv : ∀ {u} {A B : Type u} → A ＝ B → A ≃ B
+pathtoeqv P = transport P , transport-is-equiv λ i → P i
+
+module equiv-fibers {u v} {A : Type u} {B : Type v} ((f , e) : A ≃ B) where
+  private
+    module e = is-equiv e
+    g = e.inv
+    η = e.sec
+    ε = e.retr
+    α = e.adj
+
+    module _ {y : B} ((x , p) : fiber f y) where
+      path : g y ＝ x
+      path = ap g p ⌞ refl ⌟ η x
+
+      filler : ε y ⌞ ap f path ⌟ p ⇒ refl
+      filler i j = hcomp (∂ i ∨ ∂ j) λ where
+        k (i = i0) → ε (p k) j
+        k (i = i1) → neutral-square (ap f (η x)) p j k
+        k (j = i0) → f (path-filler (ap g p) refl (η x) i k)
+        k (j = i1) → p k
+        k (k = i0) → α x (~ i) j
+
+  prop : {y : B} (z : fiber f y) → Path (fiber f y) (g y , ε y) z
+  prop z i .fst = path z i
+  prop z i .snd = filler z i
+
+  contr : (y : B) → is-contr (fiber f y)
+  contr y .ctr = g y , ε y
+  contr y .paths = prop
+
+  fequiv : is-fequiv f
+  fequiv .is-fequiv.is-feqv = contr
+
+open equiv-fibers public
+  renaming ( contr to equiv→contr-fibers
+           ; fequiv to equiv→fequiv )
+  using ()
+
+equiv-proof : ∀ {u v} (T : Type u) (A : Type v) (w : T ≃ A) (a : A)
+            → ∀ φ (u : Partial φ (fiber (w .fst) a)) → fiber (w .fst) a [ φ ↦ u ]
+equiv-proof {u} {v} T A w a φ fb = inS contr
   where
-    contr' : ∀ {ℓ} {A : Type ℓ} → is-contr A → (φ : I) → (u : Partial φ A) → A
-    contr' (c , p) φ u = hcomp (∂ φ) λ where
-      i (φ = i1) → p (u 1=1) i
-      i (φ = i0) → c
-      i (i = i0) → c
+    γ : is-contr (fiber (w .fst) a)
+    γ = equiv→contr-fibers w a
+
+    contr : fiber (w .fst) a
+    contr = hcomp (∂ φ) λ where
+      i (φ = i1) → γ .paths (fb 1=1) i
+      i (φ = i0) → γ .ctr
+      i (i = i0) → γ .ctr
 
 {-# BUILTIN EQUIVPROOF equiv-proof #-}
