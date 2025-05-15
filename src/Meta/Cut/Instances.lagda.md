@@ -8,6 +8,7 @@ open import Prim.Data.Path using (Path)
 open import Prim.Kan using (path-comp)
 
 open import Meta.Cut.Type
+open import Data.Category.Type
 
 instance
   Cut-funcomp : ∀ {u v w} {B : Type v} {C : B → Type w}

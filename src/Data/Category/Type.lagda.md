@@ -9,8 +9,10 @@ open import Prim.Pi
 open import Prim.Data.Path
 open import Prim.Data.Sigma
 open import Prim.Equiv
-open import Prim.Kan using (path-reasoning-syntax)
-open import Trait.Category.Type
+open import Prim.Reasoning using (path-reasoning-syntax)
+
+open import Trait.Category.Type public
+open import Meta.Cut.Type public
 
 record Category o h : Type₊ (o ⊔ h) where
   field
@@ -23,35 +25,14 @@ record Category o h : Type₊ (o ⊔ h) where
 
   module _ (x : Ob) where open has-identity (is-cat x) public
 
-  idnr : ∀ {x y} (f : Hom x y) → seq f (idn y) ＝ f
-  idnr {x = x} {y = y} f =
-    let module eq = is-equiv (idn-retr y x)
-        open eq renaming ( inv to cod )
-    in
-     seq f (idn y)
-       ＝⟨ sym (ap (λ f → seq f (idn y)) (eq.retr f)) ⟩
-     seq (seq (cod f) (idn y)) (idn y)
-       ＝⟨ sym (assoc (cod f) (idn y) (idn y)) ⟩
-     seq (cod f) (seq (idn y) (idn y))
-       ＝⟨ ap (seq (cod f)) (idn-idpt y) ⟩
-     seq (cod f) (idn y)
-       ＝⟨ eq.retr f ⟩
-     refl
+  open is-category Hom seq is-cat
+    (λ {x} f → assoc (idn x) (idn x) f)
+    (λ {y = y} f → sym (assoc f (idn y) (idn y)))
+    public
 
-  idnl : ∀ {x y} (f : Hom x y) → seq (idn x) f ＝ f
-  idnl {x = x} {y = y} f =
-    let module eq = is-equiv (idn-sec x y)
-        open eq renaming ( inv to dom )
-    in
-      seq (idn x) f
-        ＝⟨ sym (ap (seq (idn x)) (eq.retr f)) ⟩
-      seq (idn x) (seq (idn x) (dom f))
-        ＝⟨ assoc (idn x) (idn x) (dom f) ⟩
-      seq (seq (idn x) (idn x)) (dom f)
-        ＝⟨ ap (λ h → seq h (dom f)) (idn-idpt x) ⟩
-      seq (idn x) (dom f)
-        ＝⟨ eq.retr f ⟩
-      refl
+  instance
+    Cut-Category : Hom-Cut Hom
+    Cut-Category .Cut.seq = seq
 
   op : Category o h
   op .Ob = Ob

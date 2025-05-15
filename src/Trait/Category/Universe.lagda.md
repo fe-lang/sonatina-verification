@@ -4,12 +4,13 @@
 module Trait.Category.Universe where
 
 open import Prim.Type
-open import Prim.Equiv using ( is-equiv; eqv-inv; eqv-sec; eqv-retr; eqv-adj )
+open import Prim.Equiv
 open import Prim.Data.Path
-open import Prim.Kan renaming ( path-comp to _∙_ )
-open import Prim.Fill using ( path-idnl; path-idnr; path-idpt; path-assoc )
-open import Prim.Fiber using ( module contr-fibers )
+open import Prim.Data.Qinv
+open import Prim.Fill using (path-idnl; path-idnr; path-idpt; path-assoc)
+open import Prim.Fiber
 open import Prim.Data.Sigma
+open import Meta.Cut
 
 open import Trait.Category.Type
 open import Data.Category
@@ -29,21 +30,27 @@ module _ {ℓ} {A : Type ℓ} {x y : A} where
     ε : (p : x ＝ y) → (refl ∙ p) ∙ refl ＝ p
     ε p = path-idnr (refl ∙ p) ∙ path-idnl p
 
+    q-post : Qinv (x ＝ y) (x ＝ y)
+    q-post .fst = post
+    q-post .snd .qinv-inv = pre
+    q-post .snd .qinv-sec = η
+    q-post .snd .qinv-retr = ε
+
+    q-pre : Qinv (x ＝ y) (x ＝ y)
+    q-pre .fst = pre
+    q-pre .snd .qinv-inv = post
+    q-pre .snd .qinv-sec = ε
+    q-pre .snd .qinv-retr = η
+
     -- TODO: A direct proof is preferable, but this will do for now
-    module post (p : x ＝ y) = contr-fibers post pre η ε (p , refl)
-    module pre (p : x ＝ y) = contr-fibers pre post ε η (p , refl)
+    module post (p : x ＝ y) = qinv→contr-fibers q-post
+    module pre (p : x ＝ y) = qinv→contr-fibers q-pre
 
   refl-post-equiv : is-equiv post
-  refl-post-equiv .eqv-inv = pre
-  refl-post-equiv .eqv-sec = post.unit
-  refl-post-equiv .eqv-retr = ε
-  refl-post-equiv .eqv-adj = post.zig
+  refl-post-equiv = qinv→equiv q-post
 
   refl-pre-equiv : is-equiv pre
-  refl-pre-equiv .eqv-inv = post
-  refl-pre-equiv .eqv-sec = pre.unit
-  refl-pre-equiv .eqv-retr = η
-  refl-pre-equiv .eqv-adj = pre.zig
+  refl-pre-equiv = qinv→equiv q-pre
 
 typ-is-category : ∀ {ℓ} (A : Type ℓ) → is-category (Path A) _∙_
 typ-is-category A x .has-identity.idn = refl

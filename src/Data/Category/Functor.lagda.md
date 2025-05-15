@@ -3,9 +3,7 @@
 
 module Data.Category.Functor where
 
-open import Prim.Type
-open import Prim.Path
-
+open import Lib.Base
 open import Data.Category.Type
 
 module _ {o o' h h'} (C : Category o h) (D : Category o' h') where
@@ -19,14 +17,14 @@ module _ {o o' h h'} (C : Category o h) (D : Category o' h') where
       F₁ : ∀ {x y} → C.Hom x y → D.Hom (F₀ x) (F₀ y)
       idn : ∀ x → F₁ (C.idn x) ＝ D.idn (F₀ x)
       hom : ∀ {x y z} (g : C.Hom y z) (f : C.Hom x y)
-          → F₁ (C [ f ⨾ g ]) ＝ D [ F₁ f ⨾ F₁ g ]
+          → F₁ (f ∙ g) ＝ F₁ f ∙ F₁ g
 
 module _ {o o' h h'} (C : Category o h) (D : Category o' h') where
   private module C = Category C
           module D = Category D
 
-  CtFunctor : Type (o ⊔ o' ⊔ h ⊔ h')
-  CtFunctor = Functor C.op D
+  Contravariant-functor : Type (o ⊔ o' ⊔ h ⊔ h')
+  Contravariant-functor = Functor C.op D
 
 module _ {o₁ o₂ o₃ h₁ h₂ h₃}
   {C : Category o₁ h₁}
@@ -37,8 +35,8 @@ module _ {o₁ o₂ o₃ h₁ h₂ h₃}
           module D = Category D
           module E = Category E
 
-  _⨾⨾_ : Functor C D → Functor D E → Functor C E
-  _⨾⨾_ F G = FG
+  F-comp : Functor C D → Functor D E → Functor C E
+  F-comp F G = FG
     where
     module F = Functor F
     module G = Functor G

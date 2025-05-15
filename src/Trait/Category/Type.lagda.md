@@ -52,7 +52,7 @@ module _ {o h} {Ob : Type o}
     idnl : ∀ {x y} (f : R x y) → C.idn x ⨾ f ＝ f
     idnl {x = x} {y = y} f =
         C.idn x ⨾ f
-          ＝⟨ sym (ap (C.idn x ⨾_) (retr f))  ⟩
+          ＝⟨ sym (ap (C.idn x ⨾_) (retr f)) ⟩
         C.idn x ⨾ (C.idn x ⨾ (dom f))
           ＝⟨ idn-assocl (dom f) ⟩
        (C.idn x ⨾ C.idn x) ⨾ dom f
