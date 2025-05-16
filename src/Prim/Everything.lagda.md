@@ -12,6 +12,7 @@ open import Prim.Equiv public
 open import Prim.Fiber public
 open import Prim.Fill public
 open import Prim.Glue public
+open import Prim.Literals public
 open import Prim.Interval public
 open import Prim.Kan public
 open import Prim.Pi public

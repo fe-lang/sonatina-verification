@@ -7,7 +7,7 @@ module Prim.Equiv where
 open import Prim.Type using (Level; Type; _⊔_) renaming (funcomp to infixr 40 _∘_) using ()
 open import Prim.Pi
 open import Prim.Cubical
-open import Prim.Interval using (coe; transport; transport-refl; module coe)
+open import Prim.Interval using (coe; transport; transport-refl; module coe; is-contr→extend)
 open import Prim.Kan using (hcomp; _⌞_⌟_; path-filler)
 open import Prim.Fill
   using (neutral-square; module tri; path-cfiller)
@@ -124,15 +124,9 @@ open equiv-fibers public
 
 equiv-proof : ∀ {u v} (T : Type u) (A : Type v) (w : T ≃ A) (a : A)
             → ∀ φ (u : Partial φ (fiber (w .fst) a)) → fiber (w .fst) a [ φ ↦ u ]
-equiv-proof {u} {v} T A w a φ fb = inS contr
+equiv-proof {u} {v} T A w a = is-contr→extend γ
   where
     γ : is-contr (fiber (w .fst) a)
     γ = equiv→contr-fibers w a
-
-    contr : fiber (w .fst) a
-    contr = hcomp (∂ φ) λ where
-      i (φ = i1) → γ .paths (fb 1=1) i
-      i (φ = i0) → γ .ctr
-      i (i = i0) → γ .ctr
 
 {-# BUILTIN EQUIVPROOF equiv-proof #-}

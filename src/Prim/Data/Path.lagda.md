@@ -71,14 +71,14 @@ Square p q r s = PathP (λ i → q i ＝ s i) p r
 syntax Square p q r s = p ⌞ q ⌟ r ⇒ s
 
 SquareP : ∀ {ℓ} (A : I → I → Type ℓ)
-        → {a₀₀ : A i0 i0} {a₀₁ : A i0 i1}
-        → {a₁₀ : A i1 i0} {a₁₁ : A i1 i1}
-        → PathP (λ i → A i i0) a₀₀ a₁₀
-        → PathP (λ j → A i0 j) a₀₀ a₀₁
-        → PathP (λ i → A i i1) a₀₁ a₁₁
-        → PathP (λ j → A i1 j) a₁₀ a₁₁
+        → {a00 : A i0 i0} {a01 : A i0 i1}
+        → {a10 : A i1 i0} {a11 : A i1 i1}
+        → PathP (λ j → A i0 j) a00 a01
+        → PathP (λ i → A i i0) a00 a10
+        → PathP (λ j → A i1 j) a10 a11
+        → PathP (λ i → A i i1) a01 a11
         → Type ℓ
-SquareP A p q r s = PathP (λ i → PathP (λ j → A i j) (p i) (r i)) q s
+SquareP A p q r s = PathP (λ i → PathP (λ j → A i j) (q i) (s i)) p r
 
 module Square {ℓ} {A : Type ℓ} {a00 a01 a10 a11 : A}
   {p : a00 ＝ a01} {q : a00 ＝ a10} {r : a10 ＝ a11} {s : a01 ＝ a11}

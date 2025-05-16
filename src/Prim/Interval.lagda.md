@@ -98,10 +98,6 @@ to-pathp {A} {x} p i = hcomp (∂ i) λ where
   j (i = i1) → p j
   j (j = i0) → coe A i x
 
-is-prop→pathp : ∀ {ℓ} {A : I → Type ℓ} → ((i : I) → is-prop (A i))
-              → ∀ x y → PathP (λ i → A i) x y
-is-prop→pathp {A} H x y = to-pathp (H i1 (coe A i1 x) y)
-
 module transport where
   filler : ∀ {ℓ} {A B : Type ℓ} (p : A ＝ B) (x : A)
          → ∂ i ↦ p i , x ＝ transport p x
@@ -159,9 +155,11 @@ module transport where
       w1 : g y ＝ x1
       w1 i = comp (λ j → P (~ j)) (∂ i) (faces x1 p1 i)
 
-      -- TODO: Fill in type when I fix SquareP
-      sq0 = λ (i j : I) → fill (λ k → A (~ k)) (∂ i) j (faces x0 p0 i)
-      sq1 = λ (i j : I) → fill (λ k → A (~ k)) (∂ i) j (faces x1 p1 i)
+      sq0 : SquareP (λ _ j → P (~ j)) (λ i → v (~ i) y) (sym p0) (λ i → u (~ i) x0) w0
+      sq0 i j = fill (λ k → P (~ k)) (∂ i) j (faces x0 p0 i)
+
+      sq1 : SquareP (λ _ z → A (~ z)) (λ i → v (~ i) y) (sym p1) (λ i → u (~ i) x1) w1
+      sq1 i j = fill (λ k → A (~ k)) (∂ i) j (faces x1 p1 i)
 
       w : x0 ＝ x1
       w i = hcomp (∂ i) λ where
@@ -202,7 +200,7 @@ module transport where
         k (i = i1) → has-fiber A (p1 (~ k)) .snd j
         k (j = i0) → f (g (p1 (i ∧ ~ k)))
         k (j = i1) → φ (~ k) (~ i)
-        k (k = i0) → neutral-square (ap (f ∘ g) p1) p0 i j 
+        k (k = i0) → neutral-square (ap (f ∘ g) p1) p0 i j
 
   unit : ∀ {ℓ} (A : I → Type ℓ) (x : A i0)
        → transport (λ i → A (~ i)) (coe A i1 x) ＝ x
@@ -224,3 +222,20 @@ module transport where
 transportd : ∀ {ℓ} {A B : I → Type ℓ} (P : A i1 ＝ B i0)
            → {a : A i0} {b : A i1} → PathP A a b → B i1
 transportd {B = B} P p  = transport (λ i → B i) (transport P (p i1))
+
+-- Turn a contractibility proof into an extension type, used in Prim.Equiv
+-- and for Cubical HLevel proofs
+is-contr→extend : ∀ {ℓ} {A : Type ℓ} → is-contr A
+                → (i : I) (p : Partial i A) →  A [ i ↦ p ]
+is-contr→extend contr i p = inS
+  (hcomp (∂ i) λ where
+      j (i = i1) → contr .paths (p 1=1) j
+      j (i = i0) → contr .ctr
+      j (j = i0) → contr .ctr)
+{-# INLINE is-contr→extend #-}
+
+extend→is-contr : ∀ {ℓ} {A : Type ℓ}
+                → (∀ i (p : Partial i A) → A [ i ↦ p ])
+                → is-contr A
+extend→is-contr ex .ctr = outS (ex i0 λ ())
+extend→is-contr ex .paths x i = outS (ex i (λ _ → x))

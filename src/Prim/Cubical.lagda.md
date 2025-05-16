@@ -30,7 +30,7 @@ open import Agda.Builtin.Cubical.Sub public
   renaming ( Sub to _[_↦_]
            ; primSubOut to outS )
 
--- Import and instantiate core primitives early
+-- Import the core primitives early
 import Agda.Builtin.Cubical.HCompU
 
 infixl 70 ∂_
@@ -49,6 +49,3 @@ ieq i j = (i ∧ j) ∨ (~ i ∧ ~ j)
 
 ierp : I → I → I → I
 ierp i j k = (~ k ∧ i) ∨ (k ∧ j) ∨ (i ∧ j)
-
-imid : I → I → I
-imid i j = ierp (i ∧ j ∨ ~ i ∧ ~ j) i j
