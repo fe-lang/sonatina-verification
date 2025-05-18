@@ -11,6 +11,7 @@ module Trait.HLevel.Base where
 open import Prim.Type
 open import Prim.Interval
 open import Prim.Interval.Kan
+open import Prim.Data.Sigma
 open import Prim.Data.Path
 open import Prim.Data.Contr
 open import Prim.Data.Nat
@@ -100,10 +101,26 @@ is-contr→PathP : ∀ {ℓ} {A : I → Type ℓ}
 is-contr→PathP contr = is-prop→PathP (λ i → is-contr→is-prop (contr i))
 
 is-prop→is-set : ∀ {ℓ} {A : Type ℓ} → is-prop A → is-set A
-is-prop→is-set aprop x = is-contr→is-set (contractible x aprop) x
+is-prop→is-set aprop x = is-contr→is-set (contractible aprop x) x
 
 is-prop-is-prop : ∀ {ℓ} (A : Type ℓ) → is-prop (is-prop A)
 is-prop-is-prop A xprop yprop i x y = is-prop→is-set xprop x y (xprop x y) (yprop x y) i
+
+is-contr-is-prop : ∀ {ℓ} (A : Type ℓ) → is-prop (is-contr A)
+is-contr-is-prop A x y i = α i , β i where
+  φ : (i : I) → is-prop A
+  φ i = is-prop-is-prop A (is-contr→is-prop x) (is-contr→is-prop y) i
+
+  α : x .ctr ＝ y .ctr
+  α = φ i (x .ctr) (y .ctr)
+
+  ψ : (k : I) (z : A) → (p q : α k ＝ z) → p ＝ q
+  ψ k z p q = is-contr→is-set x (α k) z p q
+
+  β : (j : I) (z : A) → α j ＝ z
+  β j z =
+    is-contr→PathP (λ k → contractible (ψ k z) (φ k (α k) z))
+      (x .paths z) (y .paths z) j
 
 ```
 
