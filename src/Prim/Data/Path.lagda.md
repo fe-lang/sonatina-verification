@@ -5,7 +5,7 @@
 module Prim.Data.Path where
 
 open import Prim.Type
-open import Prim.Cubical
+open import Prim.Interval.Core
 open import Prim.Data.Sigma
 
 ```

@@ -2,10 +2,10 @@
 
 {-# OPTIONS --cubical --safe --no-sized-types --no-guardedness #-}
 
-module Prim.Glue where
+module Prim.Interval.Glue where
 
 open import Prim.Type using ( Type )
-open import Prim.Cubical using ( I; Partial; PartialP )
+open import Prim.Interval.Core using ( I; Partial; PartialP )
 
 open import Prim.Equiv
 

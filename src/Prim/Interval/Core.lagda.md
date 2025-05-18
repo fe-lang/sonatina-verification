@@ -1,7 +1,7 @@
 ```agda
 {-# OPTIONS --safe --erased-cubical #-}
 
-module Prim.Cubical where
+module Prim.Interval.Core where
 
 open import Prim.Type using ( Level; Type; _₊ )
 open import Agda.Primitive.Cubical public

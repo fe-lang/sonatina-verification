@@ -4,11 +4,11 @@
 module Prim.Fiber where
 
 open import Prim.Type
-open import Prim.Cubical
-open import Prim.Kan
+open import Prim.Interval.Core
+open import Prim.Interval.Kan
   using (hcomp; hfill; path-filler)
   renaming (path-comp to _∙_)
-open import Prim.Fill using (neutral-square; module tri)
+open import Prim.Interval.Fill using (neutral-square; module tri)
 
 open import Prim.Data.Path
 open import Prim.Data.Contr

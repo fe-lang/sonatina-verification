@@ -5,7 +5,7 @@ module Meta.Cut.Instances where
 
 open import Prim.Type
 open import Prim.Data.Path using (Path)
-open import Prim.Kan using (path-comp)
+open import Prim.Interval.Kan using (path-comp)
 
 open import Meta.Cut.Type
 open import Data.Category.Type

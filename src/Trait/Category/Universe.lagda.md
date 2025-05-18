@@ -7,7 +7,7 @@ open import Prim.Type
 open import Prim.Equiv
 open import Prim.Data.Path
 open import Prim.Data.Qinv
-open import Prim.Fill using (path-idnl; path-idnr; path-idpt; path-assoc)
+open import Prim.Interval.Fill using (path-idnl; path-idnr; path-idpt; path-assoc)
 open import Prim.Fiber
 open import Prim.Data.Sigma
 open import Meta.Cut

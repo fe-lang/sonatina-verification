@@ -2,12 +2,12 @@
 
 {-# OPTIONS --safe --erased-cubical #-}
 
-module Prim.Kan where
+module Prim.Interval.Kan where
 
 open import Prim.Type using (Level; Type)
 open import Prim.Pi using (flip)
 open import Prim.Data.Path using (_＝_; refl; sym; Square; PathP)
-open import Prim.Cubical
+open import Prim.Interval.Core
 
 open import Agda.Primitive.Cubical using (primComp; primHComp) public
 open import Agda.Builtin.Cubical.HCompU public

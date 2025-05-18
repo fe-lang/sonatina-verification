@@ -4,12 +4,12 @@ Elementary fillers for path squares
 
 {-# OPTIONS --safe --erased-cubical #-}
 
-module Prim.Fill where
+module Prim.Interval.Fill where
 
 open import Prim.Type
-open import Prim.Cubical
+open import Prim.Interval.Core
 open import Prim.Data.Path
-open import Prim.Kan renaming (path-comp to infixr 40 _∙_)
+open import Prim.Interval.Kan renaming (path-comp to infixr 40 _∙_)
 
 open Square
 

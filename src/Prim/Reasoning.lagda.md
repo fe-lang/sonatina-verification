@@ -7,7 +7,7 @@ module Prim.Reasoning where
 
 open import Prim.Type
 open import Prim.Pi using (flip)
-open import Prim.Kan using (path-comp; _⌞_⌟_)
+open import Prim.Interval.Kan using (path-comp; _⌞_⌟_)
 open import Prim.Data.Path using (_＝_; sym)
 
 -- This formulation of path reasoning syntax derives from the
