@@ -8,7 +8,7 @@ open import Prim.Type using (Level; Type; _⊔_) renaming (funcomp to infixr 40 
 open import Prim.Pi
 open import Prim.Interval.Core
 open import Prim.Interval.Transport using (coe; transport; transport-refl; module coe; is-contr→extend)
-open import Prim.Interval.Kan using (hcomp; _⌞_⌟_; path-filler)
+open import Prim.Interval.Kan using (hcomp; _∙∙_∙∙_ ; path-filler)
 open import Prim.Interval.Fill
   using (neutral-square; module tri; path-cfiller)
 open import Prim.Fiber
@@ -96,7 +96,7 @@ module equiv-fibers {u v} {A : Type u} {B : Type v} ((f , e) : A ≃ B) where
 
     module _ {y : B} ((x , p) : fiber f y) where
       path : g y ＝ x
-      path = ap g p ⌞ refl ⌟ η x
+      path = ap g (sym p) ∙∙ refl ∙∙ η x
 
       filler : ε y ⌞ ap f path ⌟ p ⇒ refl
       filler i j = hcomp (∂ i ∨ ∂ j) λ where

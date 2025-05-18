@@ -16,27 +16,32 @@ open import Prim.Data.Contr
 open import Prim.Data.Nat
 open import Meta.Cut
 
-is-hlevel : ∀ {ℓ} → Nat → Type ℓ → Type ℓ
-is-hlevel zero A = is-contr A
-is-hlevel (suc zero) A = is-prop A
-is-hlevel (suc (suc n)) A = (x y : A) → is-hlevel (suc n) (x ＝ y)
+```
 
-record n-Type ℓ n : Type₊ ℓ where
-  no-eta-equality
-  field
-    ∣_∣ : Type ℓ
-    is-tr : is-hlevel n ∣_∣
+Basic definitions
 
-open n-Type public
+```
 
-is-hom-set : ∀ {o h} {ob : Type o} → (ob → ob → Type h) → Type (o ⊔ h)
-is-hom-set H = ∀ x y → is-set (H x y)
+is-prop : ∀ {ℓ} → Type ℓ → Type ℓ
+is-prop A = (x y : A) → x ＝ y
 
 is-dprop : ∀ {u v} {A : Type u} → (A → Type v) → Type (u ⊔ v)
 is-dprop B = ∀ x → is-prop (B x)
 
+is-set : ∀ {ℓ} → Type ℓ → Type ℓ
+is-set A = (x y : A) → is-prop (x ＝ y)
+
+is-dset : ∀ {u v} {A : Type u} → (A → Type v) → Type (u ⊔ v)
+is-dset P = ∀ x → is-set (P x)
+
 is-grpd : ∀ {ℓ} → Type ℓ → Type ℓ
 is-grpd A = (x y : A) → is-set (x ＝ y)
+
+is-dgrpd : ∀ {u v} {A : Type u} → (A → Type v) → Type (u ⊔ v)
+is-dgrpd P = ∀ x → is-grpd (P x)
+
+is-hom-set : ∀ {o h} {ob : Type o} → (ob → ob → Type h) → Type (o ⊔ h)
+is-hom-set H = ∀ x y → is-set (H x y)
 
 is-prop→PathP : ∀ {ℓ} {A : I → Type ℓ} → ((i : I) → is-prop (A i))
               → ∀ x y → PathP (λ i → A i) x y
@@ -99,6 +104,25 @@ is-prop→is-set aprop x = is-contr→is-set (contractible x aprop) x
 
 is-prop-is-prop : ∀ {ℓ} (A : Type ℓ) → is-prop (is-prop A)
 is-prop-is-prop A xprop yprop i x y = is-prop→is-set xprop x y (xprop x y) (yprop x y) i
+
+```
+
+Introduce general is-hlevel predicate defined using induction on Nat
+
+```
+
+is-hlevel : ∀ {ℓ} → Nat → Type ℓ → Type ℓ
+is-hlevel zero A = is-contr A
+is-hlevel (suc zero) A = is-prop A
+is-hlevel (suc (suc n)) A = (x y : A) → is-hlevel (suc n) (x ＝ y)
+
+record n-Type ℓ n : Type₊ ℓ where
+  no-eta-equality
+  field
+    ∣_∣ : Type ℓ
+    is-tr : is-hlevel n ∣_∣
+
+open n-Type public
 
 is-hlevel-suc : ∀ {ℓ} {A : Type ℓ} (k : Nat)
               → is-hlevel k A
