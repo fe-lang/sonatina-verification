@@ -91,13 +91,6 @@ transport-refl {A = A} x i = coe.filler (λ _ → A) x (~ i) i1
               → 𝓙 C c (λ i → x) ＝ c x
 𝓙-refl C c x = transport-refl (c x)
 
-to-pathp : ∀ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
-         → coe A i1 x ＝ y → PathP A x y
-to-pathp {A} {x} p i = hcomp (∂ i) λ where
-  j (i = i0) → x
-  j (i = i1) → p j
-  j (j = i0) → coe A i x
-
 module transport where
   filler : ∀ {ℓ} {A B : Type ℓ} (p : A ＝ B) (x : A)
          → ∂ i ↦ p i , x ＝ transport p x
@@ -222,6 +215,17 @@ module transport where
 transportd : ∀ {ℓ} {A B : I → Type ℓ} (P : A i1 ＝ B i0)
            → {a : A i0} {b : A i1} → PathP A a b → B i1
 transportd {B = B} P p  = transport (λ i → B i) (transport P (p i1))
+
+to-pathp : ∀ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
+         → coe A i1 x ＝ y → PathP A x y
+to-pathp {A} {x} p i = hcomp (∂ i) λ where
+  j (i = i0) → x
+  j (i = i1) → p j
+  j (j = i0) → coe A i x
+
+Path＝PathP : ∀ {ℓ} (P : I → Type ℓ) (p : P i0) (q : P i1)
+           → Path (P i1) (transport (λ i → P i) p) q ＝ PathP P p q
+Path＝PathP P p q i = PathP (λ j → P (~ i ∨ j)) (transport.filler (λ j → P j) p (~ i)) q
 
 -- Turn a contractibility proof into an extension type, used in Prim.Equiv
 -- and for Cubical HLevel proofs

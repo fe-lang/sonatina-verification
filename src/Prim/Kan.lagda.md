@@ -6,7 +6,7 @@ module Prim.Kan where
 
 open import Prim.Type using (Level; Type)
 open import Prim.Pi using (flip)
-open import Prim.Data.Path using (_＝_; refl; sym; Square)
+open import Prim.Data.Path using (_＝_; refl; sym; Square; PathP)
 open import Prim.Cubical
 
 open import Agda.Primitive.Cubical using (primComp; primHComp) public
@@ -41,10 +41,6 @@ hcomp : ∀ {ℓ} {A : Type ℓ} (φ : I)
       → (u : (i : I) → Partial (φ ∨ ~ i) A) → A
 hcomp φ u = primHComp (λ j .o → u j (is1-left φ (~ j) o)) (u i0 1=1)
 
-hcompd : ∀ {ℓ} {A : I → Type ℓ} (φ : I)
-      → (u : (i : I) → Partial (φ ∨ ~ i) (A φ)) → A φ
-hcompd φ u = primHComp (λ j .o → u j (is1-left φ (~ j) o)) (u i0 1=1)
-
 hcomp-unique : ∀ {ℓ} {A : Type ℓ} (φ : I)
                (u : ∀ i → Partial (φ ∨ ~ i) A)
              → (h₂ : ∀ i → A [ _ ↦ one-faces φ u i ])
@@ -55,27 +51,27 @@ hcomp-unique φ u h₂ i =
     k (i = i1) → outS (h₂ k)
     k (φ = i1) → u k 1=1
 
+hfill : ∀ {ℓ} {A : Type ℓ} (φ : I) → I
+      → ((i : I) → Partial (φ ∨ ~ i) A)
+      → A
+hfill φ i u =
+  hcomp (φ ∨ ~ i) λ where
+    j (i = i0) → u i0      1=1
+    j (j = i0) → u i0      1=1
+    j (φ = i1) → u (i ∧ j) 1=1
+
 comp : {ℓ^ : I → Level} (A : (i : I) → Type (ℓ^ i)) (φ : I)
      → (u : (i : I) → Partial (φ ∨ ~ i) (A i))
      → A i1
 comp A φ u = primComp A (λ j .o → u j (is1-left φ (~ j) o)) (u i0 1=1)
 
-hfill : ∀ {ℓ} {A : Type ℓ} (φ : I) → I
-      → ((i : I) → Partial (φ ∨ ~ i) A)
-      → A
-hfill φ i u = 
-  hcomp (φ ∨ ~ i) λ where
-    j (φ = i1) → u (i ∧ j) 1=1
-    j (i = i0) → u i0      1=1
-    j (j = i0) → u i0      1=1
-
 fill : {ℓ^ : I → Level} (A : ∀ i → Type (ℓ^ i)) (φ : I) (i : I)
      → (u : ∀ i → Partial (φ ∨ ~ i) (A i))
      → A i
 fill A φ i u = comp (λ j → A (i ∧ j)) (φ ∨ ~ i) λ where
-  j (φ = i1) → u (i ∧ j) 1=1
   j (i = i0) → u i0 1=1
   j (j = i0) → u i0 1=1
+  j (φ = i1) → u (i ∧ j) 1=1
 
 ```
 
@@ -104,15 +100,19 @@ inverting `p : w ＝ x`, our version has `p : x ＝ w`.)
 
 ```
 
-path-faces : ∀ {ℓ} {A : Type ℓ} {w x y z : A}
-           → (p : x ＝ w) (q : x ＝ y) (r : y ＝ z)
-           → (i j : I) → Partial (∂ i ∨ ~ j) A
+path-faces : ∀ {ℓ} {A : I → Type ℓ}
+               → {x w : A i0} {y z : A i1}
+               → x ＝ w
+               → PathP A x y
+               → y ＝ z
+               → (i j : I) → Partial (∂ i ∨ ~ j) (A i)
 path-faces p q r i j (i = i0) = p j
 path-faces p q r i j (i = i1) = r j
 path-faces p q r i j (j = i0) = q i
 
 _⌞_⌟_ : ∀ {ℓ} {A : Type ℓ} {w x y z : A} → x ＝ w → x ＝ y → y ＝ z → w ＝ z
 (p ⌞ q ⌟ r) i = hcomp (∂ i) (path-faces p q r i)
+
 {-# NOINLINE _⌞_⌟_ #-}
 
 path-filler : ∀ {ℓ} {A : Type ℓ}  {w x y z : A}

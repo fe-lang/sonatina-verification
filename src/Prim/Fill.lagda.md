@@ -87,7 +87,7 @@ module _ {ℓ} {A : Type ℓ} where
   path-idpt : (x : A) → refl ∙ refl ＝ refl {x = x}
   path-idpt x i j = hcomp (∂ j ∨ i) (λ _ _ → x)
 
-  path-invr : {x y : A} (p : x ＝ y) → p ∙ (sym p) ＝ erefl x
+  path-invr : {x y : A} (p : x ＝ y) → p ∙ sym p ＝ erefl x
   path-invr {x = x} p i j = hcomp (∂ j ∨ i) λ where
     k (j = i0) → x
     k (j = i1) → p (~ i ∧ ~ k)
@@ -98,17 +98,10 @@ module _ {ℓ} {A : Type ℓ} where
   path-invl p = path-invr (sym p)
 
   path-idnr : {x y : A} (p : x ＝ y) → p ∙ refl ＝ p
-  path-idnr {x} {y} p i j = hfill (∂ j) (~ i) λ where
-    k (j = i0) → x
-    k (j = i1) → y
-    k (k = i0) → p j
+  path-idnr {x} {y} p = rrotate (path-lfiller p refl)
 
   path-idnl : {x y : A} (p : x ＝ y) → refl ∙ p ＝ p
-  path-idnl {x} {y} p i j = hcomp (∂ j ∨ i) λ where
-    k (j = i0) → x
-    k (j = i1) → p (i ∨ k)
-    k (i = i1) → p j
-    k (k = i0) → p (i ∧ j)
+  path-idnl {x} {y} p = rrotate (path-rfiller refl p)
 
   path-assoc : {w x y z : A} (p : w ＝ x) (q : x ＝ y) (r : y ＝ z)
              → p ∙ (q ∙ r) ＝ (p ∙ q) ∙ r

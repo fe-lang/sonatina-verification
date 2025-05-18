@@ -111,25 +111,38 @@ module Square {ℓ} {A : Type ℓ} {a00 a01 a10 a11 : A}
   itranspose α i j = α (~ j) (~ i)
   {-# INLINE itranspose #-}
 
-⟨_⟩₁ : ∀ {ℓ} {A : Type ℓ} → A → Type ℓ
-⟨_⟩₁ {A = A} x = Σ (x ＝_)
-
-singl-contr : ∀ {ℓ} {A : Type ℓ} {x : A} (y : ⟨ x ⟩₁) → (x , refl) ＝ y
-singl-contr (y , p) = λ i → p i , λ j → p (i ∧ j)
-
--- Introduce path induction. Find its computation rule in Prim.Interval
+-- Introduce (unbiased) path induction. Find its computation rule in Prim.Interval
 𝓙 : ∀ {ℓ ℓ'} {A : Type ℓ} (C : (x y : A) → x ＝ y → Type ℓ')
          → (∀ x → C x x refl) → ∀ {u v} (w : u ＝ v) → C u v w
 𝓙 C c {u} w = transp (λ i → C u (w i) (λ j → w (i ∧ j))) i0 (c u)
 
--- Finally we have transport along with its 2-dimensional variant
-tr : ∀ {ℓ ℓ'} {A : Type ℓ} (P : A → Type ℓ')
+-- Finally we introduce transport along with its 2-dimensional variant
+subst : ∀ {ℓ ℓ'} {A : Type ℓ} (P : A → Type ℓ')
   → {x y : A} → x ＝ y → P x → P y
-tr P {x} q = transp (λ i → P (q i)) i0
+subst P {x} q = transp (λ i → P (q i)) i0
 
-tr2 : ∀ {u v w} {A : Type u} {B : A → Type v}
+subst2 : ∀ {u v w} {A : Type u} {B : A → Type v}
     → (P : (x : A) → B x → Type w)
     → {a a' : A} {b : B a} {b' : B a'}
     → (p : a ＝ a') → (∂ i ↦ B (p i) , b ＝ b')
     → P a b → P a' b'
-tr2 P p q = transp (λ i → P (p i) (q i)) i0
+subst2 P p q = transp (λ i → P (p i) (q i)) i0
+
+⟨_⟩₁ : ∀ {ℓ} {A : Type ℓ} → A → Type ℓ
+⟨_⟩₁ {A = A} x = Σ (x ＝_)
+
+singl-contr : ∀ {ℓ} {A : Type ℓ} {x : A} (s : ⟨ x ⟩₁) → x , refl ＝ s
+singl-contr (y , p) = λ i → p i , λ j → p (i ∧ j)
+
+-- Based path induction
+J : ∀ {u v} {A : Type u} {x : A} (P : (y : A) → x ＝ y → Type v)
+  → P x refl → (y : A) (q : x ＝ y) → P y q
+J {v} {A} {x} P c y q =
+  let
+    Q : ⟨ x ⟩₁ → Type v
+    Q s = P (s .fst) (s .snd)
+
+    sing : x , refl ＝ y , q
+    sing = singl-contr (y , q)
+  in
+    subst2 (λ z r → Q (z , r)) q  (ap snd sing) c

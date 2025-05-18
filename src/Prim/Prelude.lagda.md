@@ -19,3 +19,6 @@ open import Prim.Data.Nat public
 open import Prim.Data.Path public
 open import Prim.Data.Contr public
 open import Prim.Data.Qinv public
+
+open import Meta.Cut public
+open import Meta.Underlying public
