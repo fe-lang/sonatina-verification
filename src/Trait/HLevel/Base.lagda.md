@@ -117,10 +117,11 @@ is-contr-is-prop A x y i = α i , β i where
   ψ : (k : I) (z : A) → (p q : α k ＝ z) → p ＝ q
   ψ k z p q = is-contr→is-set x (α k) z p q
 
+  contr : (z : A) (k : I) → is-contr (α k ＝ z)
+  contr z k = contractible (ψ k z) (φ k (α k) z)
+
   β : (j : I) (z : A) → α j ＝ z
-  β j z =
-    is-contr→PathP (λ k → contractible (ψ k z) (φ k (α k) z))
-      (x .paths z) (y .paths z) j
+  β j z = is-contr→PathP (contr z) (x .paths z) (y .paths z) j
 
 ```
 
