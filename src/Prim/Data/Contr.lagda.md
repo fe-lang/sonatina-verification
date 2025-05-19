@@ -17,6 +17,6 @@ open is-contr public
 
 -- Alternative constructor for is-contr utilizing is-prop. is-prop is formally
 -- defined in Trait.HLevel
-contractible : ∀ {ℓ} {A : Type ℓ} → A → ((x y : A) → x ＝ y) → is-contr A
-contractible c p .ctr = c
-contractible c p .paths = p c
+contractible : ∀ {ℓ} {A : Type ℓ} → ((x y : A) → x ＝ y) → A →  is-contr A
+contractible p c .ctr = c
+contractible p c .paths = p c
