@@ -4,6 +4,8 @@
 module Prim.Data.Qinv where
 
 open import Prim.Type renaming (funcomp to infixr 40 _∘_)
+open import Prim.Interval.Core
+open import Prim.Interval.Transport
 open import Prim.Reasoning
 open import Prim.Data.Path
 open import Prim.Data.Sigma
@@ -79,3 +81,21 @@ Qinv-comp f g .snd = γ
     fun (inv y)     ＝⟨ ap g.fun (f.retr (g.inv y)) ⟩
     g.fun (g.inv y) ＝⟨ g.retr y ∣
     y ∎
+
+Σ-PathP-Qinv : ∀ {u v} {A : I → Type u} {B : (i : I) → A i → Type v}
+    {x : Σ (B i0)} {y : Σ (B i1)}
+  → Qinv
+      (Σ p ∶ PathP A (x .fst) (y .fst) ,
+        (PathP (λ i → B i (p i)) (x .snd) (y .snd)))
+      (PathP (λ i → Σ (B i)) x y)
+Σ-PathP-Qinv .fst (p , q) i = p i , q i
+Σ-PathP-Qinv .snd .qinv-inv p = (λ i → p i .fst) , λ i → p i .snd
+Σ-PathP-Qinv .snd .qinv-sec p = refl
+Σ-PathP-Qinv .snd .qinv-retr p = refl
+
+Σ-Path-Qinv : ∀ {u v} {A : Type u} {B : A → Type v} {x y : Σ B}
+            → Qinv (Σ p ∶ x .fst ＝ y .fst , (subst B p (x .snd) ＝ y .snd)) (x ＝ y)
+Σ-Path-Qinv {B} {x} {y} =
+  transport (λ i → Qinv (Σ p ∶ x .fst ＝ y .fst
+                 , Path＝PathP (λ i → B (p i)) (x .snd) (y .snd) (~ i)) (x ＝ y))
+            Σ-PathP-Qinv

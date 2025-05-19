@@ -8,6 +8,7 @@ module Prim.Interval.Fill where
 
 open import Prim.Type
 open import Prim.Interval.Core
+open import Prim.Data.Sigma
 open import Prim.Data.Path
 open import Prim.Interval.Kan renaming (path-comp to infixr 40 _∙_)
 
@@ -107,3 +108,55 @@ module _ {ℓ} {A : Type ℓ} where
              → p ∙ (q ∙ r) ＝ (p ∙ q) ∙ r
   path-assoc p q r i =
      transpose (path-lfiller p q) i ∙ rrotate (path-rfiller q r) i
+
+Path-filler : ∀ {ℓ} {A : Type ℓ} {w x y z : A}
+            → (p : x ＝ w) (q : x ＝ y) (r : y ＝ z) → Type ℓ
+Path-filler {w = w} {z = z} p q r =
+  Σ s ∶ (w ＝ z) , Square p q r s
+
+module Path-filler {ℓ} {A : Type ℓ} {w x y z : A}
+  (p : x ＝ w) (q : x ＝ y) (r : y ＝ z)
+  (α β : Path-filler p q r)
+  where
+  faces : (k j i : I) → Partial (∂ k ∨ ∂ j ∨ ~ i) A
+  faces k j i (k = i0) = α .snd j i
+  faces k j i (k = i1) = β .snd j i
+  faces k j i (j = i0) = p i
+  faces k j i (j = i1) = r i
+  faces k j i (i = i0) = q j
+
+  unique : α ＝ β
+  unique k =
+    let
+      cb : p ⌞ q ⌟ r ⇒ _
+      cb j i = hfill (∂ k ∨ ∂ j) i (faces k j)
+
+      sq i = cb i i1
+    in sq , λ j i → cb j i
+
+path-comp-unique : ∀ {ℓ} {A : Type ℓ} {x y z : A}
+                 → {p : x ＝ y} {q : y ＝ z} (r : x ＝ z)
+                 → refl ⌞ p ⌟ q ⇒ r
+                 → r ＝ p ∙ q
+path-comp-unique {p} {q} r sq i =
+  Path-filler.unique refl p q (r , sq) (p ∙ q , path-lfiller p q) i .fst
+
+homotopy-natural : ∀ {u v} {A : Type u} {B : Type v}
+                 → {f g : A → B}
+                 → (H : (x : A) → f x ＝ g x)
+                 → {x y : A} (p : x ＝ y)
+                 → H x ∙ ap g p ＝ ap f p ∙ H y
+homotopy-natural {f = f} {g = g} H {x} {y} p = path-comp-unique _ λ i j →
+  hcomp (~ j ∨ ∂ i) λ where
+    k (i = i0) → f x
+    k (i = i1) → H (p k) j
+    k (j = i0) → f (p (i ∧ k))
+    k (k = i0) → H x (i ∧ j)
+
+Σ-PathP
+  : ∀ {ℓ ℓ'} {A : I → Type ℓ} {B : ∀ i → A i → Type ℓ'}
+  → {x : Σ (B i0)} {y : Σ (B i1)}
+  → (p : PathP A (x .fst) (y .fst))
+  → PathP (λ i → B i (p i)) (x .snd) (y .snd)
+  → PathP (λ i → Σ (B i)) x y
+Σ-PathP p q i = p i , q i

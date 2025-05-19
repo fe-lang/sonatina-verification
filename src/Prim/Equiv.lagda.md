@@ -60,16 +60,27 @@ eqvtofun : ∀ {u v} {A : Type u} {B : Type v} → A ≃ B → A → B
 eqvtofun e = fst e
 {-# BUILTIN EQUIVFUN   eqvtofun  #-}
 
-module _ {u v} {A : Type u} {B : Type v} (e : Qinv A B) where
+module _ {u v} {A : Type u} {B : Type v} {f : A → B} (e : has-qinv f) where
   private
-    f = e .fst
     module e = qinv→contr-fibers e
 
   qinv→equiv : is-equiv f
-  qinv→equiv .is-equiv.inv = e .snd .qinv-inv
+  qinv→equiv .is-equiv.inv = e .qinv-inv
   qinv→equiv .is-equiv.sec x = e.unit (x , refl)
-  qinv→equiv .is-equiv.retr = e .snd .qinv-retr
+  qinv→equiv .is-equiv.retr = e .qinv-retr
   qinv→equiv .is-equiv.adj x = e.adj (x , refl)
+
+equiv→qinv : ∀ {u v} {A : Type u} {B : Type v} {f : A → B}
+           → is-equiv f → has-qinv f
+equiv→qinv e .qinv-inv = e .eqv-inv
+equiv→qinv e .qinv-sec = e .eqv-sec
+equiv→qinv e .qinv-retr = e .eqv-retr
+
+Qinv→Equiv : ∀ {u v} {A : Type u} {B : Type v} (e : Qinv A B) → A ≃ B
+Qinv→Equiv e = e .fst , qinv→equiv (e .snd)
+
+Equiv→Qinv : ∀ {u v} {A : Type u} {B : Type v} → A ≃ B → Qinv A B
+Equiv→Qinv e = e .fst , equiv→qinv (e .snd)
 
 transport-is-equiv : ∀ {ℓ} (A : I → Type ℓ) → is-equiv (coe A i1)
 transport-is-equiv A .eqv-inv = coe (λ i → A (~ i)) i1
@@ -86,14 +97,23 @@ id-is-equiv .eqv-adj x = refl
 pathtoeqv : ∀ {u} {A B : Type u} → A ＝ B → A ≃ B
 pathtoeqv P = transport P , transport-is-equiv λ i → P i
 
-module equiv-fibers {u v} {A : Type u} {B : Type v} ((f , e) : A ≃ B) where
+module Equiv {u v} {A : Type u} {B : Type v} ((f , e) : A ≃ B) where
   private
     module e = is-equiv e
-    g = e.inv
-    η = e.sec
-    ε = e.retr
-    α = e.adj
+  inv = e.inv
+  η = e.sec
+  ε = e.retr
+  α = e.adj
 
+  inverse : B ≃ A
+  inverse .fst = inv
+  inverse .snd .eqv-inv = f
+  inverse .snd .eqv-sec = ε
+  inverse .snd .eqv-retr = η
+  inverse .snd .eqv-adj = e.inv-adj
+
+  private
+    g = inv
     module _ {y : B} ((x , p) : fiber f y) where
       path : g y ＝ x
       path = ap g (sym p) ∙∙ refl ∙∙ η x
@@ -117,16 +137,13 @@ module equiv-fibers {u v} {A : Type u} {B : Type v} ((f , e) : A ≃ B) where
   fequiv : is-fequiv f
   fequiv .is-fequiv.is-feqv = contr
 
-open equiv-fibers public
-  renaming ( contr to equiv→contr-fibers
-           ; fequiv to equiv→fequiv )
+open Equiv public
+  renaming ( contr to Equiv→contr-fibers
+           ; fequiv to Equiv→fequiv )
   using ()
 
 equiv-proof : ∀ {u v} (T : Type u) (A : Type v) (w : T ≃ A) (a : A)
             → ∀ φ (u : Partial φ (fiber (w .fst) a)) → fiber (w .fst) a [ φ ↦ u ]
-equiv-proof {u} {v} T A w a = is-contr→extend γ
-  where
-    γ : is-contr (fiber (w .fst) a)
-    γ = equiv→contr-fibers w a
+equiv-proof {u} {v} T A w a = is-contr→extend (Equiv→contr-fibers w a)
 
 {-# BUILTIN EQUIVPROOF equiv-proof #-}

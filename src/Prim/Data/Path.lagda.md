@@ -164,3 +164,30 @@ funexti p i j = p j i
 happly : ∀ {a b} {A : Type a} {B : A → Type b} {f g : (x : A) → B x}
        → f ＝ g → (x : A) → f x ＝ g x
 happly p x i = p i x
+
+module _ {ℓ ℓ'} where
+  aps : {A : Type ℓ} {B : Type ℓ'} {x y : A} (f : A → B) → x ＝ y → f x ＝ f y
+  aps f p i = f (p i)
+  {-# INLINE aps #-}
+
+  apd : {A : I → Type ℓ} {B : (i : I) → A i → Type ℓ'}
+      → (f : (i : I) → (a : A i) → B i a) {x : A i0} {y : A i1}
+      → (p : PathP A x y)
+      → ∂ i ↦ B i (p i) , f i0 x ＝ f i1 y
+  apd f p i = f i (p i)
+  {-# INLINE apd #-}
+
+module _ {u v w} {A : Type u} where
+  ap2 : {B : A → Type v} {C : (s : A) → B s → Type w}
+      → (f : (s : A) (t : B s) → C s t) {x y : A} {a : B x} {b : B y}
+      → (p : x ＝ y) (q : ∂ i ↦ B (p i) , a ＝ b)
+      → ∂ i ↦ C (p i) (q i) , f x a ＝ f y b
+  ap2 f p q i = f (p i) (q i)
+  {-# INLINE ap2 #-}
+
+  ap2s : {B : Type v} {C : A → B → Type w}
+       → (f : (s : A) (t : B) → C s t) {x y : A} {a b : B}
+       → (p : x ＝ y) (q : a ＝ b)
+       → ∂ i ↦ C (p i) (q i) , f x a ＝ f y b
+  ap2s f p q i = f (p i) (q i)
+  {-# INLINE ap2s #-}

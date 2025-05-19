@@ -47,10 +47,10 @@ module _ {ℓ} {A : Type ℓ} {x y : A} where
     module pre (p : x ＝ y) = qinv→contr-fibers q-pre
 
   refl-post-equiv : is-equiv post
-  refl-post-equiv = qinv→equiv q-post
+  refl-post-equiv = Qinv→equiv q-post
 
   refl-pre-equiv : is-equiv pre
-  refl-pre-equiv = qinv→equiv q-pre
+  refl-pre-equiv = Qinv→equiv q-pre
 
 typ-is-category : ∀ {ℓ} (A : Type ℓ) → is-category (Path A) _∙_
 typ-is-category A x .has-identity.idn = refl

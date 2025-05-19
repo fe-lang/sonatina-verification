@@ -12,7 +12,6 @@ open import Prim.Interval.Fill using ( module tri; neutral-square )
 open import Prim.Data.Contr
 open import Prim.Data.Sigma
 open import Prim.Data.Path
-open import Prim.Data.Qinv
 
 open import Prim.Interval.Core public
 

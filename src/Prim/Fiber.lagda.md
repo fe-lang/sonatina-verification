@@ -30,14 +30,13 @@ strict-fibers f g b .fst = (g b , refl)
 strict-fibers f g b .snd (a , p) i =
   (g (p (~ i)) , λ j → f (g (p (~ i ∨ j))))
 
-module qinv→contr-fibers {u v} {A : Type u} {B : Type v}
-  (q : Qinv A B)
+module qinv→contr-fibers {u v} {A : Type u} {B : Type v} {f : A → B}
+  (e : has-qinv f)
   where
   private
-    f = q .fst
-    g = q .snd .qinv-inv
-    η = q .snd .qinv-sec
-    ε = q .snd .qinv-retr
+    g = e .qinv-inv
+    η = e .qinv-sec
+    ε = e .qinv-retr
 
   module _ {y : B} ((x , p) : fiber f y) where
     faces0 : (i j : I) → Partial (∂ i ∨ ~ j) A
@@ -129,4 +128,12 @@ module qinv→contr-fibers {u v} {A : Type u} {B : Type v}
 open qinv→contr-fibers public
   renaming ( contr to qinv→contr-fibers
            ; fequiv to qinv→fequiv )
+  using ()
+
+module Qinv→contr-fibers {u v} {A : Type u} {B : Type v}
+  (q : Qinv A B) = qinv→contr-fibers (q .snd)
+
+open Qinv→contr-fibers public
+  renaming ( contr to Qinv→contr-fibers
+           ; fequiv to Qinv→fequiv )
   using ()
