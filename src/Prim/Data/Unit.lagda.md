@@ -2,7 +2,7 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Data.Unit.Type where
+module Prim.Data.Unit where
 
 open import Prim.Type using (Type ; Lift; lift )
 open import Agda.Builtin.Unit public
@@ -10,7 +10,6 @@ open import Agda.Builtin.Unit public
 module _ {ℓ} (P : ⊤ → Type ℓ) (p : P tt) where
   ⊤-ind : (x : ⊤) → P x
   ⊤-ind ._ = p
-
 
 ```
 

@@ -2,7 +2,7 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Data.Empty.Type where
+module Prim.Data.Empty where
 
 open import Prim.Type
 
