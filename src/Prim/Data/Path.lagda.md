@@ -146,3 +146,21 @@ J {v} {A} {x} P c y q =
     sing = singl-contr (y , q)
   in
     subst2 (λ z r → Q (z , r)) q  (ap snd sing) c
+
+```
+
+Finally, we export `funext` here, as well as its inverse opperation `happly`
+
+```
+
+funext : ∀ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'} {f g : (x : A) → B x}
+       → ((x : A) → f x ＝ g x) → f ＝ g
+funext p i x = p x i
+
+funexti : ∀ {ℓ} {A : I → Type ℓ} {f g : (i : I) → A i}
+       → ((i : I) → f i ＝ g i) → f ＝ g
+funexti p i j = p j i
+
+happly : ∀ {a b} {A : Type a} {B : A → Type b} {f g : (x : A) → B x}
+       → f ＝ g → (x : A) → f x ＝ g x
+happly p x i = p i x
