@@ -40,8 +40,19 @@ syntax Σ-syntax A (λ x → M) = Σ x ∶ A , M
 {-# DISPLAY Σ-syntax _ B = Σ B #-}
 
 instance
+  Σ-instance : ∀ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'}
+             → ⦃ x : A ⦄ ⦃ y : B x ⦄ → Σ B
+  Σ-instance ⦃ x ⦄ .fst = x
+  Σ-instance ⦃ y ⦄ .snd = y
+
   Underlying-Σ : ∀ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'}
                → ⦃ ua : Underlying A ⦄
                → Underlying (Σ B)
   Underlying-Σ ⦃ ua ⦄ .ℓ-underlying = ua .ℓ-underlying
   Underlying-Σ .⌞_⌟ x = ⌞ x .fst ⌟
+
+diag : ∀ {ℓ} {A : Type ℓ} → A → A × A
+diag a = a , a
+
+swap : ∀ {u v} {A : Type u} {B : Type v} → A × B → B × A
+swap (a , b) = b , a
