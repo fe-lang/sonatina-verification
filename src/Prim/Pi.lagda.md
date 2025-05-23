@@ -9,8 +9,8 @@ open import Prim.Type
 -- This is the one Control module we'll allow in Prim due to how fundamental
 -- function composition is, and we want it as soon as possible
 
-infixr -1 _$_
-infixl -1 _&_
+infixr -1 _$_ _&_
+infix 2 _~>_ _~~>_
 
 infix -1 pi-syntax
 
@@ -23,8 +23,13 @@ syntax pi-syntax A (λ x → M) = Π x ∶ A , M
 {-# DISPLAY pi-syntax A B = Π {A = A} B #-}
 
 -- Wild natural transformations
-Nt : ∀ {u v w} {X : Type u} → (X → Type v) → (X → Type w) → Type (u ⊔ v ⊔ w)
-Nt A B = ∀ x → A x → B x
+_~>_ : ∀ {u v w} {X : Type u} → (X → Type v) → (X → Type w) → Type (u ⊔ v ⊔ w)
+_~>_ A B = ∀ x → A x → B x
+
+-- From Idris: type of natural transformations "with explicit 0-morphisms"
+_~~>_ : ∀ {u v w} {X : Type u} → (X → Type v) → (X → Type w) → X → Type (v ⊔ w)
+_~~>_ A B x = A x → B x
+{-# DISPLAY _~~>_ P Q _ = P ~> Q #-}
 
 flip : ∀ {u v w} {A : Type u} {B : Type v} {C : Type w}
      → (A → B → C) → (B → A → C)
