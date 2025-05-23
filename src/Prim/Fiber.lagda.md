@@ -15,13 +15,6 @@ open import Prim.Data.Contr
 open import Prim.Data.Qinv
 open import Prim.Data.Sigma
 
-record is-fequiv {u v} {A : Type u} {B : Type v} (f : A → B) : Type (u ⊔ v) where
-  no-eta-equality
-  field
-    is-feqv : (y : B) → is-contr (fiber f y)
-
-open is-fequiv public
-
 strict-fibers : ∀ {ℓ ℓ'} {A : Type ℓ} {B : Type ℓ'}
               → (f : A → B) (g : B → A) (y : B)
               → Σ (λ (z : (fiber f (f (g y)))) →
@@ -30,8 +23,8 @@ strict-fibers f g b .fst = (g b , refl)
 strict-fibers f g b .snd (a , p) i =
   (g (p (~ i)) , λ j → f (g (p (~ i ∨ j))))
 
-module qinv→contr-fibers {u v} {A : Type u} {B : Type v} {f : A → B}
-  (e : has-qinv f)
+module contr-map {u v} {A : Type u} {B : Type v} {f : A → B}
+ (e : has-qinv f)
   where
   private
     g = e .qinv-inv
@@ -121,19 +114,17 @@ module qinv→contr-fibers {u v} {A : Type u} {B : Type v} {f : A → B}
   contr y .ctr = g y , ε y
   contr y .paths = fiber-path
 
-  fequiv : is-fequiv f
-  fequiv .is-fequiv.is-feqv = contr
-  {-# INLINE fequiv #-}
-
-open qinv→contr-fibers public
-  renaming ( contr to qinv→contr-fibers
-           ; fequiv to qinv→fequiv )
+open contr-map public
+  renaming ( contr to qinv→contr-map
+           ; unit to qinv→unit
+           ; counit to qinv→counit
+           )
   using ()
 
-module Qinv→contr-fibers {u v} {A : Type u} {B : Type v}
-  (q : Qinv A B) = qinv→contr-fibers (q .snd)
+private
+  module Qinv→contr-map {u v} {A : Type u} {B : Type v}
+    (q : Qinv A B) = contr-map (q .snd)
 
-open Qinv→contr-fibers public
-  renaming ( contr to Qinv→contr-fibers
-           ; fequiv to Qinv→fequiv )
+open Qinv→contr-map public
+  renaming ( contr to Qinv→contr-map )
   using ()
