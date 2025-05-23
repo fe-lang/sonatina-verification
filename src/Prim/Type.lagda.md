@@ -31,6 +31,12 @@ record Lift {u} ℓ (A : Type u) : Type (u ⊔ ℓ) where
 
 open Lift public
 
+```
+
+Fundamental to our base type theory
+
+```
+
 id : ∀ {u} {A : Type u} → A → A
 id = λ x → x
 {-# INLINE id #-}
