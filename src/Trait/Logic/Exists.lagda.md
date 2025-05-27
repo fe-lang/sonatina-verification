@@ -6,7 +6,7 @@ module Trait.Logic.Exists where
 open import Prim.Type
 open import Trait.HLevel.Base
 
-open import Prim.Data.Sigma public
+open import Data.Sigma.Type public
 open import HData.Trunc.Prop public
 
 infix 5 ∃-syntax

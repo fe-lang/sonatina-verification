@@ -2,9 +2,10 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Prim.Pi where
+module Lib.Pi where
 
 open import Prim.Type
+open import Meta.Cut public
 
 -- This is the one Control module we'll allow in Prim due to how fundamental
 -- function composition is, and we want it as soon as possible
@@ -72,3 +73,10 @@ itω ⦃ (a) ⦄ = a
 -- Explicit type hint
 the : ∀ {ℓ} (A : Type ℓ) → A → A
 the _ a = a
+
+instance
+  Cut-funcomp : ∀ {u v w} {B : Type v} {C : B → Type w}
+              → Cut (λ (A : Type u) → A → B)
+                    (λ _ → Π C)
+                    (λ A f → (x : A) → C (f x))
+  Cut-funcomp .Cut.seq {x = A} f g x = g (f x)

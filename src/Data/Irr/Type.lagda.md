@@ -9,7 +9,7 @@ Strict propositional truncations, defined just as in 1lab
 module Data.Irr.Type where
 
 open import Prim.Type
-open import Control.Effect
+open import Meta.Idiom
 
 record Irr {ℓ} (A : Type ℓ) : Type ℓ where
   constructor forget

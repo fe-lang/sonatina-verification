@@ -4,7 +4,7 @@
 module Data.Semicategory.Type where
 
 open import Prim.Type
-open import Prim.Pi using ( flip )
+open import Lib.Pi using ( flip )
 open import Prim.Path using ( _＝_; refl; sym )
 
 record Semicategory o h : Type₊ (o ⊔ h) where

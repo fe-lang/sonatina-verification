@@ -4,7 +4,7 @@
 module Data.Sum.Base where
 
 open import Prim.Type
-open import Prim.Data.Path
+open import Data.Path.Type
 open import Data.Empty.Type
 
 open import Data.Sum.Type public

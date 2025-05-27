@@ -4,17 +4,14 @@
 module Trait.Category.Type where
 
 open import Prim.Type
-open import Prim.Data.Path
-open import Prim.Equiv using ( is-equiv )
-open import Prim.Reasoning
+open import Data.Path.Type
+open import Trait.Equiv using ( is-equiv )
+open import Data.Path.Reasoning
 
 module _ {o h} {Ob : Type o}
   (R : Ob → Ob → Type h)
-  (seq : ∀ {x y z} → R x y → R y z → R x z)
+  (_⨾_ : ∀ {x y z} → R x y → R y z → R x z)
   where
-  infixr 40 _⨾_
-  private
-    _⨾_ = seq
 
   record has-identity (x : Ob) : Type (o ⊔ h) where
     field
@@ -31,7 +28,7 @@ module _ {o h} {Ob : Type o}
     (idn-assocl : ∀ {x y} (f : R x y)
                 → C.idn x ⨾ (C.idn x ⨾ f) ＝ (C.idn x ⨾ C.idn x) ⨾ f)
     (idn-assocr : ∀ {x y} (f : R x y)
-                → (f ⨾ C.idn y) ⨾ C.idn y ＝ f ⨾ C.idn y ⨾ C.idn y)
+                → (f ⨾ C.idn y) ⨾ C.idn y ＝ f ⨾ (C.idn y ⨾ C.idn y))
     where
     private module s {x y} = is-equiv (C.idn-sec x y)
     private module r {x y} = is-equiv (C.idn-retr x y)
@@ -46,8 +43,7 @@ module _ {o h} {Ob : Type o}
          ＝⟨ ap (cod f ⨾_) (C.idn-idpt y) ⟩
        cod f ⨾ C.idn y
          ＝⟨ retr f ∣
-       f ∎
-         where open r renaming ( inv to cod )
+       f ∎ where open r renaming ( inv to cod )
 
     idnl : ∀ {x y} (f : R x y) → C.idn x ⨾ f ＝ f
     idnl {x = x} {y = y} f =

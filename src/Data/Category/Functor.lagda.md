@@ -3,7 +3,8 @@
 
 module Data.Category.Functor where
 
-open import Lib.Base
+open import Prim.Prelude
+open import Data.Path.Type
 open import Data.Category.Type
 
 module _ {o o' h h'} (C : Category o h) (D : Category o' h') where

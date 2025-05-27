@@ -7,10 +7,10 @@ module Data.Semicategory.Iso {o h} (S : Semicategory o h) where
 
 open import Prim.Type
 open import Lib.Interval
-open import Prim.Data.Sigma
+open import Data.Sigma.Type
 
 open import Prim.Path
-open import Prim.Equiv
+open import Trait.Equiv
 
 open Semicategory S
 

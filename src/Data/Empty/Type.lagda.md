@@ -2,7 +2,7 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Prim.Data.Empty where
+module Data.Empty.Type where
 
 open import Prim.Type
 
@@ -17,9 +17,8 @@ data 𝟘 {ℓ} : Type ℓ where
 𝟘-rec {A = A} = 𝟘-ind (λ _ → A)
 syntax 𝟘-rec = absurd
 
-instance
-  void : ∀ {ℓ} ⦃ e : 𝟘 {ℓ} ⦄ → 𝟘 {0ℓ}
-  void ⦃ e ⦄ = absurd e
+void : ∀ {ℓ} {A : Type ℓ} ⦃ e : 𝟘 {ℓ} ⦄ → A
+void ⦃ e ⦄ = absurd e
 
 ⊥ : Type
 ⊥ = 𝟘

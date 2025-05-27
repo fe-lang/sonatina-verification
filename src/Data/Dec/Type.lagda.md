@@ -11,18 +11,18 @@ data Dec {a} (P : Type a) : Type a where
   yes : P → Dec P
   no  : ¬ P → Dec P
 
-infix 0 ifYes_then_else_ ifNo_then_else_
-ifYes_then_else_ : ∀ {a b} {A : Type a} {B : Type b} → Dec A → B → B → B
-ifYes yes _ then x else _ = x
-ifYes no  _ then _ else y = y
+infix 0 if-yes_then_else_ if-no_then_else_
+if-yes_then_else_ : ∀ {a b} {A : Type a} {B : Type b} → Dec A → B → B → B
+if-yes yes _ then x else _ = x
+if-yes no  _ then _ else y = y
 
-ifNo_then_else_ : ∀ {a b} {A : Type a} {B : Type b} → Dec A → B → B → B
-ifNo d then x else y = ifYes d then y else x
+if-no_then_else_ : ∀ {a b} {A : Type a} {B : Type b} → Dec A → B → B → B
+if-no d then x else y = if-yes d then y else x
 
-FromDec : ∀ {a} {P : Type a} → Dec P → Type a
-FromDec {P = P} (yes _) = P
-FromDec {P = P} (no  _) = ¬ P
+From-dec : ∀ {a} {P : Type a} → Dec P → Type a
+From-dec {P = P} (yes _) = P
+From-dec {P = P} (no  _) = ¬ P
 
-fromDec : ∀ {a} {P : Type a} (d : Dec P) → FromDec d
-fromDec (yes x) = x
-fromDec (no  x) = x
+from-dec : ∀ {a} {P : Type a} (d : Dec P) → From-dec d
+from-dec (yes x) = x
+from-dec (no  x) = x

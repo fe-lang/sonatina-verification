@@ -2,12 +2,12 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Prim.Data.Sigma where
+module Data.Sigma.Type where
 
 open import Prim.Type using (Type; _⊔_)
-open import Meta.Underlying.Type public
+open import Meta.Underlying public
+open import Meta.Operator public
 
-infixr 5 _×_
 infix 5 Σ-syntax
 
 ```
@@ -30,8 +30,8 @@ open import Agda.Builtin.Sigma public
 
 {-# DISPLAY Sigma A B = Σ B #-}
 
-_×_ : ∀ {ℓ ℓ'} → Type ℓ → Type ℓ' → Type (ℓ ⊔ ℓ')
-A × B = Sigma A (λ _ → B)
+Pair : ∀ {ℓ ℓ'} → Type ℓ → Type ℓ' → Type (ℓ ⊔ ℓ')
+Pair A B = Sigma A (λ _ → B)
 
 Σ-syntax : ∀ {ℓ ℓ'} {A : Type ℓ} ⦃ _ : Underlying A ⦄
          → (X : A) (F : ⌞ X ⌟ → Type ℓ') → Type _
@@ -44,6 +44,10 @@ instance
              → ⦃ x : A ⦄ ⦃ y : B x ⦄ → Σ B
   Σ-instance ⦃ x ⦄ .fst = x
   Σ-instance ⦃ y ⦄ .snd = y
+
+  Times-Pair : ∀ {u v} → Times (λ (A : Type u) (B : Type v) → Type (u ⊔ v))
+  Times-Pair .Times._×_ = Pair
+  {-# DISPLAY Pair = _×_ #-}
 
   Underlying-Σ : ∀ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'}
                → ⦃ ua : Underlying A ⦄

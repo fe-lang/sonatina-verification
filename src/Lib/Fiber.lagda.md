@@ -1,19 +1,17 @@
 ```agda
 {-# OPTIONS --safe --erased-cubical #-}
 
-module Prim.Fiber where
+module Lib.Fiber where
 
 open import Prim.Type
-open import Prim.Interval.Core
-open import Prim.Interval.Kan
-  using (hcomp; hfill; path-filler)
-  renaming (path-comp to _∙_)
-open import Prim.Interval.Fill using (neutral-square; module tri)
+open import Prim.Interval
+open import Prim.Kan
+open import Data.Path.Square
 
-open import Prim.Data.Path
-open import Prim.Data.Contr
-open import Prim.Data.Qinv
-open import Prim.Data.Sigma
+open import Data.Path.Type
+open import Trait.Contr
+open import Trait.Inverse
+open import Data.Sigma.Type
 
 strict-fibers : ∀ {ℓ ℓ'} {A : Type ℓ} {B : Type ℓ'}
               → (f : A → B) (g : B → A) (y : B)
@@ -24,12 +22,12 @@ strict-fibers f g b .snd (a , p) i =
   (g (p (~ i)) , λ j → f (g (p (~ i ∨ j))))
 
 module contr-map {u v} {A : Type u} {B : Type v} {f : A → B}
- (e : has-qinv f)
+ (e : has-inverse f)
   where
   private
-    g = e .qinv-inv
-    η = e .qinv-sec
-    ε = e .qinv-retr
+    g = e .inverse-inv
+    η = e .inverse-sec
+    ε = e .inverse-retr
 
   module _ {y : B} ((x , p) : fiber f y) where
     faces0 : (i j : I) → Partial (∂ i ∨ ~ j) A
@@ -57,17 +55,17 @@ module contr-map {u v} {A : Type u} {B : Type v} {f : A → B}
       θ₁ : refl ⌞ ap g (sym p) ⌟ η x  ⇒ π₁
       θ₁ i j = hfill (∂ i) j (faces1 i)
 
-      fiber-faces : (i j : I) → Partial (∂ i ∨ ~ j) A
-      fiber-faces i = λ where
+      fiber-sys : (i j : I) → Partial (∂ i ∨ ~ j) A
+      fiber-sys i = λ where
         j (i = i0) → π₀ j
         j (i = i1) → π₁ j
         j (j = i0) → g y
 
       path : g y ＝ x
-      path i = hcomp (∂ i) (fiber-faces i)
+      path i = hcomp (∂ i) (fiber-sys i)
 
       fiber-filler : π₀ ⌞ refl ⌟ π₁ ⇒ path
-      fiber-filler i j = hfill (∂ i) j (fiber-faces i)
+      fiber-filler i j = hfill (∂ i) j (fiber-sys i)
 
       ι : ap g (ε y) ⌞ ap (λ z → g (f z)) path ⌟ ap g p ⇒ refl
       ι i j = hcomp (∂ i ∨ ∂ j) λ where
@@ -96,7 +94,7 @@ module contr-map {u v} {A : Type u} {B : Type v} {f : A → B}
 
     private
       φ : Square refl p (sym (ε y)) (ap f (sym path))
-      φ = tri.by-comp (sym (ε y)) (ap f path) (sym p) (Square.rrotate filler)
+      φ = tri.by-comp (sym (ε y)) (ap f path) (sym p) (rrotate filler)
 
     adj : ap f unit ＝ ε (f x)
     adj i j = hcomp (∂ i ∨ ∂ j) λ where
@@ -115,16 +113,16 @@ module contr-map {u v} {A : Type u} {B : Type v} {f : A → B}
   contr y .paths = fiber-path
 
 open contr-map public
-  renaming ( contr to qinv→contr-map
-           ; unit to qinv→unit
-           ; counit to qinv→counit
+  renaming ( contr to inverse→contr-map
+           ; unit to inverse→unit
+           ; counit to inverse→counit
            )
   using ()
 
 private
-  module Qinv→contr-map {u v} {A : Type u} {B : Type v}
-    (q : Qinv A B) = contr-map (q .snd)
+  module Iso→contr-map {u v} {A : Type u} {B : Type v}
+    (q : Iso A B) = contr-map (q .snd)
 
-open Qinv→contr-map public
-  renaming ( contr to Qinv→contr-map )
+open Iso→contr-map public
+  renaming ( contr to Iso→contr-map )
   using ()

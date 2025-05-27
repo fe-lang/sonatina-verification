@@ -2,7 +2,7 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Prim.Data.Unit where
+module Data.Unit.Type where
 
 open import Prim.Type using (Type ; Lift; lift )
 open import Agda.Builtin.Unit public

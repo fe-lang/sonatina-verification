@@ -10,7 +10,6 @@ open import Prim.Type
 
 open import Data.Nat.Type
 open import Data.Irr.Type
-open import Control.Effect
 
 record Fin (n : Nat) : Type where
   constructor fin

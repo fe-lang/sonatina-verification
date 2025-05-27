@@ -1,11 +1,11 @@
 ```agda
 {-# OPTIONS --safe --erased-cubical #-}
 
-module Prim.Data.Contr where
+module Trait.Contr where
 
 open import Prim.Type
-open import Prim.Data.Path using (_＝_; Path; fiber)
-open import Prim.Data.Nat using (Nat; zero; suc)
+open import Data.Path.Type using (_＝_; Path; fiber)
+open import Data.Nat.Type using (Nat; zero; suc)
 
 record is-contr {ℓ} (A : Type ℓ) : Type ℓ where
   constructor _,_

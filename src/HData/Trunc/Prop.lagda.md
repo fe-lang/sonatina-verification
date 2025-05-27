@@ -8,9 +8,9 @@ in this module
 module HData.Trunc.Prop where
 
 open import Prim.Type
-open import Prim.Interval.Core
-open import Prim.Data.Nat
-open import Prim.Data.Path
+open import Prim.Interval
+open import Data.Nat.Type
+open import Data.Path.Type
 open import Trait.HLevel.Base
 
 data ∥_∥ {ℓ} (A : Type ℓ) : Type ℓ where

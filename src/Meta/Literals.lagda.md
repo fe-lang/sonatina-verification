@@ -2,7 +2,7 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Prim.Literals where
+module Meta.Literals where
 
 open import Agda.Builtin.FromNat public
 open import Agda.Builtin.FromNeg public

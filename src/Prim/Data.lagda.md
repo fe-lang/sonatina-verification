@@ -3,10 +3,8 @@
 
 module Prim.Data where
 
-open import Prim.Data.Contr public
-open import Prim.Data.Nat public
-open import Prim.Data.Path public
-open import Prim.Data.Qinv public
-open import Prim.Data.Sigma public
-open import Prim.Data.Unit public
-open import Prim.Data.Empty public
+open import Data.Empty.Type public
+open import Data.Nat.Type public
+open import Data.Path.Type public
+open import Data.Sigma.Type public
+open import Data.Unit.Type public

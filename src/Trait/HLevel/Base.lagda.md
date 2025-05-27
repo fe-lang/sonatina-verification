@@ -8,13 +8,12 @@ https://1lab.dev/1Lab.HLevel.html
 
 module Trait.HLevel.Base where
 
-open import Prim.Type
-open import Prim.Interval
-open import Prim.Interval.Kan
-open import Prim.Data.Sigma
-open import Prim.Data.Path
-open import Prim.Data.Contr
-open import Prim.Data.Nat
+open import Prim.Prelude
+open import Trait.Equiv
+open import Data.Path.Base
+open import Data.Path.Square
+open import Data.Path.Transport
+open import Data.Nat.Type
 open import Meta.Cut
 
 ```
@@ -46,7 +45,7 @@ is-hom-set H = ∀ x y → is-set (H x y)
 
 is-prop→PathP : ∀ {ℓ} {A : I → Type ℓ} → ((i : I) → is-prop (A i))
               → ∀ x y → PathP (λ i → A i) x y
-is-prop→PathP {A} H x y = to-pathp (H i1 (coe A i1 x) y)
+is-prop→PathP {A} H x y = Path-over.to-pathp (H i1 (coe A i1 x) y)
 
 is-prop→SquareP : ∀ {ℓ} {B : I → I → Type ℓ}
                 → ((i j : I) → is-prop (B i j))
@@ -85,6 +84,9 @@ is-contr→is-prop contr x y i = outS do
   is-contr→extend contr (∂ i) λ where
     (i = i0) → x
     (i = i1) → y
+
+inhab-to-contr→is-prop : ∀ {ℓ} {A : Type ℓ} → (A → is-contr A) → is-prop A
+inhab-to-contr→is-prop iprop x y = is-contr→is-prop (iprop x) x y
 
 is-contr→is-set : ∀ {ℓ} {A : Type ℓ} → is-contr A → is-set A
 is-contr→is-set contr x y p q i j = outS do
@@ -142,6 +144,11 @@ record n-Type ℓ n : Type₊ ℓ where
 
 open n-Type public
 
+instance
+  Underlying-n-Type : ∀ {ℓ k} → Underlying (n-Type ℓ k)
+  Underlying-n-Type {ℓ} .ℓ-underlying = ℓ
+  Underlying-n-Type .Underlying.⌞_⌟ = ∣_∣
+
 is-hlevel-suc : ∀ {ℓ} {A : Type ℓ} (k : Nat)
               → is-hlevel k A
               → is-hlevel (suc k) A
@@ -155,11 +162,20 @@ is-hlevel-add : ∀ {ℓ} {A : Type ℓ} (n k : Nat)
 is-hlevel-add zero n hl = hl
 is-hlevel-add (suc k) n hl = is-hlevel-suc (k + n) (is-hlevel-add k n hl)
 
+is-hlevel-is-prop : ∀ {ℓ} (A : Type ℓ) (k : Nat) → is-prop (is-hlevel k A)
+is-hlevel-is-prop A 0 = is-contr-is-prop A
+is-hlevel-is-prop A 1 = is-prop-is-prop A
+is-hlevel-is-prop A (suc (suc n)) x y i a b =
+  is-hlevel-is-prop (a ＝ b) (suc n) (x a b) (y a b) i
+
 is-prop→is-hlevel-suc : ∀ {ℓ} {A : Type ℓ} {k : Nat}
                       → is-prop A → is-hlevel (suc k) A
 is-prop→is-hlevel-suc {k = zero} aprop = aprop
 is-prop→is-hlevel-suc {k = suc k} aprop =
   is-hlevel-suc (suc k) (is-prop→is-hlevel-suc aprop)
+
+is-hlevel-is-hlevel-suc : ∀ {ℓ} (A : Type ℓ) (k n : Nat) → is-hlevel (suc k) (is-hlevel n A)
+is-hlevel-is-hlevel-suc A k n = is-prop→is-hlevel-suc (is-hlevel-is-prop A n)
 
 is-contr→is-hlevel : ∀ {ℓ} {A : Type ℓ} {k : Nat}
                   → is-contr A → is-hlevel k A
@@ -170,21 +186,20 @@ is-set→is-hlevel+2 : ∀ {ℓ} {A : Type ℓ} {k : Nat}
                    → is-set A → is-hlevel (2 + k) A
 is-set→is-hlevel+2 aset x y = is-prop→is-hlevel-suc (aset x y)
 
-private
-  Path-is-hlevel-suc : ∀ {ℓ} (A : Type ℓ) (n : Nat)
-                     → is-hlevel (suc n) A
-                     → (x y : A) → is-hlevel n (x ＝ y)
-  Path-is-hlevel-suc A zero hl x y .ctr = hl x y
-  Path-is-hlevel-suc A zero hl x y .paths = is-prop→is-set hl x y (hl x y)
-  Path-is-hlevel-suc A (suc n) hl x y = hl x y
+Path-is-hlevel-suc : ∀ {ℓ} (A : Type ℓ) (n : Nat)
+                   → is-hlevel (suc n) A
+                   → (x y : A) → is-hlevel n (x ＝ y)
+Path-is-hlevel-suc A zero hl x y .ctr = hl x y
+Path-is-hlevel-suc A zero hl x y .paths = is-prop→is-set hl x y (hl x y)
+Path-is-hlevel-suc A (suc n) hl x y = hl x y
 
-  PathP-is-hlevel-suc : ∀ {ℓ} (A : I → Type ℓ) (n : Nat)
-                      → is-hlevel (suc n) (A i1)
-                      → (x : A i0) (y : A i1)
-                      → is-hlevel n (PathP A x y)
-  PathP-is-hlevel-suc A n hl x y =
-    subst (λ e → is-hlevel n e) (Path＝PathP A x y)
-      (Path-is-hlevel-suc (A i1) n hl (transport (λ i → A i) x) y)
+PathP-is-hlevel-suc : ∀ {ℓ} (A : I → Type ℓ) (n : Nat)
+                    → is-hlevel (suc n) (A i1)
+                    → (x : A i0) (y : A i1)
+                    → is-hlevel n (PathP A x y)
+PathP-is-hlevel-suc A n hl x y =
+  subst (λ e → is-hlevel n e) (Path-over＝PathP A x y)
+    (Path-is-hlevel-suc (A i1) n hl (transport (λ i → A i) x) y)
 
 abstract
   is-set→SquareP : ∀ {ℓ} {A : I → I → Type ℓ}
@@ -196,7 +211,7 @@ abstract
                  → (s : PathP (λ i → A i i1) b d)
                  → SquareP A p q r s
   is-set→SquareP {A} aset p q r s =
-    transport (Path＝PathP (λ i → PathP (A i) (q i) (s i)) p r)
+    transport (Path-over＝PathP (λ i → PathP (A i) (q i) (s i)) p r)
       (PathP-is-hlevel-suc (A i1) 1 (aset i1 i1) (q i1) (s i1)
         (transport (λ i → PathP (A i) (q i) (s i)) p) r)
 
@@ -212,4 +227,11 @@ PathP-is-hlevel : ∀ {ℓ} {A : I → Type ℓ} (k : Nat)
                 → is-hlevel k (A i1)
                 → ∀ {x y} → is-hlevel k (PathP A x y)
 PathP-is-hlevel {A} k hl {x} {y} =
-  subst (is-hlevel k) (Path＝PathP A x y) (Path-is-hlevel k hl)
+  subst (is-hlevel k) (Path-over＝PathP A x y) (Path-is-hlevel k hl)
+
+abstract
+  is-equiv-is-prop : ∀ {u v} {A : Type u} {B : Type v}
+                   → (f : A → B) → is-prop (is-equiv f)
+  is-equiv-is-prop {B} f e d i . contr-map = α where
+    α : (y : B) → is-contr (fiber f y)
+    α y = is-contr-is-prop (fiber f y) (contr-map e y) (contr-map d y) i

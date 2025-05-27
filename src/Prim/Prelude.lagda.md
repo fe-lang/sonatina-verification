@@ -5,16 +5,20 @@
 module Prim.Prelude where
 
 open import Prim.Type public
-open import Prim.Data public
-open import Prim.Literals public
-open import Prim.Pi public
+open import Prim.Interval public
+open import Prim.Kan public
+open import Prim.Sub public
+open import Prim.HCompU public
 
-open import Prim.Interval.Core public
-open import Prim.Interval.Glue public
-open import Prim.Interval.Kan public
-  using (hcomp; hfill; comp; fill)
-open import Prim.Interval.Transport public
-
-open import Prim.Equiv public
 open import Meta.Cut public
+open import Meta.Literals public
+open import Meta.Operator public
 open import Meta.Underlying public
+
+open import Lib.Pi public
+
+open import Data.Unit.Type public
+open import Data.Empty.Type public
+open import Data.Sigma.Type public
+open import Data.Sum.Type public
+open import Data.Nat.Type public

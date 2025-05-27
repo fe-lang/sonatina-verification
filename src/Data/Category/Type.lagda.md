@@ -5,14 +5,17 @@
 module Data.Category.Type where
 
 open import Prim.Type
-open import Prim.Pi
-open import Prim.Data.Path
-open import Prim.Data.Sigma
-open import Prim.Equiv
-open import Prim.Reasoning using (path-reasoning-syntax)
+open import Prim.Interval
+open import Lib.Pi
+open import Trait.Contr
+open import Data.Path.Type
+open import Data.Sigma.Type
+open import Trait.Equiv
+open import Data.Path.Reasoning
 
 open import Trait.Category.Type public
-open import Meta.Cut.Type public
+open import Meta.Cut public
+open import Meta.Underlying public
 
 record Category o h : Type₊ (o ⊔ h) where
   field
@@ -43,3 +46,26 @@ record Category o h : Type₊ (o ⊔ h) where
   op .is-cat x .has-identity.idn-idpt = idn-idpt x
   op .is-cat x .has-identity.idn-sec y = idn-retr x y
   op .is-cat x .has-identity.idn-retr y = idn-sec x y
+
+open Category public
+
+{-# DISPLAY Category.seq _ f g = f ∙ g #-}
+
+Universe : ∀ u → Category (u ₊) u
+Universe u .Category.Ob = Type u
+Universe u .Category.Hom = λ A B → B → A
+Universe u .Category.seq = funcomp
+Universe u .Category.assoc f g h = refl
+Universe u .Category.is-cat A .has-identity.idn = id
+Universe u .Category.is-cat A .has-identity.idn-idpt = refl
+Universe u .Category.is-cat A .has-identity.idn-sec B .contr-map x .ctr = x , refl
+Universe u .Category.is-cat A .has-identity.idn-sec B .contr-map x .paths (y , p) i =
+  p (~ i) , λ j → p (~ i ∨ j)
+Universe u .Category.is-cat A .has-identity.idn-retr B .contr-map f .ctr = f , refl
+Universe u .Category.is-cat A .has-identity.idn-retr B .contr-map f .paths (g , p) i =
+  p (~ i) , λ j → p (~ i ∨ j)
+
+instance
+  Underlying-Category : ∀ {o h} → Underlying (Category o h)
+  Underlying-Category {o} .Underlying.ℓ-underlying = o
+  Underlying-Category .⌞_⌟ = Category.Ob

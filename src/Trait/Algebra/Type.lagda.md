@@ -8,7 +8,7 @@ in Cubical Agda" by Donnacha Oisín Kidney, Zhixuan Yang, and Nicolas Wu
 module Trait.Algebra.Type where
 
 open import Prim.Type
-open import Prim.Data.Sigma
+open import Data.Sigma.Type
 open import Meta.Bracket
 
 record Signature ℓ ℓ' : Type₊ (ℓ ⊔ ℓ') where

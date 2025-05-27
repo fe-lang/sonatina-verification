@@ -2,18 +2,14 @@
 
 {-# OPTIONS --safe --erased-cubical #-}
 
-module Prim.Interval.Transport where
+module Data.Path.Transport where
 
-open import Prim.Type renaming (funcomp to infixr 40 _∘_)
-open import Prim.Interval.Kan using (hcomp; comp; hfill; fill; path-filler)
-  renaming (path-comp to infixr 40 _∙_)
-open import Prim.Interval.Fill using ( module tri; neutral-square )
+open import Prim.Prelude
 
-open import Prim.Data.Contr
-open import Prim.Data.Sigma
-open import Prim.Data.Path
+open import Trait.Contr
 
-open import Prim.Interval.Core public
+open import Data.Path.Base
+open import Data.Path.Square
 
 ```
 
@@ -28,16 +24,16 @@ module _ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
   (let C : I → I → Type ℓ
        C i j = path-filler refl (λ k → A k) B i j)
   where
-  pathp-faces : (i j : I) → Partial (∂ i ∨ ~ j) (C i j)
-  pathp-faces i j (i = i0) = x
-  pathp-faces i j (i = i1) = q j
-  pathp-faces i j (j = i0) = p i
+  pathp-sys : (i j : I) → Partial (∂ i ∨ ~ j) (C i j)
+  pathp-sys i j (i = i0) = x
+  pathp-sys i j (i = i1) = q j
+  pathp-sys i j (j = i0) = p i
 
   pathp-comp : ∂ j ↦ ((λ i → A i) ∙ B) j , x ＝ z
-  pathp-comp i = comp (C i) (∂ i) (pathp-faces i)
+  pathp-comp i = comp (C i) (∂ i) (pathp-sys i)
 
   pathp-filler : ∂ i ↦ ∂ j ↦ C j i , x ＝ q i , p ＝ pathp-comp
-  pathp-filler j i = fill (C i) (∂ i) j (pathp-faces i)
+  pathp-filler j i = fill (C i) (∂ i) j (pathp-sys i)
 
 module _ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'}
   {x y z : A} {x' : B x} {y' : B y} {z' : B z}
@@ -47,43 +43,20 @@ module _ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'}
   (let C : (i j : I) → Type ℓ'
        C i j = B (path-filler refl p q i j))
   where
-  pathp-dep-faces : (i j : I) → Partial (∂ i ∨  ~ j) (C i j)
-  pathp-dep-faces i j (i = i0) = x'
-  pathp-dep-faces i j (i = i1) = q' j
-  pathp-dep-faces i j (j = i0) = p' i
+  pathp-dep-sys : (i j : I) → Partial (∂ i ∨  ~ j) (C i j)
+  pathp-dep-sys i j (i = i0) = x'
+  pathp-dep-sys i j (i = i1) = q' j
+  pathp-dep-sys i j (j = i0) = p' i
 
   pathp-depcomp : ∂ i ↦ B ((p ∙ q) i) , x' ＝ z'
-  pathp-depcomp i = comp (C i) (∂ i) (pathp-dep-faces i)
+  pathp-depcomp i = comp (C i) (∂ i) (pathp-dep-sys i)
 
   pathp-dep-fill : ∂ i ↦ ∂ j ↦ C j i , x' ＝ q' i , p' ＝ pathp-depcomp
-  pathp-dep-fill j i = fill (C i) (∂ i) j (pathp-dep-faces i)
+  pathp-dep-fill j i = fill (C i) (∂ i) j (pathp-dep-sys i)
 
-
-coe : {ℓ : I → Level} (A : ∀ i → Type (ℓ i)) → (i : I) → A i0 → A i
-coe A i a = transp (λ j → A (i ∧ j)) (~ i) a
-{-# INLINE coe #-}
-
-module coe where
-  op : {ℓ : I → Level} (A : ∀ i → Type (ℓ i)) (i : I) → A i → A i0
-  op A i a = transp (λ j → A (i ∧ ~ j)) (~ i) a
-  {-# INLINE op #-}
-
-  i→1 : {ℓ : I → Level} (A : ∀ i → Type (ℓ i)) (i : I) → A i → A i1
-  i→1 A i = transp (λ j → A (i ∨ j)) i
-
-  1→i : {ℓ : I → Level} (A : ∀ i → Type (ℓ i)) (i : I) → A i1 → A i
-  1→i A i = transp (λ j → A (i ∨ ~ j)) i
-
-  filler : ∀ {ℓ} (A : I → Type ℓ) (x : A i0) (i : I)
-         → PathP (λ j → A (i ∧ j)) x (coe A i x)
-  filler A x i j = coe A (i ∧ j) x
-
-transport : ∀ {ℓ} {A B : Type ℓ} (P : A ＝ B) → P i0 → P i1
-transport P = transp (λ i → P i) i0
-{-# INLINE transport #-}
 
 transport-refl : ∀ {ℓ} {A : Type ℓ} (x : A) → transport (λ _ → A) x ＝ x
-transport-refl {A = A} x i = coe.filler (λ _ → A) x (~ i) i1
+transport-refl {A = A} x i = coe.sys (λ _ → A) x (~ i) i1
 
 𝓙-refl : ∀ {ℓ ℓ'} {A : Type ℓ} (C : (x y : A) → x ＝ y → Type ℓ')
               → (c : (a : A) → C a a (λ i → a)) (x : A)
@@ -93,7 +66,7 @@ transport-refl {A = A} x i = coe.filler (λ _ → A) x (~ i) i1
 module transport where
   filler : ∀ {ℓ} {A B : Type ℓ} (p : A ＝ B) (x : A)
          → ∂ i ↦ p i , x ＝ transport p x
-  filler P x i = coe.filler (λ i → P i) x i i
+  filler P x i = coe.sys (λ i → P i) x i i
 
   op : ∀ {ℓ} {A B : Type ℓ} (P : A ＝ B) → P i1 → P i0
   op P = transport (sym P)
@@ -184,7 +157,7 @@ module transport where
         j (j = i0) → g (p1 i)
 
       φ : Square refl p1 (sym p0) (ap f (sym w))
-      φ = tri.by-comp (sym p0) (ap f w) (sym p1) (Square.transpose cb)
+      φ = tri.by-comp (sym p0) (ap f w) (sym p1) (transpose cb)
 
       α : ap f η ＝ has-fiber A (f x1) .snd
       α i j = hcomp (∂ i ∨ ∂ j) λ where
@@ -215,18 +188,7 @@ transportd : ∀ {ℓ} {A B : I → Type ℓ} (P : A i1 ＝ B i0)
            → {a : A i0} {b : A i1} → PathP A a b → B i1
 transportd {B = B} P p  = transport (λ i → B i) (transport P (p i1))
 
-to-pathp : ∀ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
-         → coe A i1 x ＝ y → PathP A x y
-to-pathp {A} {x} p i = hcomp (∂ i) λ where
-  j (i = i0) → x
-  j (i = i1) → p j
-  j (j = i0) → coe A i x
-
-Path＝PathP : ∀ {ℓ} (P : I → Type ℓ) (p : P i0) (q : P i1)
-           → Path (P i1) (transport (λ i → P i) p) q ＝ PathP P p q
-Path＝PathP P p q i = PathP (λ j → P (~ i ∨ j)) (transport.filler (λ j → P j) p (~ i)) q
-
--- Turn a contractibility proof into an extension type, used in Prim.Equiv
+-- Turn a contractibility proof into an extension type, used in Trait.Equiv
 -- and for Cubical HLevel proofs
 is-contr→extend : ∀ {ℓ} {A : Type ℓ} → is-contr A
                 → (i : I) (p : Partial i A) →  A [ i ↦ p ]
