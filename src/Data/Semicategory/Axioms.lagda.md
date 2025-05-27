@@ -6,7 +6,7 @@ open import Data.Semicategory.Type
 module Data.Semicategory.Axioms {o h} (S : Semicategory o h) where
 
 open import Prim.Type
-open import Lib.Pi
+open import Data.Pi
 open import Lib.Interval
 open import Data.Sigma.Type
 

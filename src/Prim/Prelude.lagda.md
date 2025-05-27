@@ -15,7 +15,7 @@ open import Meta.Literals public
 open import Meta.Operator public
 open import Meta.Underlying public
 
-open import Lib.Pi public
+open import Data.Pi public
 
 open import Data.Unit.Type public
 open import Data.Empty.Type public

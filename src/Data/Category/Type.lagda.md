@@ -6,7 +6,7 @@ module Data.Category.Type where
 
 open import Prim.Type
 open import Prim.Interval
-open import Lib.Pi
+open import Data.Pi
 open import Trait.Contr
 open import Data.Path.Type
 open import Data.Sigma.Type

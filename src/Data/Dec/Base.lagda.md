@@ -4,7 +4,7 @@
 module Data.Dec.Base where
 
 open import Prim.Prelude
-open import Lib.Pi
+open import Data.Pi
 open import Data.Irr
 open import Data.Bool.Base
 open import Data.Dec.Type

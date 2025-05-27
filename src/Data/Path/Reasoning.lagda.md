@@ -7,7 +7,7 @@ module Data.Path.Reasoning where
 
 open import Prim.Type
 open import Meta.Cut
-open import Lib.Pi using (flip)
+open import Data.Pi using (flip)
 open import Data.Path.Type
 
 -- This formulation of path reasoning syntax derives from the

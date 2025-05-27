@@ -2,7 +2,7 @@
 
 {-# OPTIONS --safe --cubical-compatible #-}
 
-module Lib.Pi where
+module Data.Pi where
 
 open import Prim.Type
 open import Meta.Cut public

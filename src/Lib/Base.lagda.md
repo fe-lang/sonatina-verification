@@ -4,7 +4,7 @@
 module Lib.Base where
 
 open import Prim.Prelude public
-open import Lib.Pi public
+open import Data.Pi public
 open import Lib.Fiber public
 
 open import Trait.Equiv public
