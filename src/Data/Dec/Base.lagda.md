@@ -3,12 +3,13 @@
 
 module Data.Dec.Base where
 
-open import Prim.Prelude
-open import Data.Pi
+open import Prim.Base
 open import Data.Irr
 open import Data.Bool.Base
-open import Data.Dec.Type
 open import Data.Path.Type
+
+
+open import Data.Dec.Type public
 
 module _ {ℓ} {P : Type ℓ} where
   ⌊_⌋ : Dec P → Bool

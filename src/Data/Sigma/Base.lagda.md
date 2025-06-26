@@ -5,7 +5,6 @@
 module Data.Sigma.Base where
 
 open import Prim.Type
-open import Trait.Contr
 open import Data.Path.Type
 
 open import Data.Sigma.Type public
@@ -33,16 +32,10 @@ module _ {u v w} {A : Type u} {B : A → Type v} (P : Σ B → Type w) where
 
 ```
 
-We also present our native notion of Cartesian product, with its
-corresponding induction rule.
+We also present the induction rule of Cartesian product for
+completeness
 
 ```
-
-diag : ∀ {ℓ} {A : Type ℓ} → A → A × A
-diag a = a , a
-
-swap : ∀ {u v} {A : Type u} {B : Type v} → A × B → B × A
-swap (a , b) = b , a
 
 ×-ind : ∀ {u v w} {A : Type u} {B : Type v} (P : A × B → Type w)
     → ((x : A) (y : B) → P (x , y)) → (z : A × B) → P z
@@ -55,4 +48,4 @@ swap (a , b) = b , a
 
 ×-map : ∀ {u v w z} {A : Type u} {B : Type v} {C : Type w} {D : Type z}
       → (A → C) → (B → D) → A × B → C × D
-×-map {C} {D} f g = ×-ind (λ _ → C × D) λ x y → f x , g y
+×-map {C = C} {(D)} f g (fst , snd) = Σ-map (λ _ → id) (f fst , g snd)

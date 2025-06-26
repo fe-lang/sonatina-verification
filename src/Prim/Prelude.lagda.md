@@ -1,24 +1,13 @@
 ```agda
-
 {-# OPTIONS --safe --erased-cubical #-}
 
 module Prim.Prelude where
 
-open import Prim.Type public
-open import Prim.Interval public
-open import Prim.Kan public
-open import Prim.Sub public
-open import Prim.HCompU public
+open import Prim.Base public
+open import Prim.Cubical public
+open import Data.Path public
+open import Trait.Contr public
+open import Trait.Inverse public
+open import Trait.HLevel public
 
-open import Meta.Cut public
-open import Meta.Literals public
-open import Meta.Operator public
-open import Meta.Underlying public
-
-open import Data.Pi public
-
-open import Data.Unit.Type public
-open import Data.Empty.Type public
-open import Data.Sigma.Type public
-open import Data.Sum.Type public
-open import Data.Nat.Type public
+```

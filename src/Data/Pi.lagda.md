@@ -6,6 +6,7 @@ module Data.Pi where
 
 open import Prim.Type
 open import Meta.Cut public
+open import Meta.Underlying public
 
 -- This is the one Control module we'll allow in Prim due to how fundamental
 -- function composition is, and we want it as soon as possible
@@ -13,15 +14,15 @@ open import Meta.Cut public
 infixr -1 _$_ _&_
 infix 2 _~>_ _~~>_
 
-infix -1 pi-syntax
+infix -1 Π-syntax
 
 Π : ∀ {u v} {A : Type u} (B : A → Type v) → Type (u ⊔ v)
 Π {A = A} B = (x : A) → B x
 
-pi-syntax : ∀ {u v} (A : Type u) (B : A → Type v) → Type (u ⊔ v)
-pi-syntax A = Π {A = A}
-syntax pi-syntax A (λ x → M) = Π x ∶ A , M
-{-# DISPLAY pi-syntax A B = Π {A = A} B #-}
+Π-syntax : ∀ {u v} (A : Type u) (B : A → Type v) → Type (u ⊔ v)
+Π-syntax A = Π {A = A}
+syntax Π-syntax A (λ x → M) = Π x ∶ A , M
+{-# DISPLAY Π-syntax A B = Π {A = A} B #-}
 
 -- Wild natural transformations
 _~>_ : ∀ {u v w} {X : Type u} → (X → Type v) → (X → Type w) → Type (u ⊔ v ⊔ w)
@@ -74,9 +75,21 @@ itω ⦃ (a) ⦄ = a
 the : ∀ {ℓ} (A : Type ℓ) → A → A
 the _ a = a
 
+outl : ∀ {u v} {A : Type u} {B : A → Type v} → ∀ a → B a → A
+outl a = const a
+
+outr : ∀ {u v} {A : Type u} {B : A → Type v} → ∀ a → B a → B a
+outr a = id
+
 instance
   Cut-funcomp : ∀ {u v w} {B : Type v} {C : B → Type w}
               → Cut (λ (A : Type u) → A → B)
                     (λ _ → Π C)
                     (λ A f → (x : A) → C (f x))
   Cut-funcomp .Cut.seq {x = A} f g x = g (f x)
+
+  -- Cut-S-combinator : ∀ {u v w} {A : Type v} {B : A → Type v} {C : (x : A) → B x → Type w}
+  --             → Cut (λ U → {!T!})
+  --                   (λ x → {!!})
+  --                   (λ A f → (x : A) → {!!})
+  -- Cut-S-combinator .Cut.seq {x = A} f g x = g (f x)

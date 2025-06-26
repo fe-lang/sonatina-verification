@@ -31,19 +31,32 @@ record Lift {u} ℓ (A : Type u) : Type (u ⊔ ℓ) where
 
 open Lift public
 
-```
+record Effect : Typeω where
+  constructor eff
+  field
+    {adj} : Level → Level
+    ₀ : ∀ {ℓ} → Type ℓ → Type (adj ℓ)
 
-Fundamental to our base type theory
+record Quiver : Typeω where
+  constructor quiver
+  field
+    {ℓ-hom} : Level → Level → Level
+    Hom : ∀ {s t} → Type s → Type t → Type (ℓ-hom s t)
 
-```
+Λ-syntax : {M : Effect} (let module M = Effect M)
+         → (∀ {u} (A : Type u) → A → M.₀ A)
+         → ∀ {u} {A : Type u} → A → M.₀ A
+Λ-syntax f {A} = f A
+{-# INLINE Λ-syntax #-}
+syntax Λ-syntax (λ A → B) = Λ A ∎ B
 
 id : ∀ {u} {A : Type u} → A → A
-id = λ x → x
+id = Λ A ∎ λ (x : A) → x
 {-# INLINE id #-}
 
-id-of : ∀ {u} (A : Type u) → A → A
-id-of A = λ x → x
-{-# INLINE id #-}
+idf : ∀ {u} (A : Type u) → A → A
+idf A = λ x → x
+{-# INLINE idf #-}
 
 const : ∀ {u v} {A : Type u} {B : Type v} → A → B → A
 const a ._ = a
@@ -57,3 +70,13 @@ funcomp : ∀ {u v w} {A : Type u} {B : Type v} {C : B → Type w}
      → ((y : B) → C y) → (f : A → B) (x : A) → C (f x)
 funcomp g f = λ x → g (f x)
 {-# INLINE funcomp #-}
+
+infixr 8 Λ-syntax
+
+∂-syntax : {adj : Level → Level} {F : ∀ {u} → Type u → Type (adj u)}
+         → (∀ {u} (A : Type u) → A → F A)
+         → ∀ {u} {A : Type u} → A → F A
+∂-syntax f {A} = f A
+
+syntax ∂-syntax (λ A → B) = Λ A ∎ B
+infixr 8 ∂-syntax

@@ -4,11 +4,12 @@
 
 module Data.Sigma.Type where
 
-open import Prim.Type using (Type; _⊔_)
+open import Prim.Type
 open import Meta.Underlying public
+--open import Meta.Cartesian public
 open import Meta.Operator public
 
-infix 5 Σ-syntax
+infixr 5 Σ-syntax
 
 ```
 
@@ -39,15 +40,22 @@ Pair A B = Sigma A (λ _ → B)
 syntax Σ-syntax A (λ x → M) = Σ x ∶ A , M
 {-# DISPLAY Σ-syntax _ B = Σ B #-}
 
+
 instance
+  -- Cartesian-Σ : ∀ {u v} {A : Type u} {B : Type v}
+  --             → Cartesian (λ A B → Sigma {u} {v} A λ _ → B)
+  -- Cartesian-Σ .Cartesian.cons = {!!}
+  -- Cartesian-Σ .Cartesian.pr1 = {!!}
+  -- Cartesian-Σ .Cartesian.pr2 = {!!}
+  -- Cartesian-Σ .Cartesian.ind = {!!}
+
+  Times-Σ : ∀ {u v} → Times λ (A : Type u) (B : Type v) → Type (u ⊔ v)
+  Times-Σ .Times._×_ A B = Σ _ ∶ A , B
+
   Σ-instance : ∀ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'}
              → ⦃ x : A ⦄ ⦃ y : B x ⦄ → Σ B
   Σ-instance ⦃ x ⦄ .fst = x
   Σ-instance ⦃ y ⦄ .snd = y
-
-  Times-Pair : ∀ {u v} → Times (λ (A : Type u) (B : Type v) → Type (u ⊔ v))
-  Times-Pair .Times._×_ = Pair
-  {-# DISPLAY Pair = _×_ #-}
 
   Underlying-Σ : ∀ {ℓ ℓ'} {A : Type ℓ} {B : A → Type ℓ'}
                → ⦃ ua : Underlying A ⦄

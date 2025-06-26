@@ -7,9 +7,11 @@ module Data.Path.Type where
 open import Prim.Type
 open import Prim.Interval
 open import Prim.Kan
-open import Meta.Cut
 
 open import Data.Sigma.Type
+
+open import Meta.Cut public
+open import Meta.Bracket public
 
 ```
 
@@ -24,6 +26,10 @@ open import Agda.Builtin.Cubical.Path public
 
 Path : ∀ {ℓ} (A : Type ℓ) → A → A → Type ℓ
 Path A = PathP (λ _ → A)
+
+path-syntax : ∀ {ℓ} (A : Type ℓ) → A → A → Type ℓ
+path-syntax A = PathP (λ _ → A)
+syntax path-syntax A x y = x ＝ y ∶ A
 
 pathp-syntax : ∀ {ℓ} (A : I → Type ℓ) → A i0 → A i1 → Type ℓ
 pathp-syntax = PathP
@@ -44,6 +50,10 @@ sym : ∀ {ℓ} {A : I → Type ℓ} {x : A i0} {y : A i1}
      → ∂ i ↦ A i , x ＝ y → ∂ i ↦ A (~ i) , y ＝ x
 sym p i = p (~ i)
 {-# INLINE sym #-}
+
+instance
+  Canonical-Path : ∀ {ℓ} {A : Type ℓ} → Canonical-map λ (x : A) → x ＝ x
+  Canonical-Path .Canonical-map.map = erefl
 
 ap : ∀ {u v} {A : Type u} {B : A → Type v}
    → (f : ∀ a → B a)
@@ -140,5 +150,5 @@ _∙∙_∙∙_ : ∀ {ℓ} {A : Type ℓ} {w x y z : A} → w ＝ x → x ＝ y
 p ∙∙ q ∙∙ r = lid (sym p) q r
 
 instance
-  Cut-pathcomp : ∀ {u} {A : Type u} → Hom-Cut (Path A)
+  Cut-pathcomp : ∀ {u} {A : Type u} → Hom-Cut (_＝_ {A = A})
   Cut-pathcomp .Cut.seq = refl ∙∙_∙∙_

@@ -4,10 +4,15 @@
 
 module Data.Path.Transport where
 
-open import Prim.Prelude
+open import Prim.Base
+open import Prim.Interval
+open import Prim.Kan
+open import Prim.Sub
+open import Prim.HCompU
 
 open import Trait.Contr
 
+open import Data.Pi
 open import Data.Path.Base
 open import Data.Path.Square
 

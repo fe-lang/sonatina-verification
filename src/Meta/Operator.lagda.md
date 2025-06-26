@@ -25,7 +25,7 @@ module _ {u v w} {A : Type u} {B : Type v} (C : A → B → Type w) where
     field
       _×_ : ∀ a b → C a b
   open Times ⦃ ... ⦄ public
-  {-# DISPLAY Times._×_ _ = _×_ #-}
+  {-# DISPLAY Times._×_ _ A B = A × B #-}
 
   record Asterisk : Type (u ⊔ v ⊔ w) where
     infixr 6 _*_

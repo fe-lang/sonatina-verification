@@ -3,37 +3,13 @@
 
 module Meta.Arrow where
 
-open import Prim.Type renaming (funcomp to infixr 40 _∘_)
-open import Data.Path.Type using (_＝_; refl; sym; ap)
-open import Data.Sigma.Type
-open import Trait.Category
+open import Prim.Type
+open import Data.Pi
+open import Data.Path.Type
+open import Data.Sigma.Base
 open import Meta.Idiom
 open import Meta.Bind
 open import Meta.Invariant
-
-record Quiver : Typeω where
-  constructor quiver
-  field
-    {ℓ-hom} : Level → Level → Level
-    Hom : ∀ {s t} → Type s → Type t → Type (ℓ-hom s t)
-
-record Cat (C : Quiver) : Typeω where
-  private module C = Quiver C
-  field
-    seq : ∀ {u v w} {A : Type u} {B : Type v} {C : Type w}
-        → C.Hom A B → C.Hom B C → C.Hom A C
-    is-cat : ∀ {u} → is-category (C.Hom {u} {u}) seq
-    assoc : ∀ {u v w z} {A : Type u} {B : Type v} {C : Type w} {D : Type z}
-          → (f : C.Hom A B) (g : C.Hom B C) (h : C.Hom C D)
-          → seq f (seq g h) ＝ seq (seq f g) h
-
-  private
-    idn' : ∀ {ℓ} {A : Type ℓ} → C.Hom A A
-    idn' {A} = has-identity.idn (is-cat A)
-
-  module _ {u} where
-    open is-category (C.Hom {u}) seq is-cat
-      (λ f → assoc idn' idn' f) (λ f → sym (assoc f idn' idn')) public
 
 record Arrow (M : Quiver) : Typeω where
   private module M = Quiver M renaming (Hom to infix 2 _↦_)

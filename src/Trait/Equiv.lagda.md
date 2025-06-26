@@ -4,15 +4,19 @@
 
 module Trait.Equiv where
 
-open import Prim.Prelude
+open import Prim.Base
+open import Prim.Interval
+open import Prim.Kan
+open import Prim.Sub
 open import Lib.Fiber
 
+open import Data.Pi
 open import Data.Path.Type
 open import Data.Path.Square
 open import Data.Path.Transport
 
 open import Trait.Contr public
-open import Trait.Inverse public
+open import Trait.Inverse
 
 infix 4 _≃_
 
@@ -234,3 +238,8 @@ module _ {u v w} {A : Type u} {B : Type v} {C : Type w} {h : A → B}
   postcomp-is-equiv = equiv (λ k → h ∘ k) (e.inv ∘_)
     (λ k → ap (_∘ k) (funext $ e.sec))
     (λ k → ap (_∘ k) (funext $ e.retr))
+
+_<≃>_
+  : ∀ {ℓ ℓ'} {M : Effect} ⦃ _ : Invariant M ⦄ {A : Type ℓ} {B : Type ℓ'}
+  → A ≃ B → M .Effect.₀ A → M .Effect.₀ B
+_<≃>_ f = invmap (Equiv.to f) (Equiv.from f)

@@ -9,16 +9,7 @@ open import Prim.Type
 open import Data.Unit.Type
 open import Data.Sigma.Type
 open import Data.Bool.Type
-
-data Listω (A : Typeω) : Typeω where
-  [] : Listω A
-  _∷_ : A → Listω A → Listω A
-
-record Effect : Typeω where
-  constructor eff
-  field
-    {adj} : Level → Level
-    ₀ : ∀ {ℓ} → Type ℓ → Type (adj ℓ)
+open import Meta.Underlying
 
 record Map (M : Effect) : Typeω where
   private module M = Effect M

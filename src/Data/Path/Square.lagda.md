@@ -124,6 +124,14 @@ module tri {ℓ} {A : Type ℓ} {x y z : A} (p : x ＝ y) (q : y ＝ z) (r : x �
     k (k = i0) → sq j (~ i)
   {-# INLINE by-comp #-}
 
+cone : ∀ {ℓ} {A : Type ℓ} {x y z : A} (q : y ＝ z) (r : x ＝ z)
+     → Square q (q ∙ sym r) r refl
+cone {z = z} q r i j = hcomp (∂ i ∨ j) λ where
+  k (i = i0) → q j
+  k (k = i0) → q (i ∨ j)
+  k (i = i1) → r (j ∨ ~ k)
+  k (j = i1) → z
+
 module _ {ℓ} {A : Type ℓ} {x y z : A} (p : x ＝ y) (q : y ＝ z) where
   path-lfiller : erefl x ⌞ p ⌟ q  ⇒ p ∙ q
   path-lfiller = path-filler refl p q

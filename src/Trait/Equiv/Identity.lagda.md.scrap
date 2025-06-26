@@ -1,0 +1,467 @@
+```agda
+{-# OPTIONS --safe --erased-cubical #-}
+
+open import Meta.Object
+module Trait.Equiv.Identity {O : Object} (C : Composable O) where
+
+open import Prim.Type
+open import Prim.Kan
+open import Prim.Interval
+open import Data.Sigma.Type
+open import Data.Path.Type
+open import Data.Path.Base
+open import Data.Path.Square
+open import Data.Path.Reasoning
+open import Trait.Contr
+open import Trait.Equiv
+open import Trait.Embedding
+open import Data.Pi
+
+infix 2 _≅_
+
+private module C where
+  open Object O public
+  open Composable C public
+
+is-idpt : ∀ {x} (i : C.₁ x x) → Type C.ℓ₁
+is-idpt i = i ∙ i ＝ i
+
+has-idn-lassoc : ∀ {x} (i : C.₁ x x) → Type C.ℓ
+has-idn-lassoc {x} i = ∀ {y} (f : C.₁ x y) → i ∙ (i ∙ f) ＝ (i ∙ i) ∙ f
+
+has-idn-rassoc : ∀ {x} (i : C.₁ x x) → Type C.ℓ
+has-idn-rassoc {x} i = ∀ {w} (f : C.₁ w x) → f ∙ (i ∙ i) ＝ (f ∙ i) ∙ i
+
+record is-iso {x y} (f : C.₁ x y) : Type C.ℓ where
+  field
+    sec : (z : C.₀) → is-equiv (λ (g : C.₁ y z) → f ∙ g)
+    retr  : (w : C.₀) → is-equiv (λ (h : C.₁ w x) → h ∙ f)
+
+_≅_ : C.₀ → C.₀ → Type C.ℓ
+x ≅ y = Σ f ∶ C.₁ x y , is-iso f
+
+is-coherent-unitor : ∀ {x} (i : C.₁ x x) → Type _
+is-coherent-unitor i = {!is-contr ?!}
+
+module _ {x y} (f : C.₁ x y) where
+  is-thunkable : Type C.ℓ
+  is-thunkable = {a b : C.₀} (g : C.₁ y a) (h : C.₁ a b)
+               → f ∙ (g ∙ h) ＝ (f ∙ g) ∙ h
+
+  is-linear : Type C.ℓ
+  is-linear = {u v : C.₀} (g : C.₁ v x) (h : C.₁ u v)
+            → h ∙ (g ∙ f) ＝ (h ∙ g) ∙ f
+
+module is-idem-eqv {x} {idn : C.₁ x x}
+  (e : is-iso idn)
+  (idem : is-idpt idn)
+  (lassoc : has-idn-lassoc idn)
+  (rassoc : has-idn-rassoc idn)
+  where
+  private module _ {a : C.₀} where
+    retr = is-iso.retr e a
+    sec = is-iso.sec e a
+    lidn∙⁻¹ = eqv-inv sec
+    ridn∙⁻¹ = eqv-inv retr
+
+    c : (f : C.₁ a x) →  Σ (λ e → e ∙ idn ＝ f)
+    c f = is-equiv.contr-map retr f .ctr
+
+    maps : {f : C.₁ a x} (fb : fiber (λ h → h ∙ idn) f)
+           → c f ＝ fb
+    maps {f} = is-equiv.contr-map retr f .paths
+
+    module _  (f : C.₁ a x) where
+      -- center : C.₁ a x
+      -- center = c (f ∙ idn) .fst
+
+      -- path : center ∙ idn ＝ f ∙ idn
+      -- path = c (f ∙ idn) .snd
+
+      -- lunit : (f : C.₁ x a) → lidn∙⁻¹ (idn ∙ f) ＝ f
+      -- lunit = is-equiv.sec sec
+
+      -- runit : (f : C.₁ a x) → ridn∙⁻¹ (f ∙ idn) ＝ f
+      -- runit = is-equiv.sec (retr)
+
+      -- α : ridn∙⁻¹ (f ∙ idn ∙ idn) ＝ f
+      -- α = {!!}
+
+      -- unit-ext : idn∙⁻¹ ∘ (_∙ idn) ＝ id
+      -- unit-ext = funext unit
+
+      rcounit : (f : C.₁ a x) → ridn∙⁻¹ f ∙ idn ＝ f
+      rcounit = is-equiv.retr retr
+
+      -- counit-ext : (_∙ idn) ∘ idn∙⁻¹ ＝ id
+      -- counit-ext = funext counit
+
+      -- center-is-f : center ＝ f
+      -- center-is-f = has-prop-fibers→injective (_∙ idn)
+      --   (λ x fb fb2 → sym (maps fb) ∙ maps fb2) path
+
+
+  -- lneutral : ∀ {y} (f : C.₁ x y) → idn ∙ f ＝ f
+  -- lneutral {y} f i = hcomp (∂ i) λ where
+  --   k (i = i0) → sec (idn ∙ f) k
+  --   k (i = i1) → sec f k
+  --   k (k = i0) → idn∙⁻¹ (p i)
+  --     where
+  --     module _ {w : C.₀} where
+  --       sec = is-equiv.sec (is-iso.sec e w)
+  --       idn∙⁻¹ = eqv-inv (is-iso.sec e w)
+
+  --     p : idn ∙ (idn ∙ f) ＝ idn ∙ f
+  --     p = lassoc f ∙ ap (_∙ f) idem
+
+  -- has-idem-lcoh : ∀ {y} (f : C.₁ x y) → idn ∙ (idn ∙ f) ＝ idn ∙ f → Type C.ℓ₁
+  -- has-idem-lcoh f p = ap (idn ∙_) (lneutral f) ＝ p
+
+  rneutral : ∀ {w} (f : C.₁ w x) → f ∙ idn ＝ f
+  rneutral {w} f i = hcomp (∂ i) λ where
+    k (i = i0) → {!!}
+    k (i = i1) → {!!}
+    k (k = i0) → ridn∙⁻¹ (p i)
+      where
+
+
+      p : (f ∙ idn) ∙ idn ＝ f ∙ idn
+      p = sym (rassoc f) ∙ ap (f ∙_) idem
+
+  -- has-idem-rcoh : ∀ {w} (f : C.₁ w x) → f ∙ (idn ∙ idn) ＝ f ∙ idn → Type C.ℓ₁
+  -- has-idem-rcoh f p = ap (idn ∙_) (rneutral f) ＝ p
+
+
+record is-idem-equiv (x : C.₀) : Type C.ℓ where
+  field
+    idn : C.₁ x x
+    idem : is-idpt idn
+    iso : is-iso idn
+
+  open is-iso iso public
+
+is-category : Type C.ℓ
+is-category = ∀ x → is-idem-equiv x
+
+module is-category (is-cat : is-category)
+  (let module M {x} = is-idem-equiv (is-cat x))
+  where
+  open M
+  module _ {x y : C.₀} where
+    esec = M.sec {x} y
+    linv = eqv-inv esec
+    inv-sec : is-equiv linv
+    inv-sec = Equiv.inverse (idn ∙_ , esec) .snd
+
+    eretr = M.retr {y} x
+    rinv = eqv-inv eretr
+
+    inv-retr : is-equiv rinv
+    inv-retr = Equiv.inverse (_∙ idn , eretr) .snd
+
+    lctr : (f : C.₁ x y) → fiber (idn ∙_) f
+    lctr = is-equiv.center esec
+
+    rctr : (f : C.₁ x y) → fiber (_∙ idn) f
+    rctr = is-equiv.center eretr
+
+    lunit : (f : C.₁ x y) → linv (idn ∙ f) ＝ f
+    lunit = is-equiv.sec esec
+
+    lcounit : (f : C.₁ x y) → idn ∙ linv f ＝ f
+    lcounit = is-equiv.retr esec
+
+    runit : (f : C.₁ x y) → rinv (f ∙ idn) ＝ f
+    runit = is-equiv.sec eretr
+
+    rcounit : (f : C.₁ x y) → rinv f ∙ idn ＝ f
+    rcounit = is-equiv.retr eretr
+
+    linv-injective : injective linv
+    linv-injective = is-equiv→injective inv-sec
+
+    rinv-injective : injective rinv
+    rinv-injective = is-equiv→injective inv-retr
+
+  module _ {x y} (f : C.₁ x y) where
+    fb0 : fiber (idn ∙_) (idn ∙ f)
+    fb0 = lctr (idn ∙ f)
+
+    fb1 : fiber (_∙ idn) (f ∙ idn)
+    fb1 = rctr (f ∙ idn)
+
+    u : C.₁ x y
+    u = lctr f .fst
+
+    v : C.₁ x y
+    v = rctr f .fst
+
+    p : idn ∙ u ＝ f
+    p = lctr f .snd
+
+    q : v ∙ idn ＝ f
+    q = rctr f .snd
+
+    test : u ＝ linv f
+    test = refl
+
+    test2 : v ＝ rinv f
+    test2 = refl
+
+  module _ {x y} {f : C.₁ x y} where
+    α : injective (idn ∙_)
+    α = is-equiv→injective (esec {x} {y})
+
+    β :  injective (_∙ idn)
+    β = is-equiv→injective (eretr {x} {y})
+
+    lpaths : u (idn ∙ f) , p (idn ∙ f) ＝ f , erefl (idn ∙ f)
+    lpaths = is-equiv.fibers esec (f , refl)
+
+    rpaths : v (f ∙ idn) , q (f ∙ idn) ＝ f , erefl (f ∙ idn)
+    rpaths = is-equiv.fibers eretr (f , refl)
+
+    l0 : u (idn ∙ f) ＝ f
+    l0 = ap fst lpaths
+
+    l1 : v (f ∙ idn) ＝ f
+    l1 = ap fst rpaths
+
+  module _ {x y} {f : C.₁ x y} where
+    inj0 : u {x} {y} ∘ (idn ∙_) ＝ id {A = C.₁ x y}
+    inj0 = funext $ λ _ → l0
+
+    lu0 : u (idn ∙ f) ＝ f
+    lu0 = lunit f
+
+    adj : (f : C.₁ x y) → ap (idn ∙_) (lunit f) ＝ lcounit (idn ∙ f)
+    adj = eqv-adj esec
+
+    sec-adj : (i : I) → idn ∙ u (idn ∙ f) ＝ idn ∙ f
+    sec-adj i j = eqv-adj esec f i j
+
+    retr-adj : (i : I) → v (f ∙ idn) ∙ idn ＝ f ∙ idn
+    retr-adj i j = eqv-adj eretr f i j
+
+    lu1 : v (f ∙ idn) ＝ f
+    lu1 = runit f
+
+    inj1 : v {x} {y} ∘ (_∙ idn) ＝ id
+    inj1 = funext $ λ _ → l1
+
+    σ : u (idn ∙ f) ＝ v (f ∙ idn)
+    σ = l0 ∙ sym l1
+
+    u0 : C.₁ x x
+    u0 = u idn
+
+    v0 : C.₁ x x
+    v0 = v idn
+
+    up0 : u0 ＝ idn
+    up0 = subst (λ h → u h ＝ idn) idem (lunit idn)
+
+    vp0 : v0 ＝ idn
+    vp0 = subst (λ h → v h ＝ idn) idem (runit idn)
+
+    sll : u (idn ∙ f) ＝ idn ∙ u f
+    sll = lunit f ∙ sym (lcounit f)
+
+    slr : u (idn ∙ f) ＝ v f ∙ idn
+    slr = lunit f ∙ sym (rcounit f)
+
+    srl : v (f ∙ idn) ＝ idn ∙ u f
+    srl = runit f ∙ sym (lcounit f)
+
+    srr : v (f ∙ idn) ＝ v f ∙ idn
+    srr = runit f ∙ sym (rcounit f)
+
+    vf : u (idn ∙ f ∙ idn) ＝ f ∙ idn
+    vf = lunit (f ∙ idn)
+
+  --module _ {f : C.₁ x y} where
+
+
+
+
+      -- lm-filler : (f : C.₁ x y)
+      --           → Square (λ i → contr-map sec (idn ∙ f) .ctr .snd i)
+      --                    (λ i → idn ∙ lmap i)
+      --                    refl
+      --                    refl
+      -- lm-filler f i j = ?
+
+      -- p1 : idn ∙ h0 ＝ f ∙ idn
+      -- p1 = fb0 (f ∙ idn) .snd
+
+      -- lpaths : h0 , p1 ＝ f , {!!}
+      -- lpaths = is-equiv.fibers sec {{!!}} ({!!} , {!!})
+
+      -- h1 : h1 ∙ idn ＝ f ∙ idn
+      -- h1
+
+
+
+
+
+
+      -- w0 : h0 ＝ f
+      -- w0 = {!c1 f!}
+
+      -- -- p0 : rinv (f ∙ idn) ＝ linv (idn ∙ f)
+      -- -- p0 = runit f ∙ {!!}
+
+      -- α : linv (idn ∙ f) ＝ rinv (f ∙ idn)
+      -- α = lunit f ∙ sym (runit f)
+
+      -- eq : idn ∙ f ＝ f ∙ idn
+      -- eq = {!!}
+
+
+
+
+-- ```
+
+-- module is-category' (is-cat : is-category) where
+--   module _ x where open has-identity (is-cat x) public
+--   private
+--     module s {x y} = is-equiv (idn-sec x y)
+--     module r {x y} = is-equiv (idn-retr x y)
+--     module pre {x y} (f : C.₁ x y) where
+--       open s
+--       inv-lemma : inv f ＝ f
+--       inv-lemma =
+--         inv f
+--           ＝⟨ sym (inv-adj f) ⟩
+--         inv (idn ∙ inv (idn ∙ f))
+--           ＝⟨ ap inv (ap (idn ∙_) (sec f)) ⟩
+--         inv (idn ∙ f)
+--           ＝⟨ sec f ⟩
+--         f ∎
+
+--   adj-in : {x y : C.₀} (f : C.₁ x y)
+--          → (i : I) → Cat.idn x ∙ (s.inv (Cat.idn x ∙ f)) ＝ Cat.idn x ∙ f
+--   adj-in f i = s.adj f i
+
+--   invadj-in : {x y : C.₀} (f : C.₁ x y)
+--             → (i : I) → s.inv (Cat.idn x ∙ s.inv f) ＝ s.inv f
+--   invadj-in f i = s.inv-adj f i
+
+-- ```
+
+-- module is-category' (is-cat : is-category) where
+--   module _ x where open has-identity (is-cat x) public
+--   private
+--     module s {x y} = is-equiv (idn-sec x y)
+--     module r {x y} = is-equiv (idn-retr x y)
+
+--     module pre {x y} (f : C.₁ x y) where
+--       open s
+--       x0 = s.center f .fst
+--       y0 = s.center (inv f) .fst
+
+--       ext : inv f ＝ idn x ∙ f
+--       ext =
+--         inv f ＝⟨ sym (s.center (inv f) .snd) ⟩
+--         idn x ∙ inv (inv f) ＝⟨ {!!} ⟩
+--         {!!} ＝⟨ {!!} ⟩
+--         {!!} ＝⟨ {!!} ⟩
+--         {!!} ＝⟨ {!!} ∣
+--         idn x ∙ f ∎
+
+--       centr : fiber (idn x ∙_) f
+--       centr = s.center f
+
+--       fb : fiber (idn x ∙_) f
+--       fb = inv f , retr f
+
+--       fb1 fb2 : fiber (idn x ∙_) (inv f)
+--       fb1 = s.center (inv f)
+--       fb2 = inv (s.center f .fst) , retr (inv f)
+
+--       fb-pr1 : y0 ＝ inv x0
+--       fb-pr1 = ap fst (fibers fb2)
+
+
+
+
+--       cent : idn x ∙ inv f ＝ f
+--       cent = s.center f .snd
+--       inv-lemma : inv f ＝ f
+--       inv-lemma =
+--         inv f ＝⟨ (λ i → inv-adj f i (~ i)) ⟩
+--         inv (idn x ∙ inv f) ＝⟨ (λ i → inv (adj (inv f) i (~ i))) ⟩
+--         inv (idn x ∙ inv (idn x ∙ inv f)) ＝⟨ {!!} ⟩
+--         {!!} ＝⟨ {!!} ∣
+--         f ∎
+
+-- module is-category (is-cat : is-category)
+--   (let module Cat x = has-identity (is-cat x))
+--   (idn-assocl : ∀ {x y} (f : C.₁ x y)
+--               → Cat.idn x ∙ (Cat.idn x ∙ f) ＝ (Cat.idn x ∙ Cat.idn x) ∙ f)
+--   (idn-assocr : ∀ {x y} (f : C.₁ x y)
+--               → (f ∙ Cat.idn y) ∙ Cat.idn y ＝ f ∙ (Cat.idn y ∙ Cat.idn y))
+--   where
+--   private
+--     module s {x y} = is-equiv (Cat.idn-sec x y)
+--     module r {x y} = is-equiv (Cat.idn-retr x y)
+--     pre : {x y z : C.₀} → C.₁ x y → C.₁ x y
+--     pre {x} g = Cat.idn x ∙ g
+--     post : {w x y : C.₀} → C.₁ w x → C.₁ w x
+--     post {x} f = f ∙ Cat.idn x
+
+--   private module _ {x y : C.₀} (f : C.₁ x y) where
+--     idn : C.₁ x x
+--     idn = is-cat x .has-identity.idn
+
+--     cent : idn ∙ s.inv f ＝ f
+--     cent = s.center f .snd
+
+--     idnl' : idn ∙ f ＝ f
+--     idnl' =
+--       idn ∙ f ＝⟨ ap (idn ∙_) (sym (s.sec f)) ⟩
+--       idn ∙ (s.inv (idn ∙ f)) ＝⟨ (λ i → idn ∙ {!s.inv-adj f i i!}) ⟩
+--       {!!} ＝⟨ {!!} ∣
+--       f ∎
+
+--   ssec : {x y : C.₀} (f : C.₁ x y) → s.inv (Cat.idn x ∙ f) ＝ f
+--   ssec = s.sec
+
+--   sretr : {x y : C.₀} (f : C.₁ x y) → Cat.idn x ∙ (s.inv f) ＝ f
+--   sretr = s.retr
+
+--   test-adj : {x y : C.₀} (f : C.₁ x y)
+--            → ap (Cat.idn x ∙_) (s.sec f) ＝ s.retr (Cat.idn x ∙ f)
+--   test-adj = s.adj
+
+--   adj-in : {x y : C.₀} (f : C.₁ x y)
+--          → (i : I) → Cat.idn x ∙ (s.inv (Cat.idn x ∙ f)) ＝ Cat.idn x ∙ f
+--   adj-in f i = s.adj f i
+
+--   invadj-in : {x y : C.₀} (f : C.₁ x y)
+--             → (i : I) → s.inv (Cat.idn x ∙ s.inv f) ＝ s.inv f
+--   invadj-in f i = s.inv-adj f i
+
+--   idnl : ∀ {x y} (f : C.₁ x y) → Cat.idn x ∙ f ＝ f
+--   idnl {x = x} {y = y} f =
+--       Cat.idn x ∙ f
+--         ＝⟨ sym (ap (Cat.idn x ∙_) (retr f)) ⟩
+--       Cat.idn x ∙ (Cat.idn x ∙ (dom f))
+--         ＝⟨ idn-assocl (dom f) ⟩
+--      (Cat.idn x ∙ Cat.idn x) ∙ dom f
+--         ＝⟨ ap (_∙ dom f) (Cat.idn-idpt x) ⟩
+--       Cat.idn x ∙ dom f
+--         ＝⟨ retr f ∣
+--       f ∎ where open s renaming (inv to dom)
+
+--   idnr : ∀ {x y} (f : C.₁ x y) → f ∙ (Cat.idn y) ＝ f
+--   idnr {x = x} {y = y} f =
+--      f ∙ Cat.idn y
+--        ＝⟨ sym (ap (_∙ Cat.idn y) (retr f)) ⟩
+--      ((cod f) ∙ Cat.idn y) ∙ Cat.idn y
+--        ＝⟨ idn-assocr (cod f) ⟩
+--      (cod f) ∙ (Cat.idn y ∙ Cat.idn y)
+--        ＝⟨ ap (cod f ∙_) (Cat.idn-idpt y) ⟩
+--      cod f ∙ Cat.idn y
+--        ＝⟨ retr f ∣
+--      f ∎ where open r renaming (inv to cod)

@@ -8,13 +8,10 @@ https://1lab.dev/1Lab.HLevel.html
 
 module Trait.HLevel.Base where
 
-open import Prim.Prelude
-open import Trait.Equiv
-open import Data.Path.Base
-open import Data.Path.Square
-open import Data.Path.Transport
-open import Data.Nat.Type
-open import Meta.Cut
+open import Prim.Base
+open import Prim.Cubical
+open import Data.Nat.Base
+open import Data.Path
 
 ```
 

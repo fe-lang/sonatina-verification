@@ -3,12 +3,10 @@
 
 module Trait.Inverse where
 
-open import Prim.Type renaming (funcomp to infixr 40 _∘_)
+open import Prim.Base
 open import Prim.Interval
-open import Data.Path.Transport
-open import Data.Path.Reasoning
-open import Data.Path.Base
-open import Data.Sigma.Type
+open import Data.Pi
+open import Data.Path
 
 ```
 

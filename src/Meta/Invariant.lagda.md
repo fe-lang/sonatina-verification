@@ -1,10 +1,9 @@
 ```agda
-{-# OPTIONS --safe --erased-cubical #-}
+{-# OPTIONS --safe --cubical-compatible #-}
 
 module Meta.Invariant where
 
 open import Prim.Type
-open import Trait.Equiv
 open import Data.Unit.Type
 open import Data.Empty.Type
 open import Data.Sigma.Type
@@ -20,11 +19,6 @@ record Invariant (M : Effect) : Typeω where
       → (A → B) → (B → A) → M.₀ A → M.₀ B
 
 open Invariant ⦃ ... ⦄ public
-
-_<≃>_
-  : ∀ {ℓ ℓ'} {M : Effect} ⦃ _ : Invariant M ⦄ {A : Type ℓ} {B : Type ℓ'}
-  → A ≃ B → M .Effect.₀ A → M .Effect.₀ B
-_<≃>_ f = invmap (Equiv.to f) (Equiv.from f)
 
 record Monoidal (M : Effect) : Typeω where
   private module M = Effect M
