@@ -1,0 +1,10 @@
+name = "Prelude"
+version = "0.1.0"
+defaultTargets = ["Prelude", "PreludeTests"]
+
+[[lean_lib]]
+name = "Prelude"
+
+[[lean_lib]]
+name = "PreludeTests"
+roots = ["PreludeTests.Prelude", "PreludeTests.Relation", "PreludeTests.Container", "PreludeTests.Eq", "PreludeTests.Axiom"]
