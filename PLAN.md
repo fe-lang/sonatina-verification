@@ -214,9 +214,10 @@ eliminate the evidence at the exit: the two orders of a pure step and an
 effectful step, with the lift of the first order moved to the second order
 along the interchange derivation; one continuation of two control paths,
 with a condition on the sum that each path establishes from the postcondition
-of the test; one effectful step of two control paths in a frame; and the loop
-that counts down, with an invariant that has the receipts of the calls and
-the identity of the value.
+of the test; one effectful step of two control paths in a frame, with the lift of the
+frame moved along the frame equation to the copairing that has the frame of
+each path alone; and the loop that counts down, with an invariant that has
+the receipts of the calls and the identity of the value.
 
 The calls with a runtime have one form.
 [Prelude/Container/Runtime.lean](Prelude/Container/Runtime.lean) has the
@@ -330,6 +331,11 @@ in which each pure operation returns without a call. The two exit equations
 of the control sum are rules too. An exit to the boundary of a copairing, and
 then the copairing, is the diagram of the case of the exit, with renamed
 ports. An exit past a continuation, and then the continuation, is that exit.
+The control equation set has two more rules. A composite is the diagram that
+has the continuation at each exit to its boundary. A frame is the copairing
+that has the frame of each case alone: the frame has one copy of its diagram,
+and the copairing has one copy for each case. Each of the two holds in each
+implementation.
 [Prelude/Indexed.lean](Prelude/Indexed.lean) has the positions of a
 concatenation, the case analysis of a position of a nonempty list, and the
 selection of values at a list of positions, with their laws. [Prelude/Container/Free.lean](Prelude/Container/Free.lean) has the
@@ -363,13 +369,18 @@ arbitrary computation at the limit:
   and one effectful continuation. The composite and the diagram with the
   continuation at each exit give the same values in each case of the test.
   The check consumes the identity that the agreement gives. The composite has
-  4 steps, and the diagram with the continuation at each exit has 5.
+  4 steps, and the diagram with the continuation at each exit has 5. The
+  composite equation relates the two forms as a derivation, and a check
+  consumes its soundness.
 - A test, one effectful step for the two paths, and a different sum after
   that step on each path. A frame has the one copy of the step, and its
   bypass keeps the path and one input. After the substitution, the frame and
   the diagram with a copy of the step in each path are one computation with
   one call, in each case of the test. The frame has 4 steps, and the diagram
-  with a copy of the step in each path has 5.
+  with a copy of the step in each path has 5. The frame equation relates the
+  frame to the copairing that has the frame of each path alone, by the
+  congruence of a composite. A check consumes its soundness, and that form
+  has 7 steps.
 - A composite in a composite. One path of the inner composite exits past the
   inner continuation, to the outer continuation. The outer composite and the
   diagram with the outer continuation at each exit of the inner composite
@@ -399,7 +410,6 @@ computation. The loop has 3 steps, and the body and then the loop has 6.
 
 These parts of the stage are open: the identity law and the composition law
 of the action of a port map as structural agreements of diagrams, the
-agreement of each frame with the copairing of its copies as a rule, the
 uniqueness of a map out of a sum, and the rules of the cell (the equations of
 a read and a write) with their soundness on the machine. The stage continues
 with one row of its table at a time.

@@ -22,7 +22,7 @@ check of that derivation has closed inputs, and only the kernel reduces it.
 The third group has a test, a different sum in each case, and one exit case for the two
 paths. The continuation is one effectful step. The composite and the diagram with the
 continuation at each exit give the same values in each case of the test, and the composite has
-one step less.
+one step less. The composite equation of the control sum relates the two forms.
 
 The fourth group has a composite in a composite. One path of the inner composite exits past
 the inner continuation, to the outer continuation. The outer composite and the diagram with
@@ -32,7 +32,8 @@ of the test.
 The fifth group has a test, one effectful step for the two paths, and a different sum after
 that step on each path. A frame has the one copy of the step, and its bypass keeps the path
 and one input. The frame and the diagram with a copy of the step in each path give the same
-values in each case of the test, and the frame has one step less.
+values in each case of the test, and the frame has one step less. The frame equation of the
+control sum relates the frame to the copairing that has the frame of each path alone.
 
 The last group has two tests and three paths. A frame has one copy of the effectful step for
 two of the paths. The third path exits past the frame, and its computation has no call. A
@@ -601,6 +602,20 @@ def sharedSize : shared.size ≡ 4 := .refl
 
 def copiedSize : copied.size ≡ 5 := .refl
 
+/-- The composite equation of the control sum relates the two forms. -/
+def copyDerivation : Diagram.Derivation (.control sig) shared copied :=
+  .rule (Sum.inr (Sum.inr (Sum.inr (.seq branches after))))
+
+set_option smartUnfolding false in
+/-- The identity of the two returned values, from the soundness of the rule, is consumed
+through a dependent payload. -/
+def copyDerivationRun (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).1)
+        ((copyDerivation.sound stop count (.control returns) (inputs (x + 1) y) .pure).run
+          (f := provider flag u v) (fun _ => .refl)))
+      ⟨x + 1 + y, Nat.lt_succ_self _⟩).val ≡ x + 1 + y := .refl
+
 /-! A composite in a composite. -/
 
 /-- The exits of the inner composite: the boundary of the outer continuation, and the
@@ -810,6 +825,38 @@ def framedSize : framed.size ≡ 4 := .refl
 
 def stepCopiedSize : stepCopied.size ≡ 5 := .refl
 
+/-- The copairing that has the frame of each path alone. Each path has a copy of the effectful
+step and a copy of the continuation. -/
+def framedEach : Diagram sig [(), ()] [.one [(), ()]] :=
+  .seq tested (.copair (Continuation.frameAt keep enter call (.copair afterCall)))
+
+/-- The frame equation of the control sum relates the two forms, by the congruence of a
+composite. -/
+def unshare : Diagram.Derivation (.control sig) framed framedEach :=
+  .seq (.agree (.refl tested)) (.rule (.frame keep enter call (.copair afterCall)))
+
+set_option smartUnfolding false in
+def framedEachZero (flag : Bool) (u v y : Nat) :
+    observe stop count framedEach flag u v 0 y ≡ (u + 0 + y, u + 0) := .refl
+
+set_option smartUnfolding false in
+def framedEachSucc (flag : Bool) (u v x y : Nat) :
+    observe stop count framedEach flag u v (x + 1) y ≡ (y + y, u + (x + 1)) := .refl
+
+set_option smartUnfolding false in
+/-- The identity of the two returned values, from the soundness of the rule, is consumed
+through a dependent payload that has the response of the store. -/
+def unshareRun (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).2)
+        ((unshare.sound stop count (.control returns) (inputs (x + 1) y) .pure).run
+          (f := provider flag u v) (fun _ => .refl)))
+      ⟨u + (x + 1), Nat.lt_succ_self _⟩).val ≡ u + (x + 1) := .refl
+
+/-- The form with the frame of each path alone has two copies of the step and of the
+continuation. -/
+def framedEachSize : framedEach.size ≡ 7 := .refl
+
 /-! One step of two of three control paths. -/
 
 /-- Two tests. The first path and the third path exit to their cases of the entry of the
@@ -876,7 +923,7 @@ def pastExit : Diagram sig [(), ()] [.one [(), ()]] :=
 
 /-- The second exit equation of the control sum: the exit goes past the frame. -/
 def pastDerivation : Diagram.Derivation (.control sig) pastExit (.exit bothInputs) :=
-  .rule (Sum.inr (Sum.inr (.exit bothInputs _)))
+  .rule (Sum.inr (Sum.inr (Sum.inl (.exit bothInputs _))))
 
 set_option smartUnfolding false in
 /-- The identity of the two returned values, from the soundness of the rule, is consumed
@@ -934,6 +981,14 @@ end Draft.Checks.Diagram
 /-- info: 'Draft.Checks.Diagram.frameSucc' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Diagram.frameSucc
+
+/-- info: 'Draft.Checks.Diagram.copyDerivationRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.copyDerivationRun
+
+/-- info: 'Draft.Checks.Diagram.unshareRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.unshareRun
 
 /-- info: 'Draft.Checks.Diagram.partFramedCallThird' does not depend on any axioms -/
 #guard_msgs in

@@ -1122,13 +1122,43 @@ inductive Diagram.ExitPast : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ
       (next : Continuation S K Qs) :
       Diagram.ExitPast (.seq (.exit (out.there K)) next) (.exit out)
 
+/-- The composite equation of the control sum: a composite is the diagram that has the
+continuation at each exit to its boundary. The composite has one copy of the continuation. -/
+inductive Diagram.SeqExits : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs →
+    Diagram S Γ Qs → Type where
+  | seq {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S Γ (K :: Qs))
+      (next : Continuation S K Qs) : Diagram.SeqExits (.seq first next) (first.atExits next)
+
+/-- The frame of one case of the entry of a frame, as a diagram in the context of that case:
+the exit to the boundary with that one case, and then the frame of that case. -/
+def Continuation.frameAt {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+    (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) (c : P.Case) :
+    Diagram S c.1 Qs :=
+  .seq (.exit (Exits.At.here ⟨Boundary.only c.1, PortMap.id c.1⟩))
+    (.frame (Boundary.family (F := fun Γ => M.At (Port Γ)) (.cons (kept c) .nil))
+      (Boundary.family (F := fun Γ => PortMap Γ Δ) (.cons (args c) .nil)) shared next)
+
+/-- The frame equation of the control sum: a frame is the copairing that has the frame of each
+case alone. The frame has one copy of its diagram, and the copairing has one copy for each
+case. -/
+inductive Continuation.FrameCopair : {P : Boundary Ty} → {Qs : Exits Ty} →
+    Continuation S P Qs → Continuation S P Qs → Type where
+  | frame {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+      (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+      (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) :
+      Continuation.FrameCopair (.frame kept args shared next)
+        (.copair (Continuation.frameAt kept args shared next))
+
 /-- The interchange equation set. -/
 def Rules.interchange (S : Signature Ty) : Rules S := ⟨Diagram.Interchange, fun _ _ => Empty⟩
 
-/-- The interchange rule and the two exit equations of the control sum. -/
+/-- The interchange rule and the equations of the control sum: the two exit equations, the
+composite equation, and the frame equation. -/
 def Rules.control (S : Signature Ty) : Rules S :=
-  ⟨fun d e => Diagram.Interchange d e ⊕ (Diagram.ExitCopair d e ⊕ Diagram.ExitPast d e),
-    fun _ _ => Empty⟩
+  ⟨fun d e => Diagram.Interchange d e ⊕
+      (Diagram.ExitCopair d e ⊕ (Diagram.ExitPast d e ⊕ Diagram.SeqExits d e)),
+    Continuation.FrameCopair⟩
 
 /-- A call at weakened ports is the call at the ports. -/
 def Diagram.callWeaken {β : Type} {Ξ Γ : List Ty} (o : S.Op) (ports : PortMap Γ (S.input o))
@@ -1205,6 +1235,29 @@ def Diagram.ExitPast.sound {Γ : List Ty} {Qs : Exits Ty} : {d e : Diagram S Γ 
     Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
   | _, _, .exit out _, env, rest => .refl ((rest (out.select env)).subst impl)
 
+/-- The composite equation of the control sum holds in each implementation. -/
+def Diagram.SeqExits.sound {Γ : List Ty} {Qs : Exits Ty} : {d e : Diagram S Γ Qs} →
+    Diagram.SeqExits d e → (env : All X Γ) → (rest : Qs.At X → Free (S.interface X) α) →
+    Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
+  | _, _, .seq first next, env, rest =>
+      (Diagram.seqAtExits stop n first next env rest).subst (Impl.Agreement.refl impl)
+
+/-- The frame equation of the control sum holds in each implementation. The frame of one case
+has the values that the identity port map selects. -/
+def Continuation.FrameCopair.sound {P : Boundary Ty} {Qs : Exits Ty} :
+    {k k' : Continuation S P Qs} → Continuation.FrameCopair k k' → (r : P.At X) →
+    (rest : Qs.At X → Free (S.interface X) α) →
+    Free.Agreement ((k.run stop n r rest).subst impl) ((k'.run stop n r rest).subst impl)
+  | _, _, .frame kept args shared next, r, rest =>
+      .ofIdentity
+        (Identity.cong
+          (fun (values : All X r.1.1) =>
+            (shared.run stop n (values.select (args r.1)) (Exits.At.only fun out =>
+              next.run stop n
+                ⟨Boundary.pair (kept r.1).1 out.1, out.2.append (values.select (kept r.1).2)⟩
+                rest)).subst impl)
+          (PortMap.selectId r.2).symm)
+
 /-- The interchange equation set holds in each implementation in which each pure operation
 returns without a call. -/
 def Rules.Sound.interchange (pure : S.Returns impl) : (Rules.interchange S).Sound impl α :=
@@ -1214,6 +1267,8 @@ def Rules.Sound.control (pure : S.Returns impl) : (Rules.control S).Sound impl �
   ⟨fun stop n => fun r => match r with
     | .inl i => Diagram.Interchange.sound stop n pure i
     | .inr (.inl x) => Diagram.ExitCopair.sound stop n x
-    | .inr (.inr x) => Diagram.ExitPast.sound stop n x, fun _ _ => fun r => nomatch r⟩
+    | .inr (.inr (.inl x)) => Diagram.ExitPast.sound stop n x
+    | .inr (.inr (.inr x)) => Diagram.SeqExits.sound stop n x,
+    fun stop n => Continuation.FrameCopair.sound stop n⟩
 
 end Draft

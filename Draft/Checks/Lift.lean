@@ -21,7 +21,8 @@ each path, and the continuation receives it.
 
 The third group has one effectful step of two control paths, in a frame. The exit of the
 shared step has the receipt of the step, and the continuation of each path receives it with the
-kept input.
+kept input. The frame equation moves the lift to the copairing that has the frame of each path
+alone.
 
 The fourth group has the loop that counts down. The invariant has the receipts of the calls of
 the earlier iterations, and the identity of the value with the first value plus their
@@ -324,6 +325,31 @@ def framedSuccResponse (flag : Bool) (u v x y : Nat) (pre : Admission) :
       (framedEvidence stop count limit flag u v (x + 1) y pre).2.1
       ⟨u + (x + 1), Nat.lt_succ_self _⟩).val ≡ u + (x + 1) := .refl
 
+/-- The frame equation as a map of verified implementations of one specification: the verified
+form with the frame of each path alone. -/
+def loweredEach : ImplDep framedSpec Verified.spec ((framedEach.impl stop count).trans lower) :=
+  unshare.lift (.control returns) stop count (loweredFramed stop count limit)
+
+/-- The evidence at the exit of the form with the frame of each path alone. -/
+def eachEvidence (flag : Bool) (u v x y : Nat) (pre : Admission) :=
+  ((loweredEach stop count limit).run (Verified.verify flag u v)) (inputs x y) pre
+
+set_option smartUnfolding false in
+/-- After the frame equation, the evidence gives the same payloads. -/
+def eachZeroFirst (flag : Bool) (u v y key : Nat) :
+    (eachEvidence stop count limit flag u v 0 y (.first key)).2.2.read ≡ u + key := .refl
+
+set_option smartUnfolding false in
+def eachSuccSecond (flag : Bool) (u v x y key : Nat) :
+    (eachEvidence stop count limit flag u v (x + 1) y (.second key)).2.2.read ≡
+      key + u + 1 := .refl
+
+set_option smartUnfolding false in
+def eachSuccResponse (flag : Bool) (u v x y : Nat) (pre : Admission) :
+    (Identity.transport (fun k => Fin (k + 1))
+      (eachEvidence stop count limit flag u v (x + 1) y pre).2.1
+      ⟨u + (x + 1), Nat.lt_succ_self _⟩).val ≡ u + (x + 1) := .refl
+
 end
 
 end Draft.Checks.Diagram
@@ -459,6 +485,14 @@ end Draft.Checks.Countdown
 /-- info: 'Draft.Checks.Diagram.framedSuccResponse' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Diagram.framedSuccResponse
+
+/-- info: 'Draft.Checks.Diagram.eachSuccSecond' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.eachSuccSecond
+
+/-- info: 'Draft.Checks.Diagram.eachSuccResponse' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.eachSuccResponse
 
 /-- info: 'Draft.Checks.Countdown.traceSecond' does not depend on any axioms -/
 #guard_msgs in
