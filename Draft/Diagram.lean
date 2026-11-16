@@ -1579,6 +1579,9 @@ def Rules.sum (R T : Rules S) : Rules S :=
   ⟨fun d e => R.diagram d e ⊕ T.diagram d e,
     fun k k' => R.continuation k k' ⊕ T.continuation k k'⟩
 
+/-- The identity map of a rule set. -/
+def Rules.Map.id (R : Rules S) : Rules.Map R R := ⟨fun r => r, fun r => r⟩
+
 /-- The map of the first set into a sum. -/
 def Rules.Map.inl (R T : Rules S) : Rules.Map R (R.sum T) := ⟨Sum.inl, Sum.inl⟩
 

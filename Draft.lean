@@ -2,6 +2,7 @@ import Prelude
 import Draft.Diagram
 import Draft.Verified
 import Draft.Runtime
+import Draft.Sequentialization
 import Draft.Stele
 import Draft.Checks
 
