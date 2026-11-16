@@ -30,7 +30,8 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 
 The Prelude identity, indexed, decision, relation, and container modules,
 `Draft.Diagram`, `Draft.Verified`, `Draft.Stele`, and `Draft.Checks` exist.
-`Draft.Runtime` has the machines and the evidence of a diagram with a runtime.
+`Draft.Runtime` has the machines, the evidence of a diagram with a runtime,
+and the cell of a signature with the equations of global state.
 The other module families are the planned locations for stages D2 to D7. The module families divide the work
 and not the system: the IR is the one diagram syntax of
 [CONCEPT.md](CONCEPT.md#design).
@@ -271,6 +272,18 @@ each call. The evidence of the machine of the first diagram moves along that
 identity to the machine of the second diagram, for each specification of the
 interface of the diagram with a runtime.
 
+[Draft/Runtime.lean](Draft/Runtime.lean) has the cell of a signature at a
+value type: a read with no operand and one output port, and a write with one
+operand and no output port, each with the identities of its arities. The equations of global state are
+five equations between closed sequences of steps of the cell, with the typing
+of Román–Sobociński (`sec:exampleGlobalState`): two reads give one value, a
+read whose value has no use does nothing, the last of two writes stays, a read
+and then a write of its value does nothing, and a write and then a read gives
+the written value. For each equation, one theorem gives the derivation for
+each context, each port, and each rest, in the control equation set with the
+equations of global state. Its proof is the closed equation, the theorem of
+the frame, and two structural agreements.
+
 [Draft/Checks/State.lean](Draft/Checks/State.lean) has a cell with a read and
 a write: a read, a kept value, a write, and a second read, for an arbitrary
 cell, with the number of the reads; a write and a read in the two orders,
@@ -285,7 +298,16 @@ number of the reads in the witness of its precondition, and two witnesses of
 one runtime give different payloads in each order. The run of the verified
 first order on the machine of the lowering is the evidence of its machine,
 and the derivation moves that evidence to the machine of the second order,
-with the same payloads.
+with the same payloads. The module has a second machine of the cell, whose
+reads do not count. The control equation set and the equations of global
+state hold on the machine of the lowering to it, and each equation of global
+state holds there by computation. Each of the five theorems of the cell has
+one application, in a context with two inputs. A check consumes the identity
+of the two runs of each application through a dependent payload, for
+arbitrary inputs and an arbitrary runtime. The static sizes of the two sides
+are 2 and 1 for two reads, 1 and 0 for a read with no use, 2 and 1 for two
+writes, 2 and 0 for a read and then a write, and 2 and 1 for a write and then
+a read.
 
 Two plain parts of the module are open:
 
@@ -355,6 +377,18 @@ its diagram, and the copairing has one copy for each case. A continuation is
 the copairing of its cases. Each of the three holds in each implementation.
 The last rule gives the uniqueness of a map out of a sum as a derivation: two
 continuations that have a derivation at each case have a derivation.
+The control equation set has two equations of a frame. A frame of a step is
+the step at the ports that the entry gives, and then the frame of the diagram
+of each response, with the kept ports past the step. A frame of an exit is its
+continuation at the pair of the kept case and the case of the exit. Each of
+the two holds in each congruence. They give one theorem for each rule set
+that has the control equations: a derivation between two diagrams with one
+boundary gives a derivation between the two diagrams in a context, each with
+the rest in line at each exit. An equation between two closed sequences of
+steps thus applies in each context and with each rest, by one application of
+the theorem. A composite in a side of the equation stays in a frame. A map of
+rule sets gives a map of derivations, and a sum of two rule sets holds in each
+congruence in which the two sets hold.
 [Prelude/Indexed.lean](Prelude/Indexed.lean) has the positions of a
 concatenation, the case analysis of a position of a nonempty list, and the
 selection of values at a list of positions, with their laws. [Prelude/Container/Free.lean](Prelude/Container/Free.lean) has the
@@ -430,8 +464,8 @@ with its round trip by computation. The unrolling law and the fixpoint law of
 the loop apply to the run from the counter 2, and their round trips hold by
 computation. The loop has 3 steps, and the body and then the loop has 6.
 
-These parts of the stage are open: the rules of the cell (the equations of a
-read and a write) with their soundness on the machine, and the check of two
+These parts of the stage are open: the soundness of the equations of global
+state for each machine with a premise on its runtime, and the check of two
 alternatives with a frame on a machine, with a shared invariant of the
 runtime.
 

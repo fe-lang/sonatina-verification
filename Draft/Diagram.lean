@@ -28,7 +28,14 @@ The derivations of a rule set are the smallest relation on diagrams that has the
 structural agreement, and that is an equivalence and a congruence for each form. A congruence
 of computations in which each rule holds relates the two computations of each derivation, for
 each number of unrollings. Agreement after the substitution of an implementation is such a
-congruence, and so is the identity of the runs on a machine. -/
+congruence, and so is the identity of the runs on a machine.
+
+A frame has two equations. A frame of a step is the step, and then the frame of the diagram of
+each response. A frame of an exit is its continuation at the pair of the kept case and the case
+of the exit. They give one theorem for each rule set that has the control equations: a
+derivation between two diagrams with one boundary gives a derivation between the two diagrams
+in a context, each with the rest in line at each exit. An equation between two closed sequences
+of steps thus applies in each context and with each rest, by one application of the theorem. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -198,6 +205,17 @@ def liftSelect (Ξ : List Ty) {Γ Δ Θ : List Ty} (first : PortMap Γ Δ) (seco
       second).trans
     (Identity.cong (All.append (All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left)))
       (weakenSelect Ξ first second))
+
+/-- The port map into the context with no more port is the port map. -/
+def weakenNil {Γ Δ : List Ty} (ports : PortMap Γ Δ) : ports.weaken [] ≡ ports :=
+  All.mapId ports
+
+/-- The selection at ports that are transported along an identity of lists is the transported
+selection. -/
+def selectTransport {Γ Δ Δ' : List Ty} (e : Δ ≡ Δ') (ports : PortMap Γ Δ) (env : All X Γ) :
+    env.select (Identity.transport (PortMap Γ) e ports) ≡
+      Identity.transport (All X) e (env.select ports) :=
+  (Identity.transportMap (fun (Θ : List Ty) (ps : PortMap Γ Θ) => env.select ps) e ports).symm
 
 end PortMap
 
@@ -408,6 +426,15 @@ end
 def Diagram.one {Δ Γ : List Ty} {Qs : Exits Ty} (d : Diagram S (Δ ++ Γ) Qs) :
     (c : (Boundary.one Δ).Case) → Diagram S (c.1 ++ Γ) Qs :=
   Boundary.family (F := fun Δ => Diagram S (Δ ++ Γ) Qs) (.cons d .nil)
+
+/-- The family of a step whose output boundary is identical to the boundary with one case. -/
+def Diagram.oneAt {Δ Γ : List Ty} {Qs : Exits Ty} {K : Boundary Ty} (e : Boundary.one Δ ≡ K)
+    (d : Diagram S (Δ ++ Γ) Qs) : (c : K.Case) → Diagram S (c.1 ++ Γ) Qs :=
+  Identity.transport (fun K => (c : Boundary.Case K) → Diagram S (c.1 ++ Γ) Qs) e (Diagram.one d)
+
+/-- The exit to the one case of one boundary, with its ports. -/
+def Diagram.exitOne {Γ Δ : List Ty} (ports : PortMap Γ Δ) : Diagram S Γ [.one Δ] :=
+  .exit ⟨_, .here, Boundary.only Δ, ports⟩
 
 /-- The copairing over the boundary with one case. -/
 def Continuation.one {Δ : List Ty} {Qs : Exits Ty} (d : Diagram S Δ Qs) :
@@ -736,6 +763,31 @@ def Diagram.Agreement.stepPorts {Γ : List Ty} {Qs : Exits Ty} (o : S.Op)
   Identity.ind
     (fun ports' _ => Diagram.Agreement (.step ⟨o, ports⟩ rest) (.step ⟨o, ports'⟩ rest'))
     (.step ⟨o, ports⟩ each) same
+
+/-- Two renamings of one diagram by identical port maps agree. -/
+def Diagram.Agreement.renamePorts {Γ Δ : List Ty} {Qs : Exits Ty} (d : Diagram S Δ Qs)
+    {ρ ρ' : PortMap Γ Δ} (same : ρ ≡ ρ') : Diagram.Agreement (d.rename ρ) (d.rename ρ') :=
+  Identity.ind (fun ρ' _ => Diagram.Agreement (d.rename ρ) (d.rename ρ'))
+    (Diagram.Agreement.refl _) same
+
+/-- A function of diagrams for each list of added ports, at the family of a step whose output
+boundary is identical to the boundary with one case: an agreement at the one case gives the
+agreement at each case. -/
+def Diagram.oneAtAgree {Δ Γ Γ' : List Ty} {Qs Qs' : Exits Ty} {K : Boundary Ty}
+    (e : Boundary.one Δ ≡ K)
+    (F : (Ξ : List Ty) → Diagram S (Ξ ++ Γ) Qs → Diagram S (Ξ ++ Γ') Qs')
+    {x : Diagram S (Δ ++ Γ) Qs} {y : Diagram S (Δ ++ Γ') Qs'}
+    (same : Diagram.Agreement (F Δ x) y) (c : K.Case) :
+    Diagram.Agreement (F c.1 (Diagram.oneAt e x c)) (Diagram.oneAt e y c) :=
+  Identity.ind
+    (fun K e => (c : Boundary.Case K) →
+      Diagram.Agreement (F c.1 (Diagram.oneAt e x c)) (Diagram.oneAt e y c))
+    (fun c =>
+      Elem.consCases
+        (motive := fun (Δ' : List Ty) (i : Elem Δ' [Δ]) =>
+          Diagram.Agreement (F Δ' (Diagram.one x ⟨Δ', i⟩)) (Diagram.one y ⟨Δ', i⟩))
+        c.2 same (fun _ i => i.ofNil))
+    e c
 
 /-- A diagram with the ports of a map that is the identity map agrees with the diagram. -/
 def Diagram.renameAgree : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
@@ -1194,15 +1246,22 @@ inductive Diagram.SeqExits : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ
   | seq {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S Γ (K :: Qs))
       (next : Continuation S K Qs) : Diagram.SeqExits (.seq first next) (first.atExits next)
 
-/-- The frame of one case of the entry of a frame, as a diagram in the context of that case:
-the exit to the boundary with that one case, and then the frame of that case. -/
+/-- The frame of one context, as a diagram in that context: the exit to the boundary with that
+one case, and then the frame. -/
+def Diagram.framed {Γ Δ : List Ty} {M K : Boundary Ty} {Qs : Exits Ty} (kept : M.At (Port Γ))
+    (args : PortMap Γ Δ) (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) :
+    Diagram S Γ Qs :=
+  .seq (.exit (Exits.At.here ⟨Boundary.only Γ, PortMap.id Γ⟩))
+    (.frame (Boundary.family (F := fun Γ => M.At (Port Γ)) (.cons kept .nil))
+      (Boundary.family (F := fun Γ => PortMap Γ Δ) (.cons args .nil)) shared next)
+
+/-- The frame of one case of the entry of a frame, as a diagram in the context of that
+case. -/
 def Continuation.frameAt {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
     (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
     (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) (c : P.Case) :
     Diagram S c.1 Qs :=
-  .seq (.exit (Exits.At.here ⟨Boundary.only c.1, PortMap.id c.1⟩))
-    (.frame (Boundary.family (F := fun Γ => M.At (Port Γ)) (.cons (kept c) .nil))
-      (Boundary.family (F := fun Γ => PortMap Γ Δ) (.cons (args c) .nil)) shared next)
+  Diagram.framed (kept c) (args c) shared next
 
 /-- The frame equation of the control sum: a frame is the copairing that has the frame of each
 case alone. The frame has one copy of its diagram, and the copairing has one copy for each
@@ -1221,15 +1280,44 @@ inductive Continuation.CopairCases : {P : Boundary Ty} → {Qs : Exits Ty} →
   | cases {K : Boundary Ty} {Qs : Exits Ty} (next : Continuation S K Qs) :
       Continuation.CopairCases next (.copair next.atCase)
 
+/-- The step equation of a frame: a frame of a step is the step at the ports that the entry
+gives, and then the frame of the diagram of each response. The kept ports go past the step. -/
+inductive Continuation.FrameStep : {P : Boundary Ty} → {Qs : Exits Ty} →
+    Continuation S P Qs → Continuation S P Qs → Type where
+  | step {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+      (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+      (call : (S.interface (Port Δ)).Shape)
+      (rest : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Δ) [K])
+      (next : Continuation S (M.product K) Qs) :
+      Continuation.FrameStep (.frame kept args (.step call rest) next)
+        (.copair fun p => .step ⟨call.1, (args p).select call.2⟩ fun c =>
+          Diagram.framed ⟨(kept p).1, PortMap.weaken c.1 (kept p).2⟩ ((args p).lift c.1)
+            (rest c) next)
+
+/-- The exit equation of a frame: a frame of an exit is the continuation at the pair of the
+kept case and the case of the exit, with the ports of the exit and the kept ports. -/
+inductive Continuation.FrameExit : {P : Boundary Ty} → {Qs : Exits Ty} →
+    Continuation S P Qs → Continuation S P Qs → Type where
+  | exit {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+      (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+      (c : K.Case) (ports : PortMap Δ c.1) (next : Continuation S (M.product K) Qs) :
+      Continuation.FrameExit (.frame kept args (.exit (Exits.At.here ⟨c, ports⟩)) next)
+        (.copair fun p =>
+          Diagram.rename (((args p).select ports).append (kept p).2)
+            (next.atCase (Boundary.pair (kept p).1 c)))
+
 /-- The interchange equation set. -/
 def Rules.interchange (S : Signature Ty) : Rules S := ⟨Diagram.Interchange, fun _ _ => Empty⟩
 
 /-- The interchange rule and the equations of the control sum: the two exit equations, the
-composite equation, the frame equation, and the case equation. -/
+composite equation, the frame equation, the case equation, and the step equation and the exit
+equation of a frame. -/
 def Rules.control (S : Signature Ty) : Rules S :=
   ⟨fun d e => Diagram.Interchange d e ⊕
       (Diagram.ExitCopair d e ⊕ (Diagram.ExitPast d e ⊕ Diagram.SeqExits d e)),
-    fun k k' => Continuation.FrameCopair k k' ⊕ Continuation.CopairCases k k'⟩
+    fun k k' => Continuation.FrameCopair k k' ⊕
+      (Continuation.CopairCases k k' ⊕
+        (Continuation.FrameStep k k' ⊕ Continuation.FrameExit k k'))⟩
 
 /-- A map out of a sum is fixed by its cases: two continuations that have a derivation at each
 case have a derivation. -/
@@ -1237,8 +1325,8 @@ def Continuation.Derivation.ofCases {K : Boundary Ty} {Qs : Exits Ty}
     {k k' : Continuation S K Qs}
     (each : (c : K.Case) → Diagram.Derivation (Rules.control S) (k.atCase c) (k'.atCase c)) :
     Continuation.Derivation (Rules.control S) k k' :=
-  .trans (.rule (Sum.inr (.cases k)))
-    (.trans (.copair each) (.symm (.rule (Sum.inr (.cases k')))))
+  .trans (.rule (Sum.inr (Sum.inl (.cases k))))
+    (.trans (.copair each) (.symm (.rule (Sum.inr (Sum.inl (.cases k'))))))
 
 /-- A call at weakened ports is the call at the ports. -/
 def Diagram.callWeaken {β : Type} {Ξ Γ : List Ty} (o : S.Op) (ports : PortMap Γ (S.input o))
@@ -1350,6 +1438,71 @@ def Continuation.CopairCases.sound {P : Boundary Ty} {Qs : Exits Ty} :
           (Identity.cong (fun (values : All X r.1.1) => next.run stop n ⟨r.1, values⟩ rest)
             (PortMap.selectId r.2).symm))
 
+/-- The step equation of a frame holds in each congruence. The frame of the diagram of a
+response has the values that the lifted port map and the weakened kept ports select. -/
+def Continuation.FrameStep.sound {P : Boundary Ty} {Qs : Exits Ty} :
+    {k k' : Continuation S P Qs} → Continuation.FrameStep k k' → (r : P.At X) →
+    (rest : Qs.At X → Free (S.interface X) α) →
+    eqv.Rel (k.run stop n r rest) (k'.run stop n r rest)
+  | _, _, .step (M := M) (K := K) kept args call after next, r, rest =>
+      eqv.agree
+        (Identity.transport
+          (fun operands => Free.Agreement
+            (.request (C := S.interface X) ⟨call.1, operands⟩ fun resp =>
+              (after resp.1).run stop n (resp.2.append (r.2.select (args r.1)))
+                (Exits.At.only fun out =>
+                  next.run stop n
+                    ⟨Boundary.pair (kept r.1).1 out.1, out.2.append (r.2.select (kept r.1).2)⟩
+                    rest))
+            (.request (C := S.interface X) ⟨call.1, r.2.select ((args r.1).select call.2)⟩
+              fun resp =>
+                (Diagram.framed (M := M) ⟨(kept r.1).1, PortMap.weaken resp.1.1 (kept r.1).2⟩
+                  ((args r.1).lift resp.1.1) (after resp.1) next).run stop n
+                  (resp.2.append r.2) rest))
+          (All.selectSelect r.2 (args r.1) call.2)
+          (.request _ fun resp =>
+            ((after resp.1).runCongr stop n (resp.2.append (r.2.select (args r.1)))
+                (Exits.At.onlyRel (R := Free.Agreement) fun out =>
+                  .ofIdentity
+                    (Identity.cong
+                      (fun vals => next.run stop n
+                        ⟨Boundary.pair (kept r.1).1 out.1, out.2.append vals⟩ rest)
+                      ((Identity.cong
+                          (fun e => All.select e (PortMap.weaken resp.1.1 (kept r.1).2))
+                          (PortMap.selectId (resp.2.append r.2))).trans
+                        (PortMap.selectWeaken resp.2 r.2 (kept r.1).2)).symm))).trans
+              (.ofIdentity
+                (Identity.cong
+                  (fun e => (after resp.1).run stop n e
+                    (Exits.At.only fun out =>
+                      next.run stop n
+                        ⟨Boundary.pair (kept r.1).1 out.1,
+                          out.2.append
+                            (((resp.2.append r.2).select (PortMap.id _)).select
+                              (PortMap.weaken resp.1.1 (kept r.1).2))⟩
+                        rest))
+                  ((Identity.cong (fun e => All.select e ((args r.1).lift resp.1.1))
+                      (PortMap.selectId (resp.2.append r.2))).trans
+                    (PortMap.selectLift resp.2 r.2 (args r.1))).symm))))
+
+/-- The exit equation of a frame holds in each congruence. The case of the continuation has
+the values that the ports of the exit and the kept ports select. -/
+def Continuation.FrameExit.sound {P : Boundary Ty} {Qs : Exits Ty} :
+    {k k' : Continuation S P Qs} → Continuation.FrameExit k k' → (r : P.At X) →
+    (rest : Qs.At X → Free (S.interface X) α) →
+    eqv.Rel (k.run stop n r rest) (k'.run stop n r rest)
+  | _, _, .exit kept args c ports next, r, rest =>
+      eqv.symm (eqv.agree
+        ((Diagram.renameRun stop n (((args r.1).select ports).append (kept r.1).2)
+            (next.atCase (Boundary.pair (kept r.1).1 c)) r.2 rest).trans
+          (.ofIdentity
+            (Identity.cong
+              (fun vals => next.run stop n ⟨Boundary.pair (kept r.1).1 c, vals⟩ rest)
+              ((PortMap.selectId _).trans
+                ((All.selectAppend r.2 ((args r.1).select ports) (kept r.1).2).trans
+                  (Identity.cong (fun v => All.append v (r.2.select (kept r.1).2))
+                    (All.selectSelect r.2 (args r.1) ports))))))))
+
 /-- The interchange equation set holds after the substitution of each implementation in which
 each pure operation returns without a call. -/
 def Rules.Sound.interchange (pure : S.Returns impl) :
@@ -1366,12 +1519,218 @@ def Rules.Sound.withControl (inter : (Rules.interchange S).Sound eqv) :
     | .inr (.inr (.inr x)) => Diagram.SeqExits.sound stop n x,
     fun stop n => fun r => match r with
     | .inl x => Continuation.FrameCopair.sound stop n x
-    | .inr x => Continuation.CopairCases.sound stop n x⟩
+    | .inr (.inl x) => Continuation.CopairCases.sound stop n x
+    | .inr (.inr (.inl x)) => Continuation.FrameStep.sound stop n x
+    | .inr (.inr (.inr x)) => Continuation.FrameExit.sound stop n x⟩
 
 /-- The control equation set holds after the substitution of each implementation in which each
 pure operation returns without a call. -/
 def Rules.Sound.control (pure : S.Returns impl) :
     (Rules.control S).Sound (Free.Congruence.subst (α := α) impl) :=
   .withControl (.interchange pure)
+
+/-- A map of rule sets: each rule of the first set is a rule of the second set. -/
+structure Rules.Map (R T : Rules S) where
+  diagram : {Γ : List Ty} → {Qs : Exits Ty} → {d e : Diagram S Γ Qs} → R.diagram d e →
+    T.diagram d e
+  continuation : {P : Boundary Ty} → {Qs : Exits Ty} → {k k' : Continuation S P Qs} →
+    R.continuation k k' → T.continuation k k'
+
+/-- The sum of two rule sets: a rule of the sum is a rule of one of the two sets. -/
+def Rules.sum (R T : Rules S) : Rules S :=
+  ⟨fun d e => R.diagram d e ⊕ T.diagram d e,
+    fun k k' => R.continuation k k' ⊕ T.continuation k k'⟩
+
+/-- The map of the first set into a sum. -/
+def Rules.Map.inl (R T : Rules S) : Rules.Map R (R.sum T) := ⟨Sum.inl, Sum.inl⟩
+
+/-- The map of the second set into a sum. -/
+def Rules.Map.inr (R T : Rules S) : Rules.Map T (R.sum T) := ⟨Sum.inr, Sum.inr⟩
+
+/-- A sum of two rule sets holds in each congruence in which the two sets hold. -/
+def Rules.Sound.sum {T : Rules S} (left : R.Sound eqv) (right : T.Sound eqv) :
+    (R.sum T).Sound eqv :=
+  ⟨fun stop n => fun r => match r with
+    | .inl x => left.diagram stop n x
+    | .inr x => right.diagram stop n x,
+    fun stop n => fun r => match r with
+    | .inl x => left.continuation stop n x
+    | .inr x => right.continuation stop n x⟩
+
+mutual
+
+/-- A derivation in a rule set is a derivation in each rule set that has its rules. -/
+def Diagram.Derivation.map {T : Rules S} (f : Rules.Map R T) : {Γ : List Ty} →
+    {Qs : Exits Ty} → {d e : Diagram S Γ Qs} → Diagram.Derivation R d e →
+    Diagram.Derivation T d e
+  | _, _, _, _, .agree a => .agree a
+  | _, _, _, _, .rule r => .rule (f.diagram r)
+  | _, _, _, _, .symm h => .symm (Diagram.Derivation.map f h)
+  | _, _, _, _, .trans h k => .trans (Diagram.Derivation.map f h) (Diagram.Derivation.map f k)
+  | _, _, _, _, .step call each => .step call fun c => Diagram.Derivation.map f (each c)
+  | _, _, _, _, .seq head tail =>
+      .seq (Diagram.Derivation.map f head) (Continuation.Derivation.map f tail)
+
+def Continuation.Derivation.map {T : Rules S} (f : Rules.Map R T) : {P : Boundary Ty} →
+    {Qs : Exits Ty} → {k k' : Continuation S P Qs} → Continuation.Derivation R k k' →
+    Continuation.Derivation T k k'
+  | _, _, _, _, .agree a => .agree a
+  | _, _, _, _, .rule r => .rule (f.continuation r)
+  | _, _, _, _, .symm h => .symm (Continuation.Derivation.map f h)
+  | _, _, _, _, .trans h j =>
+      .trans (Continuation.Derivation.map f h) (Continuation.Derivation.map f j)
+  | _, _, _, _, .copair cases => .copair fun c => Diagram.Derivation.map f (cases c)
+  | _, _, _, _, .frame kept args body tail =>
+      .frame kept args (Diagram.Derivation.map f body) (Continuation.Derivation.map f tail)
+  | _, _, _, _, .loop same => .loop (Continuation.Derivation.map f same)
+
+end
+
+/-- A diagram in a context with kept ports: the recursion on a diagram along a port map. A
+step is the step at the ports that the port map gives, with the kept ports past it. `onExit`
+gives the diagram of an exit, and `onSeq` gives the diagram of a composite. -/
+def Diagram.plug {Ξ : List Ty} {Qs Qs' : Exits Ty}
+    (onExit : {Γ : List Ty} → PortMap Γ Ξ → Qs.At (Port Γ) → Diagram S Γ Qs')
+    (onSeq : {Γ Δ : List Ty} → PortMap Γ Ξ → PortMap Γ Δ → Diagram S Δ Qs → Diagram S Γ Qs') :
+    {Γ Δ : List Ty} → PortMap Γ Ξ → PortMap Γ Δ → Diagram S Δ Qs → Diagram S Γ Qs'
+  | _, _, ξ, args, .exit out => onExit ξ (out.select args)
+  | _, _, ξ, args, .step call rest =>
+      .step ⟨call.1, args.select call.2⟩ fun c =>
+        Diagram.plug onExit onSeq (PortMap.weaken c.1 ξ) (args.lift c.1) (rest c)
+  | _, _, ξ, args, .seq first next => onSeq ξ args (.seq first next)
+
+/-- A function of diagrams that has the equation of the recursion at an exit, at a step, and
+at a composite has a derivation to the recursion. -/
+def Diagram.Derivation.plug {T : Rules S} {Ξ : List Ty} {Qs Qs' : Exits Ty}
+    (onExit : {Γ : List Ty} → PortMap Γ Ξ → Qs.At (Port Γ) → Diagram S Γ Qs')
+    (onSeq : {Γ Δ : List Ty} → PortMap Γ Ξ → PortMap Γ Δ → Diagram S Δ Qs → Diagram S Γ Qs')
+    (F : {Γ Δ : List Ty} → PortMap Γ Ξ → PortMap Γ Δ → Diagram S Δ Qs → Diagram S Γ Qs')
+    (atExit : {Γ Δ : List Ty} → (ξ : PortMap Γ Ξ) → (args : PortMap Γ Δ) →
+      (out : Qs.At (Port Δ)) →
+      Diagram.Derivation T (F ξ args (.exit out)) (onExit ξ (out.select args)))
+    (atStep : {Γ Δ : List Ty} → (ξ : PortMap Γ Ξ) → (args : PortMap Γ Δ) →
+      (call : (S.interface (Port Δ)).Shape) →
+      (rest : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Δ) Qs) →
+      Diagram.Derivation T (F ξ args (.step call rest))
+        (.step ⟨call.1, args.select call.2⟩ fun c =>
+          F (PortMap.weaken c.1 ξ) (args.lift c.1) (rest c)))
+    (atSeq : {Γ Δ : List Ty} → (ξ : PortMap Γ Ξ) → (args : PortMap Γ Δ) →
+      (d : Diagram S Δ Qs) → Diagram.Derivation T (F ξ args d) (onSeq ξ args d)) :
+    {Γ Δ : List Ty} → (ξ : PortMap Γ Ξ) → (args : PortMap Γ Δ) → (d : Diagram S Δ Qs) →
+    Diagram.Derivation T (F ξ args d) (Diagram.plug onExit onSeq ξ args d)
+  | _, _, ξ, args, .exit out => atExit ξ args out
+  | _, _, ξ, args, .step call rest =>
+      .trans (atStep ξ args call rest)
+        (.step ⟨call.1, args.select call.2⟩ fun c =>
+          Diagram.Derivation.plug onExit onSeq F atExit atStep atSeq (PortMap.weaken c.1 ξ)
+            (args.lift c.1) (rest c))
+  | _, _, ξ, args, .seq first next => atSeq ξ args (.seq first next)
+
+/-- The exit of a diagram with the rest in line: the diagram of the pair of the kept case and
+the case of the exit, at the ports of the exit and the kept ports. -/
+def Diagram.inlineExit {M K : Boundary Ty} {Qs : Exits Ty} (j : M.Case)
+    (each : (p : (M.product K).Case) → Diagram S p.1 Qs) {Γ : List Ty} (ξ : PortMap Γ j.1)
+    (out : Exits.At [K] (Port Γ)) : Diagram S Γ Qs :=
+  Exits.At.only (fun k => Diagram.rename (k.2.append ξ) (each (Boundary.pair j k.1))) out
+
+/-- A diagram with one boundary in a context, with the rest in line: each exit has the diagram
+of the pair of the kept case and its case. Each step has the kept ports past it. A composite
+stays in a frame. -/
+def Diagram.inline {M K : Boundary Ty} {Qs : Exits Ty} (j : M.Case)
+    (each : (p : (M.product K).Case) → Diagram S p.1 Qs) {Γ Δ : List Ty} (ξ : PortMap Γ j.1)
+    (args : PortMap Γ Δ) (d : Diagram S Δ [K]) : Diagram S Γ Qs :=
+  Diagram.plug (Ξ := j.1) (fun ξ out => Diagram.inlineExit j each ξ out)
+    (fun ξ args d => Diagram.framed (M := M) ⟨j, ξ⟩ args d (.copair each)) ξ args d
+
+/-- The rest of a diagram with one exit case, for one kept context: the diagram of the pair of
+the two cases. -/
+def Diagram.restOne {Γ Δ : List Ty} {Qs : Exits Ty} (d : Diagram S (Δ ++ Γ) Qs) :
+    (p : ((Boundary.one Γ).product (.one Δ)).Case) → Diagram S p.1 Qs :=
+  Boundary.family (F := fun Θ => Diagram S Θ Qs) (.cons d .nil)
+
+section Inline
+
+variable {M K : Boundary Ty} {Qs : Exits Ty} (j : M.Case)
+
+/-- The frame of a step is the step, and then the frame of the diagram of each response. -/
+def Diagram.framedStep (next : Continuation S (M.product K) Qs) {Γ Δ : List Ty}
+    (ξ : PortMap Γ j.1) (args : PortMap Γ Δ) (call : (S.interface (Port Δ)).Shape)
+    (rest : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Δ) [K]) :
+    Diagram.Derivation (Rules.control S)
+      (Diagram.framed (M := M) ⟨j, ξ⟩ args (.step call rest) next)
+      (.step ⟨call.1, args.select call.2⟩ fun c =>
+        Diagram.framed (M := M) ⟨j, PortMap.weaken c.1 ξ⟩ (args.lift c.1) (rest c) next) :=
+  Diagram.Derivation.trans (R := Rules.control S)
+    (Diagram.Derivation.seq (R := Rules.control S) (.agree (Diagram.Agreement.refl _))
+      (Continuation.Derivation.rule (R := Rules.control S)
+        (Sum.inr (Sum.inr (Sum.inl (Continuation.FrameStep.step _ _ call rest next))))))
+    (Diagram.Derivation.trans (R := Rules.control S)
+      (Diagram.Derivation.rule (R := Rules.control S)
+        (Sum.inr (Sum.inl (Diagram.ExitCopair.exit (Boundary.only Γ) (PortMap.id Γ) _))))
+      (.agree (Diagram.renameId _)))
+
+variable (each : (p : (M.product K).Case) → Diagram S p.1 Qs)
+
+/-- The frame of an exit with a copairing is the diagram of the pair case, in line. -/
+def Diagram.framedExit {Γ Δ : List Ty} (ξ : PortMap Γ j.1) (args : PortMap Γ Δ)
+    (out : Exits.At [K] (Port Δ)) :
+    Diagram.Derivation (Rules.control S)
+      (Diagram.framed (M := M) ⟨j, ξ⟩ args (.exit out) (.copair each))
+      (Diagram.inlineExit j each ξ (out.select args)) :=
+  Elem.consCases
+    (motive := fun (Q : Boundary Ty) (i : Elem Q [K]) => (q : Q.At (Port Δ)) →
+      Diagram.Derivation (Rules.control S)
+        (Diagram.framed (M := M) ⟨j, ξ⟩ args (.exit ⟨Q, i, q⟩) (.copair each))
+        (Diagram.inlineExit j each ξ (Exits.At.select ⟨Q, i, q⟩ args)))
+    out.2.1
+    (fun q =>
+      Diagram.Derivation.trans (R := Rules.control S)
+        (Diagram.Derivation.seq (R := Rules.control S) (.agree (Diagram.Agreement.refl _))
+          (Continuation.Derivation.rule (R := Rules.control S)
+            (Sum.inr (Sum.inr (Sum.inr
+              (Continuation.FrameExit.exit _ _ q.1 q.2 (.copair each)))))))
+        (Diagram.Derivation.trans (R := Rules.control S)
+          (Diagram.Derivation.rule (R := Rules.control S)
+            (Sum.inr (Sum.inl (Diagram.ExitCopair.exit (Boundary.only Γ) (PortMap.id Γ) _))))
+          (Diagram.Derivation.trans (R := Rules.control S) (.agree (Diagram.renameId _))
+            (Diagram.Derivation.trans (R := Rules.control S)
+              (Diagram.Derivation.rule (R := Rules.control S)
+                (Sum.inr (Sum.inl
+                  (Diagram.ExitCopair.exit (Boundary.pair j q.1)
+                    (All.select ((args.select q.2).append ξ) (PortMap.id _)) each))))
+              (.agree
+                (Diagram.Agreement.renamePorts (each (Boundary.pair j q.1))
+                  (PortMap.selectId ((args.select q.2).append ξ))))))))
+    (fun _ i _ => i.ofNil)
+    out.2.2
+
+/-- A frame with a copairing is the diagram in the context, with the rest in line. -/
+def Diagram.framedInline {Γ Δ : List Ty} (ξ : PortMap Γ j.1) (args : PortMap Γ Δ)
+    (d : Diagram S Δ [K]) :
+    Diagram.Derivation (Rules.control S)
+      (Diagram.framed (M := M) ⟨j, ξ⟩ args d (.copair each)) (Diagram.inline j each ξ args d) :=
+  Diagram.Derivation.plug (T := Rules.control S) (Ξ := j.1)
+    (fun ξ out => Diagram.inlineExit j each ξ out)
+    (fun ξ args d => Diagram.framed (M := M) ⟨j, ξ⟩ args d (.copair each))
+    (fun ξ args d => Diagram.framed (M := M) ⟨j, ξ⟩ args d (.copair each))
+    (fun ξ args out => Diagram.framedExit j each ξ args out)
+    (fun ξ args call rest => Diagram.framedStep j (.copair each) ξ args call rest)
+    (fun _ _ _ => .agree (Diagram.Agreement.refl _)) ξ args d
+
+/-- A derivation between two diagrams with one boundary gives a derivation between the two
+diagrams in a context, each with the rest in line. The rule set has the control equations. -/
+def Diagram.Derivation.inline {T : Rules S} (control : Rules.Map (Rules.control S) T)
+    {Γ Δ : List Ty} {l r : Diagram S Δ [K]} (h : Diagram.Derivation T l r)
+    (ξ : PortMap Γ j.1) (args : PortMap Γ Δ) :
+    Diagram.Derivation T (Diagram.inline j each ξ args l) (Diagram.inline j each ξ args r) :=
+  Diagram.Derivation.trans (R := T)
+    (Diagram.Derivation.symm ((Diagram.framedInline j each ξ args l).map control))
+    (Diagram.Derivation.trans (R := T)
+      (Diagram.Derivation.seq (R := T) (.agree (Diagram.Agreement.refl _))
+        (Continuation.Derivation.frame (R := T) _ _ h
+          (.agree (Continuation.Agreement.refl (.copair each)))))
+      ((Diagram.framedInline j each ξ args r).map control))
+
+end Inline
 
 end Draft

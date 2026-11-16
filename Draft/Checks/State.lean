@@ -34,7 +34,14 @@ payloads.
 The fifth group has the evidence of the machine of a diagram. The interchange rule holds on the
 machine of the lowering. The run of the verified first order on that machine is the evidence of
 its machine, and the derivation moves it to the machine of the second order, with the same
-payloads. -/
+payloads.
+
+The sixth group has the cell of the signature, and a machine of the cell whose reads do not
+count. The control equation set and the equations of global state hold on the machine of the
+lowering to that machine. Each of the five theorems of the cell has one application, in a
+context with two inputs. The two diagrams of each application have one run, and a check
+consumes the identity of the two runs through a dependent payload, for arbitrary inputs and an
+arbitrary runtime. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -391,6 +398,181 @@ dependent payload. -/
 def machineCounter (a c b j : Nat) :
     counter (getMachine stop count (.cons a .nil, (c, b + j)) ⟨b, j, .refl⟩) ≡ b + j + 1 := .refl
 
+/-! The equations of global state, on a machine whose reads do not count. -/
+
+/-- The cell of the signature. Each identity of arities holds by computation. -/
+def sigCell : sig.Cell () := ⟨.get, .put, .refl, .refl, .refl, .refl⟩
+
+/-- The machine of the cell with no count. A read gives the value and keeps the runtime. A
+write replaces the value, and the second part of the runtime stays. -/
+def still : Machine cell Cell Empty
+  | (.read, s) => .inr (s.1, s)
+  | (.write value, s) => .inr ((), (value, s.2))
+
+set_option smartUnfolding false in
+/-- The control equation set and the equations of global state hold on the machine of the
+lowering. The interchange rule holds because the successor returns without a call, and each
+equation of global state holds by computation. -/
+def stateSound (α : Type) : sigCell.rules.Sound (α := α) (still.impl lower).congruence :=
+  .sum (.withControl ((Rules.Sound.interchange returns).machine still))
+    ⟨fun _ _ => fun r => match r with
+      | .getGet => fun _ _ _ => .refl
+      | .getDiscard => fun _ _ _ => .refl
+      | .putPut => fun _ _ _ => .refl
+      | .getPut => fun _ _ _ => .refl
+      | .putGet => fun _ _ _ => .refl,
+      fun _ _ => fun r => nomatch r⟩
+
+/-- The rest after one read: the exit with the value of the read and the second input. -/
+def afterRead : Diagram sig (() :: [(), ()]) Two :=
+  .exitOne (.cons .here (.cons (.there (.there .here)) .nil))
+
+/-- The rest after two reads: the exit with the second value and the first value. -/
+def afterReads : Diagram sig (() :: () :: [(), ()]) Two :=
+  .exitOne (.cons .here (.cons (.there .here) .nil))
+
+/-- The rest with no read: the exit with the two inputs. -/
+def inputs : Diagram sig [(), ()] Two := .exitOne (.cons .here (.cons (.there .here) .nil))
+
+/-- Write the first input, read the cell, and then the rest. -/
+def putGetFrom : Diagram sig [(), ()] Two := sigCell.put .here (sigCell.get afterRead)
+
+/-- Write the first input, and then the rest with the first input for the value. -/
+def putGetTo : Diagram sig [(), ()] Two :=
+  sigCell.put .here (afterRead.rename (.cons .here (PortMap.id [(), ()])))
+
+/-- Read the cell two times, and then the rest. -/
+def getGetFrom : Diagram sig [(), ()] Two := sigCell.get (sigCell.get afterReads)
+
+/-- Read the cell one time, and then the rest with the one value for the two values. -/
+def getGetTo : Diagram sig [(), ()] Two :=
+  sigCell.get (afterReads.rename (.cons .here (PortMap.id (() :: [(), ()]))))
+
+/-- Read the cell, and then the rest, which has no use of the value. -/
+def getDiscardFrom : Diagram sig [(), ()] Two :=
+  sigCell.get (inputs.rename (PortMap.weaken [()] (PortMap.id [(), ()])))
+
+/-- Write the first input, write the second input, and then the rest. -/
+def putPutFrom : Diagram sig [(), ()] Two :=
+  sigCell.put .here (sigCell.put (.there .here) inputs)
+
+/-- Write the second input, and then the rest. -/
+def putPutTo : Diagram sig [(), ()] Two := sigCell.put (.there .here) inputs
+
+/-- Read the cell, write the value, and then the rest, which has no use of the value. -/
+def getPutFrom : Diagram sig [(), ()] Two :=
+  sigCell.get (sigCell.put .here (inputs.rename (PortMap.weaken [()] (PortMap.id [(), ()]))))
+
+/-- One application of the theorem of each equation, in a context with two inputs. -/
+def putGetUse : Diagram.Derivation sigCell.rules putGetFrom putGetTo :=
+  sigCell.putGet .here afterRead
+
+def getGetUse : Diagram.Derivation sigCell.rules getGetFrom getGetTo := sigCell.getGet afterReads
+
+def getDiscardUse : Diagram.Derivation sigCell.rules getDiscardFrom inputs :=
+  sigCell.getDiscard inputs
+
+def putPutUse : Diagram.Derivation sigCell.rules putPutFrom putPutTo :=
+  sigCell.putPut .here (.there .here) inputs
+
+def getPutUse : Diagram.Derivation sigCell.rules getPutFrom inputs := sigCell.getPut inputs
+
+/-- The run of a diagram on the machine of the lowering, with the two values. -/
+def seen (d : Diagram sig [(), ()] Two) (n : Nat) (stop : Free (sig.interface Value) (Nat × Nat))
+    (a b : Nat) (s : Cell) : Empty ⊕ ((Nat × Nat) × Cell) :=
+  (still.impl lower).run (d.run stop n (.cons a (.cons b .nil)) fun r => .pure (values r)) s
+
+/-- The two diagrams of a derivation have one run on the machine: the soundness of the
+derivation. -/
+def sameRun {d e : Diagram sig [(), ()] Two} (h : Diagram.Derivation sigCell.rules d e)
+    (n a b : Nat) (s : Cell) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen d n stop a b s ≡ seen e n stop a b s :=
+  h.sound stop n (stateSound _) (.cons a (.cons b .nil)) (fun r => .pure (values r)) s
+
+/-- The first value of a result. -/
+def firstValue : Empty ⊕ ((Nat × Nat) × Cell) → Nat
+  | .inr b => b.1.1
+
+/-- The value of the cell at a result. -/
+def stored : Empty ⊕ ((Nat × Nat) × Cell) → Nat
+  | .inr b => b.2.1
+
+set_option smartUnfolding false in
+/-- The read after the write has the first input, and the cell has it too. -/
+def putGetFromRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen putGetFrom n stop a b (c, k) ≡ .inr ((a, b), (a, k)) := .refl
+
+set_option smartUnfolding false in
+def putGetToRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen putGetTo n stop a b (c, k) ≡ .inr ((a, b), (a, k)) := .refl
+
+set_option smartUnfolding false in
+/-- The identity of the two runs is consumed through a dependent payload, for arbitrary
+inputs and an arbitrary runtime. -/
+def putGetPayload (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    (Identity.transport (fun o => Fin (firstValue o + 1)) (sameRun putGetUse n a b (c, k) stop)
+      ⟨a, Nat.lt_succ_self _⟩).val ≡ a := .refl
+
+set_option smartUnfolding false in
+/-- The two reads have the value of the cell. -/
+def getGetFromRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen getGetFrom n stop a b (c, k) ≡ .inr ((c, c), (c, k)) := .refl
+
+set_option smartUnfolding false in
+def getGetToRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen getGetTo n stop a b (c, k) ≡ .inr ((c, c), (c, k)) := .refl
+
+set_option smartUnfolding false in
+def getGetPayload (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    (Identity.transport (fun o => Fin (firstValue o + 1)) (sameRun getGetUse n a b (c, k) stop)
+      ⟨c, Nat.lt_succ_self _⟩).val ≡ c := .refl
+
+set_option smartUnfolding false in
+/-- The read with no use keeps the inputs and the runtime. -/
+def getDiscardFromRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen getDiscardFrom n stop a b (c, k) ≡ .inr ((a, b), (c, k)) := .refl
+
+set_option smartUnfolding false in
+def getDiscardPayload (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    (Identity.transport (fun o => Fin (stored o + 1)) (sameRun getDiscardUse n a b (c, k) stop)
+      ⟨c, Nat.lt_succ_self _⟩).val ≡ c := .refl
+
+set_option smartUnfolding false in
+/-- After the two writes, the cell has the second input. -/
+def putPutFromRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen putPutFrom n stop a b (c, k) ≡ .inr ((a, b), (b, k)) := .refl
+
+set_option smartUnfolding false in
+def putPutToRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen putPutTo n stop a b (c, k) ≡ .inr ((a, b), (b, k)) := .refl
+
+set_option smartUnfolding false in
+def putPutPayload (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    (Identity.transport (fun o => Fin (stored o + 1)) (sameRun putPutUse n a b (c, k) stop)
+      ⟨b, Nat.lt_succ_self _⟩).val ≡ b := .refl
+
+set_option smartUnfolding false in
+/-- The read and the write of its value keep the inputs and the runtime. -/
+def getPutFromRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen getPutFrom n stop a b (c, k) ≡ .inr ((a, b), (c, k)) := .refl
+
+set_option smartUnfolding false in
+/-- The diagram with no step keeps the inputs and the runtime. -/
+def inputsRun (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    seen inputs n stop a b (c, k) ≡ .inr ((a, b), (c, k)) := .refl
+
+set_option smartUnfolding false in
+def getPutPayload (n a b c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)) :
+    (Identity.transport (fun o => Fin (stored o + 1)) (sameRun getPutUse n a b (c, k) stop)
+      ⟨c, Nat.lt_succ_self _⟩).val ≡ c := .refl
+
+set_option smartUnfolding false in
+/-- The static size of the two sides of each use. -/
+def stateSizes :
+    ((putGetFrom.size, putGetTo.size), (getGetFrom.size, getGetTo.size),
+      (getDiscardFrom.size, inputs.size), (putPutFrom.size, putPutTo.size),
+      (getPutFrom.size, inputs.size)) ≡ ((2, 1), (2, 1), (1, 0), (2, 1), (2, 0)) := .refl
+
 end Draft.Checks.State
 
 /-- info: 'Draft.Checks.State.readWriteRun' does not depend on any axioms -/
@@ -440,3 +622,27 @@ end Draft.Checks.State
 /-- info: 'Draft.Checks.State.machineCounter' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.State.machineCounter
+
+/-- info: 'Draft.Checks.State.putGetPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.putGetPayload
+
+/-- info: 'Draft.Checks.State.getGetPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.getGetPayload
+
+/-- info: 'Draft.Checks.State.getDiscardPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.getDiscardPayload
+
+/-- info: 'Draft.Checks.State.putPutPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.putPutPayload
+
+/-- info: 'Draft.Checks.State.getPutPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.getPutPayload
+
+/-- info: 'Draft.Checks.State.stateSizes' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.stateSizes

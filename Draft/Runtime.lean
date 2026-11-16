@@ -38,7 +38,12 @@ A rule set can hold on a machine and not after a substitution: the two sides of 
 different calls and one run. A derivation in such a rule set gives the identity of the machines
 of its two diagrams at each call. The evidence of the machine of the first diagram moves along
 that identity to the machine of the second diagram, for each specification of the interface of
-the diagram with a runtime. -/
+the diagram with a runtime.
+
+A cell of a signature at a value type is a read with no operand and one output port, and a
+write with one operand and no output port. The equations of global state are five equations
+between closed sequences of steps of a cell. Each equation gives a theorem for each context and
+each rest: a derivation in the control equation set with the equations of global state. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -331,5 +336,227 @@ def Diagram.Derivation.evidence
   Evidence.reindex (h.machine ok stop count) ev
 
 end Machine
+
+section Cell
+
+variable {τ : Ty}
+
+/-- A cell of a signature at a value type: a read with no operand and one output port, and a
+write with one operand and no output port. -/
+structure Signature.Cell (S : Signature Ty) (τ : Ty) where
+  read : S.Op
+  write : S.Op
+  readInput : [] ≡ S.input read
+  readOutput : Boundary.one [τ] ≡ S.output read
+  writeInput : [τ] ≡ S.input write
+  writeOutput : Boundary.one [] ≡ S.output write
+
+namespace Signature.Cell
+
+variable (cell : S.Cell τ)
+
+/-- A read, and then the rest with the value. -/
+def get {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S (τ :: Γ) Qs) : Diagram S Γ Qs :=
+  .step ⟨cell.read, Identity.transport (PortMap Γ) cell.readInput .nil⟩
+    (Diagram.oneAt cell.readOutput d)
+
+/-- A write of a port, and then the rest. -/
+def put {Γ : List Ty} {Qs : Exits Ty} (v : Port Γ τ) (d : Diagram S Γ Qs) : Diagram S Γ Qs :=
+  .step ⟨cell.write, Identity.transport (PortMap Γ) cell.writeInput (.cons v .nil)⟩
+    (Diagram.oneAt (Δ := []) cell.writeOutput d)
+
+end Signature.Cell
+
+/-- The five equations of global state for a cell. Each side is a closed sequence of steps
+with one exit. -/
+inductive Diagram.GlobalState (cell : S.Cell τ) : {Γ : List Ty} → {Qs : Exits Ty} →
+    Diagram S Γ Qs → Diagram S Γ Qs → Type where
+  /-- Two reads give one value: `get ; (X ⊗ get) = get ; copy`. The exit of the two reads has
+  the two values in the order of the context. -/
+  | getGet : Diagram.GlobalState cell (Γ := [])
+      (cell.get (cell.get (.exitOne (.cons .here (.cons (.there .here) .nil)))))
+      (cell.get (.exitOne (.cons .here (.cons .here .nil))))
+  /-- A read whose value has no use does nothing: `get ; discard = id`. -/
+  | getDiscard : Diagram.GlobalState cell (Γ := []) (cell.get (.exitOne .nil)) (.exitOne .nil)
+  /-- Of two writes, the last one stays: `(put ⊗ X) ; put = (discard ⊗ X) ; put`. -/
+  | putPut : Diagram.GlobalState cell (Γ := [τ, τ])
+      (cell.put .here (cell.put (.there .here) (.exitOne .nil)))
+      (cell.put (.there .here) (.exitOne .nil))
+  /-- A read and then a write of its value does nothing: `get ; put = id`. -/
+  | getPut : Diagram.GlobalState cell (Γ := []) (cell.get (cell.put .here (.exitOne .nil)))
+      (.exitOne .nil)
+  /-- A write and then a read gives the written value: `put ; get = copy ; (put ⊗ X)`. -/
+  | putGet : Diagram.GlobalState cell (Γ := [τ])
+      (cell.put .here (cell.get (.exitOne (.cons .here .nil))))
+      (cell.put .here (.exitOne (.cons .here .nil)))
+
+/-- The equation set of global state for a cell. -/
+def Rules.globalState (cell : S.Cell τ) : Rules S := ⟨Diagram.GlobalState cell, fun _ _ => Empty⟩
+
+/-- The control equation set with the equations of global state for the cell. -/
+abbrev Signature.Cell.rules (cell : S.Cell τ) : Rules S :=
+  (Rules.control S).sum (Rules.globalState cell)
+
+section Inline
+
+variable (cell : S.Cell τ) {M K : Boundary Ty} {Qs : Exits Ty} (j : M.Case)
+  (each : (p : (M.product K).Case) → Diagram S p.1 Qs) {Γ Δ : List Ty} (ξ : PortMap Γ j.1)
+  (args : PortMap Γ Δ)
+
+/-- A read in a context with the rest in line is the read, and then the rest of the read in
+the context with the value. -/
+def Signature.Cell.inlineGet (x : Diagram S (τ :: Δ) [K]) {y : Diagram S (τ :: Γ) Qs}
+    (same : Diagram.Agreement
+      (Diagram.inline j each (PortMap.weaken [τ] ξ) (args.lift [τ]) x) y) :
+    Diagram.Agreement (Diagram.inline j each ξ args (cell.get x)) (cell.get y) :=
+  Diagram.Agreement.stepPorts cell.read (PortMap.selectTransport cell.readInput .nil args)
+    (Diagram.oneAtAgree cell.readOutput
+      (fun Ξ x => Diagram.inline j each (PortMap.weaken Ξ ξ) (args.lift Ξ) x) same)
+
+/-- A write in a context with the rest in line is the write of the port that the port map
+gives, and then the rest of the write in the context. -/
+def Signature.Cell.inlinePut (p : Port Δ τ) (x : Diagram S Δ [K]) {y : Diagram S Γ Qs}
+    (same : Diagram.Agreement
+      (Diagram.inline j each (PortMap.weaken [] ξ) (args.lift []) x) y) :
+    Diagram.Agreement (Diagram.inline j each ξ args (cell.put p x))
+      (cell.put (args.lookup p) y) :=
+  Diagram.Agreement.stepPorts cell.write
+    (PortMap.selectTransport cell.writeInput (.cons p .nil) args)
+    (Diagram.oneAtAgree (Δ := []) cell.writeOutput
+      (fun Ξ x => Diagram.inline j each (PortMap.weaken Ξ ξ) (args.lift Ξ) x) same)
+
+end Inline
+
+section Laws
+
+variable (cell : S.Cell τ) {Γ : List Ty} {Qs : Exits Ty}
+
+/-- Two reads give one value, in each context and with each rest: the rest has the value of
+the one read at its first two ports. -/
+def Signature.Cell.getGet (d : Diagram S (τ :: τ :: Γ) Qs) :
+    Diagram.Derivation cell.rules (cell.get (cell.get d))
+      (cell.get (Diagram.rename (.cons .here (PortMap.id (τ :: Γ))) d)) :=
+  let each := Diagram.restOne (Γ := Γ) (Δ := [τ, τ]) d
+  let ξ₁ : PortMap (τ :: Γ) Γ := PortMap.weaken [τ] (PortMap.id Γ)
+  let a₁ : PortMap (τ :: Γ) [τ] := PortMap.lift [τ] (All.nil (P := Port Γ))
+  Diagram.Derivation.trans (R := cell.rules)
+    (Diagram.Derivation.symm
+      (.agree
+        (cell.inlineGet (Boundary.only Γ) each (PortMap.id Γ) .nil
+          (cell.get (.exitOne (.cons .here (.cons (.there .here) .nil))))
+          (cell.inlineGet (Boundary.only Γ) each ξ₁ a₁
+            (.exitOne (.cons .here (.cons (.there .here) .nil)))
+            (Diagram.renameAgree d _
+              ((Identity.cong
+                  (fun (ζ : PortMap (τ :: τ :: Γ) Γ) =>
+                    (All.cons (P := Port (τ :: τ :: Γ)) Elem.here
+                      (All.cons (Elem.there Elem.here) ζ) :
+                      PortMap (τ :: τ :: Γ) (τ :: τ :: Γ)))
+                  (All.mapMap _ _ (PortMap.id Γ))).trans
+                (PortMap.liftId [τ, τ] Γ)))))))
+    (Diagram.Derivation.trans (R := cell.rules)
+      (Diagram.Derivation.inline (Boundary.only Γ) each (Rules.Map.inl _ _)
+        (Diagram.Derivation.rule (R := cell.rules) (Sum.inr Diagram.GlobalState.getGet))
+        (PortMap.id Γ) .nil)
+      (.agree
+        (cell.inlineGet (Boundary.only Γ) each (PortMap.id Γ) .nil
+          (.exitOne (.cons .here (.cons .here .nil)))
+          (Diagram.Agreement.renamePorts d
+            (Identity.cong (All.cons (P := Port (τ :: Γ)) Elem.here)
+              (PortMap.liftId [τ] Γ))))))
+
+/-- A read whose value has no use does nothing, in each context and with each rest. -/
+def Signature.Cell.getDiscard (d : Diagram S Γ Qs) :
+    Diagram.Derivation cell.rules
+      (cell.get (Diagram.rename (PortMap.weaken [τ] (PortMap.id Γ)) d)) d :=
+  let each := Diagram.restOne (Γ := Γ) (Δ := []) d
+  Diagram.Derivation.trans (R := cell.rules)
+    (Diagram.Derivation.symm
+      (.agree
+        (cell.inlineGet (Boundary.only Γ) each (PortMap.id Γ) .nil (.exitOne .nil)
+          (Diagram.Agreement.refl _))))
+    (Diagram.Derivation.trans (R := cell.rules)
+      (Diagram.Derivation.inline (Boundary.only Γ) each (Rules.Map.inl _ _)
+        (Diagram.Derivation.rule (R := cell.rules) (Sum.inr Diagram.GlobalState.getDiscard))
+        (PortMap.id Γ) .nil)
+      (.agree (Diagram.renameId d)))
+
+/-- Of two writes, the last one stays, in each context, for each two ports, and with each
+rest. -/
+def Signature.Cell.putPut (v w : Port Γ τ) (d : Diagram S Γ Qs) :
+    Diagram.Derivation cell.rules (cell.put v (cell.put w d)) (cell.put w d) :=
+  let each := Diagram.restOne (Γ := Γ) (Δ := []) d
+  let a₀ : PortMap Γ [τ, τ] := .cons v (.cons w .nil)
+  let ξ₁ : PortMap Γ Γ := PortMap.weaken [] (PortMap.id Γ)
+  Diagram.Derivation.trans (R := cell.rules)
+    (Diagram.Derivation.symm
+      (.agree
+        (cell.inlinePut (Boundary.only Γ) each (PortMap.id Γ) a₀ .here
+          (cell.put (.there .here) (.exitOne .nil))
+          (cell.inlinePut (Boundary.only Γ) each ξ₁ (a₀.lift []) (.there .here) (.exitOne .nil)
+            (Diagram.renameAgree d _
+              ((PortMap.weakenNil ξ₁).trans (PortMap.weakenNil (PortMap.id Γ))))))))
+    (Diagram.Derivation.trans (R := cell.rules)
+      (Diagram.Derivation.inline (Boundary.only Γ) each (Rules.Map.inl _ _)
+        (Diagram.Derivation.rule (R := cell.rules) (Sum.inr Diagram.GlobalState.putPut))
+        (PortMap.id Γ) a₀)
+      (.agree
+        (cell.inlinePut (Boundary.only Γ) each (PortMap.id Γ) a₀ (.there .here) (.exitOne .nil)
+          (Diagram.renameAgree d _ (PortMap.weakenNil (PortMap.id Γ))))))
+
+/-- A read and then a write of its value does nothing, in each context and with each rest. -/
+def Signature.Cell.getPut (d : Diagram S Γ Qs) :
+    Diagram.Derivation cell.rules
+      (cell.get (cell.put .here (Diagram.rename (PortMap.weaken [τ] (PortMap.id Γ)) d))) d :=
+  let each := Diagram.restOne (Γ := Γ) (Δ := []) d
+  let ξ₁ : PortMap (τ :: Γ) Γ := PortMap.weaken [τ] (PortMap.id Γ)
+  let a₁ : PortMap (τ :: Γ) [τ] := PortMap.lift [τ] (All.nil (P := Port Γ))
+  Diagram.Derivation.trans (R := cell.rules)
+    (Diagram.Derivation.symm
+      (.agree
+        (cell.inlineGet (Boundary.only Γ) each (PortMap.id Γ) .nil
+          (cell.put .here (.exitOne .nil))
+          (cell.inlinePut (Boundary.only Γ) each ξ₁ a₁ .here (.exitOne .nil)
+            (Diagram.Agreement.renamePorts d (PortMap.weakenNil ξ₁))))))
+    (Diagram.Derivation.trans (R := cell.rules)
+      (Diagram.Derivation.inline (Boundary.only Γ) each (Rules.Map.inl _ _)
+        (Diagram.Derivation.rule (R := cell.rules) (Sum.inr Diagram.GlobalState.getPut))
+        (PortMap.id Γ) .nil)
+      (.agree (Diagram.renameId d)))
+
+/-- A write and then a read gives the written value, in each context, for each port, and with
+each rest: the rest has the written port at its first port. -/
+def Signature.Cell.putGet (v : Port Γ τ) (d : Diagram S (τ :: Γ) Qs) :
+    Diagram.Derivation cell.rules (cell.put v (cell.get d))
+      (cell.put v (Diagram.rename (.cons v (PortMap.id Γ)) d)) :=
+  let each := Diagram.restOne (Γ := Γ) (Δ := [τ]) d
+  let a₀ : PortMap Γ [τ] := .cons v .nil
+  let ξ₁ : PortMap Γ Γ := PortMap.weaken [] (PortMap.id Γ)
+  Diagram.Derivation.trans (R := cell.rules)
+    (Diagram.Derivation.symm
+      (.agree
+        (cell.inlinePut (Boundary.only Γ) each (PortMap.id Γ) a₀ .here
+          (cell.get (.exitOne (.cons .here .nil)))
+          (cell.inlineGet (Boundary.only Γ) each ξ₁ (a₀.lift []) (.exitOne (.cons .here .nil))
+            (Diagram.renameAgree d _
+              ((Identity.cong
+                  (fun (ζ : PortMap Γ Γ) =>
+                    (All.cons (P := Port (τ :: Γ)) Elem.here (PortMap.weaken [τ] ζ) :
+                      PortMap (τ :: Γ) (τ :: Γ)))
+                  (PortMap.weakenNil (PortMap.id Γ))).trans
+                (PortMap.liftId [τ] Γ)))))))
+    (Diagram.Derivation.trans (R := cell.rules)
+      (Diagram.Derivation.inline (Boundary.only Γ) each (Rules.Map.inl _ _)
+        (Diagram.Derivation.rule (R := cell.rules) (Sum.inr Diagram.GlobalState.putGet))
+        (PortMap.id Γ) a₀)
+      (.agree
+        (cell.inlinePut (Boundary.only Γ) each (PortMap.id Γ) a₀ .here
+          (.exitOne (.cons .here .nil))
+          (Diagram.Agreement.renamePorts d
+            (Identity.cong (All.cons v) (PortMap.weakenNil (PortMap.id Γ)))))))
+
+end Laws
+
+end Cell
 
 end Draft
