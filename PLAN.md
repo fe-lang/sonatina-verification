@@ -562,7 +562,24 @@ arbitrary response of the store. A check consumes the soundness of the
 derivation of a schedule through a dependent payload. The source diagram is a
 diagram of the fragment. Its ready steps are `A` and `C`. The list of its
 schedules has the three orders and no other order, and each realization of
-the list gives the same values.
+the list gives the same values. The source diagram has a verified
+implementation for a specification with an admission. The map of verified
+implementations along the derivation of a schedule, which is the map of D2,
+gives the verified implementation of each order. The receipt at the exit of
+the order `A C B` gives the payload of the source diagram through its
+identity, for an arbitrary admission. The evidence of the order `C A B` has
+the same value in its receipt, and a check consumes its postcondition of `B`
+through a dependent payload.
+
+The module has the two other required checks. The second source diagram has
+a shared operand and a repeated operand: `B` has the output of `A` as its two
+operands, the effectful `C` has that output as its operand, and `D` has the
+outputs of `B` and `C`. The list of its schedules has the two orders of `B`
+and `C`. Each realization has four steps, so `A` has one occurrence, and each
+gives the same values. The third source diagram has a discarded value: no
+step and no exit port has the response of the effectful `A`. The list of its
+schedules has the two orders of `A` and the pure `B`, and each realization is
+one call of the store after the lowering.
 
 These parts are open:
 
@@ -571,10 +588,9 @@ These parts are open:
 - The dependency graph of a diagram: the container with a shape for each step
   and a position for each operand, the producer of each position, and the
   order of the effectful steps. A schedule keeps the producers.
-- The evidence of each order, by the map of verified implementations along a
-  derivation of D2.
-- The two other required checks: the shared and repeated operand, and the
-  discarded operand.
+- The check that reads the receipt of the order `C A B` through its
+  identity. Its derivation has two interchanges, and the check exceeds the
+  default limit of the elaborator. The cause is open.
 - The converse: each diagram that an interchange derivation gives from a
   diagram of the fragment is the realization of a schedule.
 

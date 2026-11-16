@@ -59,15 +59,16 @@ inductive Diagram.Ready (b : S.Op) : {Γ : List Ty} → {Qs : Exits Ty} → Diag
 /-- A ready step moves to the front: the derivation from the diagram to the step and then the
 diagram after it. It has one interchange for each step that the ready step passes. -/
 def Diagram.Ready.derivation {R : Rules S} (inter : Rules.Map (Rules.interchange S) R)
-    {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} → {d : Diagram S Γ Qs} →
-    {args : PortMap Γ (S.input b)} →
-    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs} →
-    Diagram.Ready b d args after → Diagram.Derivation R d (.step ⟨b, args⟩ after)
-  | _, _, _, _, _, @Diagram.Ready.here _ _ _ _ _ args rest =>
-      .agree (.refl (.step ⟨b, args⟩ rest))
-  | _, _, _, _, _, @Diagram.Ready.past _ _ _ _ _ a central first second _ after inner =>
+    {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    {args : PortMap Γ (S.input b)}
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
+    (r : Diagram.Ready b d args after) : Diagram.Derivation R d (.step ⟨b, args⟩ after) :=
+  Diagram.Ready.casesOn
+    (motive := @fun _ _ d args after _ => Diagram.Derivation R d (.step ⟨b, args⟩ after)) r
+    (fun args rest => .agree (.refl (.step ⟨b, args⟩ rest)))
+    (@fun _ _ a central first second _ after inner =>
       .trans (.step ⟨a, first⟩ fun ca => (inner ca).derivation inter)
-        (.rule (inter.diagram (.swap a b central first second after)))
+        (.rule (inter.diagram (.swap a b central first second after))))
 
 /-- A step is ready past a first step whose output boundary has one case: the type of the
 cases has a center, and each case is identical to the center. The evidence in the rest at the
@@ -105,51 +106,60 @@ inductive Diagram.Schedule : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ
       (next : (cb : (S.output b).Case) → Diagram.Schedule (after cb)) : Diagram.Schedule d
 
 /-- The realization of a schedule: the diagram with the steps in the order of the choices. -/
-def Diagram.Schedule.realization : {Γ : List Ty} → {Qs : Exits Ty} → {d : Diagram S Γ Qs} →
-    Diagram.Schedule d → Diagram S Γ Qs
-  | _, _, _, @Diagram.Schedule.exit _ _ _ _ out => .exit out
-  | _, _, _, @Diagram.Schedule.pick _ _ _ _ _ b args _ _ next =>
-      .step ⟨b, args⟩ fun cb => (next cb).realization
+def Diagram.Schedule.realization {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    (s : Diagram.Schedule d) : Diagram S Γ Qs :=
+  Diagram.Schedule.casesOn (motive := @fun Γ Qs _ _ => Diagram S Γ Qs) s
+    (fun out => .exit out)
+    (@fun _ _ _ b args _ _ next => .step ⟨b, args⟩ fun cb => (next cb).realization)
 
 /-- The derivation from a diagram to the realization of a schedule, in each rule set that has
 the interchange rule: one move of a ready step for each choice. -/
-def Diagram.Schedule.derivation {R : Rules S} (inter : Rules.Map (Rules.interchange S) R) :
-    {Γ : List Ty} → {Qs : Exits Ty} → {d : Diagram S Γ Qs} → (s : Diagram.Schedule d) →
-    Diagram.Derivation R d s.realization
-  | _, _, _, @Diagram.Schedule.exit _ _ _ _ out => .agree (.refl (.exit out))
-  | _, _, _, @Diagram.Schedule.pick _ _ _ _ _ b args _ ready next =>
-      .trans (ready.derivation inter) (.step ⟨b, args⟩ fun cb => (next cb).derivation inter)
+def Diagram.Schedule.derivation {R : Rules S} (inter : Rules.Map (Rules.interchange S) R)
+    {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs} (s : Diagram.Schedule d) :
+    Diagram.Derivation R d s.realization :=
+  Diagram.Schedule.casesOn (motive := @fun _ _ d s => Diagram.Derivation R d s.realization) s
+    (fun out => .agree (.refl (.exit out)))
+    (@fun _ _ _ b args _ ready next =>
+      .trans (ready.derivation inter) (.step ⟨b, args⟩ fun cb => (next cb).derivation inter))
 
 /-- The output boundary of a ready step of a diagram of the fragment has one case. -/
-def Diagram.Ready.single {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} → {d : Diagram S Γ Qs} →
-    {args : PortMap Γ (S.input b)} →
-    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs} →
-    Diagram.Ready b d args after → d.Straight →
-    (center : (S.output b).Case) × ((c : (S.output b).Case) → center ≡ c)
-  | _, _, _, _, _, @Diagram.Ready.here _ _ _ _ _ _ _, h => ⟨h.1, h.2.1⟩
-  | _, _, _, _, _, @Diagram.Ready.past _ _ _ _ _ _ _ _ _ _ _ inner, h =>
-      (inner h.1).single h.2.2
+def Diagram.Ready.single {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    {args : PortMap Γ (S.input b)}
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
+    (r : Diagram.Ready b d args after) :
+    d.Straight → (center : (S.output b).Case) × ((c : (S.output b).Case) → center ≡ c) :=
+  Diagram.Ready.casesOn
+    (motive := @fun _ _ d _ _ _ =>
+      d.Straight → (center : (S.output b).Case) × ((c : (S.output b).Case) → center ≡ c))
+    r
+    (fun _ _ h => ⟨h.1, h.2.1⟩)
+    (@fun _ _ _ _ _ _ _ _ inner h => (inner h.1).single h.2.2)
 
 /-- The diagram after a ready step of a diagram of the fragment is a diagram of the fragment,
 at each output case of the step. -/
-def Diagram.Ready.straight {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} →
-    {d : Diagram S Γ Qs} → {args : PortMap Γ (S.input b)} →
-    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs} →
-    Diagram.Ready b d args after → d.Straight → (cb : (S.output b).Case) → (after cb).Straight
-  | _, _, _, _, _, @Diagram.Ready.here _ _ _ _ _ _ rest, h, cb =>
-      Identity.transport (fun c => (rest c).Straight) (h.2.1 cb) h.2.2
-  | Γ, _, _, _, _, @Diagram.Ready.past _ _ _ _ _ _ _ _ _ _ after inner, h, cb =>
+def Diagram.Ready.straight {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    {args : PortMap Γ (S.input b)}
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
+    (r : Diagram.Ready b d args after) :
+    d.Straight → (cb : (S.output b).Case) → (after cb).Straight :=
+  Diagram.Ready.casesOn
+    (motive := @fun _ _ d _ after _ =>
+      d.Straight → (cb : (S.output b).Case) → (after cb).Straight)
+    r
+    (fun _ rest h cb => Identity.transport (fun c => (rest c).Straight) (h.2.1 cb) h.2.2)
+    (@fun Γ _ _ _ _ _ _ after inner h cb =>
       ⟨h.1, h.2.1,
         Diagram.Straight.rename (PortMap.exchange h.1.1 cb.1 Γ) (after h.1 cb)
-          ((inner h.1).straight h.2.2 cb)⟩
+          ((inner h.1).straight h.2.2 cb)⟩)
 
 /-- The realization of a schedule of a diagram of the fragment is a diagram of the fragment. -/
-def Diagram.Schedule.straight : {Γ : List Ty} → {Qs : Exits Ty} → {d : Diagram S Γ Qs} →
-    (s : Diagram.Schedule d) → d.Straight → s.realization.Straight
-  | _, _, _, @Diagram.Schedule.exit _ _ _ _ _, _ => ()
-  | _, _, _, @Diagram.Schedule.pick _ _ _ _ _ _ _ _ ready next, h =>
+def Diagram.Schedule.straight {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    (s : Diagram.Schedule d) : d.Straight → s.realization.Straight :=
+  Diagram.Schedule.casesOn (motive := @fun _ _ d s => d.Straight → s.realization.Straight) s
+    (fun _ _ => ())
+    (@fun _ _ _ _ _ _ ready next h =>
       ⟨(ready.single h).1, (ready.single h).2,
-        (next (ready.single h).1).straight (ready.straight h (ready.single h).1)⟩
+        (next (ready.single h).1).straight (ready.straight h (ready.single h).1)⟩)
 
 /-- A ready step of a diagram: its operation, its operands, the diagram after it, and the
 evidence. -/
