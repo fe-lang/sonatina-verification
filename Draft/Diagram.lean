@@ -40,7 +40,7 @@ of steps thus applies in each context and with each rest, by one application of 
 set_option autoImplicit false
 set_option genInjectivity false
 
-universe u v w
+universe u v w w' z'
 
 open Prelude Container
 
@@ -113,11 +113,14 @@ def Signature.interface (S : Signature Ty) (X : Ty → Type) : Container where
   Shape := (o : S.Op) × All X (S.input o)
   Pos a := (S.output a.1).At X
 
-/-- Each pure operation returns without a call in an implementation of the request
-interface. -/
-def Signature.Returns (S : Signature Ty) {X : Ty → Type} {D : Container.{u, v}}
-    (impl : Impl (S.interface X) D) : Type (max u v) :=
-  (o : S.Op) → S.kind o ≡ .pure → (args : All X (S.input o)) → impl.Returns ⟨o, args⟩
+/-- The specification of the pure operations of the request interface: a witness of the
+precondition of a call is the identity of the kind of its operation with the pure kind. An
+implementation in which each pure operation returns without a call is a verified implementation
+of this specification, for the specification that admits no call. -/
+def Signature.pureSpec (S : Signature Ty) (X : Ty → Type) :
+    DepPoly.{0, 0, 0, 0} (S.interface X) where
+  Pre a := S.kind a.1 ≡ .pure
+  Post _ _ _ := PUnit
 
 /-- A port of a context. -/
 abbrev Port (Γ : List Ty) (t : Ty) : Type := Elem t Γ
@@ -1380,42 +1383,46 @@ def Diagram.swapRest {Ξ Θ Γ : List Ty} {Qs : Exits Ty} (d : Diagram S (Θ ++ 
 /-- The interchange rule holds after the substitution of each implementation in which each
 pure operation returns without a call. The pure step gives its response to the rest in each
 order, and the two contexts of the rest have the same values. -/
-def Diagram.Interchange.sound (pure : S.Returns impl) {Γ : List Ty} {Qs : Exits Ty} :
+def Diagram.Interchange.sound
+    (pure : ImplDep (S.pureSpec X) (DepPoly.noCall.{u, v, w', z'} D) impl)
+    {Γ : List Ty} {Qs : Exits Ty} :
     {d e : Diagram S Γ Qs} → Diagram.Interchange d e → (env : All X Γ) →
     (rest : Qs.At X → Free (S.interface X) α) →
     Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
   | _, _, .swap a b (.inl central) first second after, env, rest =>
-      let ra := pure a central (env.select first)
-      ((ra.bind fun r =>
+      let pa := pure ⟨a, env.select first⟩ central
+      let ra := pa.returned.1
+      ((pa.returnedBind fun r =>
           (impl ⟨b, (r.2.append env).select (second.weaken _)⟩).bind fun rb =>
             ((after r.1 rb.1).run stop n (rb.2.append (r.2.append env)) rest).subst impl).trans
-        (Diagram.callWeaken b second ra.response.2 env fun rb =>
-          ((after ra.response.1 rb.1).run stop n (rb.2.append (ra.response.2.append env))
+        (Diagram.callWeaken b second ra.2 env fun rb =>
+          ((after ra.1 rb.1).run stop n (rb.2.append (ra.2.append env))
             rest).subst impl)).trans
         (Free.Agreement.bind (.refl (impl ⟨b, env.select second⟩)) fun rb =>
           (((Diagram.callWeaken a first rb.2 env fun r =>
               ((Diagram.rename (PortMap.exchange _ _ Γ) (after r.1 rb.1)).run stop n
                 (r.2.append (rb.2.append env)) rest).subst impl).trans
-            (ra.bind fun r =>
+            (pa.returnedBind fun r =>
               ((Diagram.rename (PortMap.exchange _ _ Γ) (after r.1 rb.1)).run stop n
                 (r.2.append (rb.2.append env)) rest).subst impl)).trans
-            (Diagram.swapRest stop n (after ra.response.1 rb.1) ra.response.2 rb.2 env rest)).symm)
+            (Diagram.swapRest stop n (after ra.1 rb.1) ra.2 rb.2 env rest)).symm)
   | _, _, .swap a b (.inr central) first second after, env, rest =>
-      let rb := pure b central (env.select second)
+      let pb := pure ⟨b, env.select second⟩ central
+      let rb := pb.returned.1
       (Free.Agreement.bind (.refl (impl ⟨a, env.select first⟩)) fun ra =>
           (Diagram.callWeaken b second ra.2 env fun r =>
             ((after ra.1 r.1).run stop n (r.2.append (ra.2.append env)) rest).subst impl).trans
-          (rb.bind fun r =>
+          (pb.returnedBind fun r =>
             ((after ra.1 r.1).run stop n (r.2.append (ra.2.append env)) rest).subst impl)).trans
-        (((rb.bind fun r =>
+        (((pb.returnedBind fun r =>
             (impl ⟨a, (r.2.append env).select (first.weaken _)⟩).bind fun ra =>
               ((Diagram.rename (PortMap.exchange _ _ Γ) (after ra.1 r.1)).run stop n
                 (ra.2.append (r.2.append env)) rest).subst impl).trans
-          ((Diagram.callWeaken a first rb.response.2 env fun ra =>
-              ((Diagram.rename (PortMap.exchange _ _ Γ) (after ra.1 rb.response.1)).run stop n
-                (ra.2.append (rb.response.2.append env)) rest).subst impl).trans
+          ((Diagram.callWeaken a first rb.2 env fun ra =>
+              ((Diagram.rename (PortMap.exchange _ _ Γ) (after ra.1 rb.1)).run stop n
+                (ra.2.append (rb.2.append env)) rest).subst impl).trans
             (Free.Agreement.bind (.refl (impl ⟨a, env.select first⟩)) fun ra =>
-              Diagram.swapRest stop n (after ra.1 rb.response.1) ra.2 rb.response.2 env
+              Diagram.swapRest stop n (after ra.1 rb.1) ra.2 rb.2 env
                 rest))).symm)
 
 /-- The first exit equation of the control sum holds in each congruence. -/
@@ -1534,7 +1541,8 @@ def Continuation.FrameExit.sound {P : Boundary Ty} {Qs : Exits Ty} :
 
 /-- The interchange equation set holds after the substitution of each implementation in which
 each pure operation returns without a call. -/
-def Rules.Sound.interchange (pure : S.Returns impl) :
+def Rules.Sound.interchange
+    (pure : ImplDep (S.pureSpec X) (DepPoly.noCall.{u, v, w', z'} D) impl) :
     (Rules.interchange S).Sound (Free.Congruence.subst (α := α) impl) :=
   ⟨fun stop n => Diagram.Interchange.sound stop n pure, fun _ _ => fun r => nomatch r⟩
 
@@ -1554,7 +1562,8 @@ def Rules.Sound.withControl (inter : (Rules.interchange S).Sound eqv) :
 
 /-- The control equation set holds after the substitution of each implementation in which each
 pure operation returns without a call. -/
-def Rules.Sound.control (pure : S.Returns impl) :
+def Rules.Sound.control
+    (pure : ImplDep (S.pureSpec X) (DepPoly.noCall.{u, v, w', z'} D) impl) :
     (Rules.control S).Sound (Free.Congruence.subst (α := α) impl) :=
   .withControl (.interchange pure)
 

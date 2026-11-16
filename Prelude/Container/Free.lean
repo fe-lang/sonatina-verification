@@ -167,17 +167,6 @@ def ofSection (f : Section C) : Impl C D := fun a => .pure (f a)
 def ofSectionRun (f : Section C) (provider : Section D) :
     Homotopy ((ofSection f).run provider) f := fun _ => .refl
 
-/-- The implementation of a shape returns without a call: it agrees with the computation that
-returns one response. -/
-structure Returns (f : Impl C D) (a : C.Shape) where
-  response : C.Pos a
-  agrees : Free.Agreement (f a) (.pure response)
-
-/-- A shape that returns without a call gives its response to the continuation. -/
-def Returns.bind {f : Impl C D} {a : C.Shape} (r : f.Returns a) {β : Type z}
-    (k : C.Pos a → Free D β) : Free.Agreement ((f a).bind k) (k r.response) :=
-  r.agrees.bind (fun i => .refl (k i))
-
 def Agreement (f g : Impl C D) := (a : C.Shape) → Free.Agreement (f a) (g a)
 
 end Impl

@@ -329,11 +329,18 @@ def stillLift (A : Type) :
 def stillLiftRun (A : Type) (a : A) :
     Identity ((stillLift A).run (Container.Evidence.zero _) a Nat) .refl := .refl
 
-/-- A shape that returns without a call gives its response to the continuation. -/
-def stillReturns (A : Type) (a : A) : (still A).Returns a := ⟨a, .pure .refl⟩
+/-- The implementation has evidence for the specification that admits no call. -/
+def stillReturns (A : Type) (a : A) :
+    Container.FreeDep (Container.DepPoly.noCall.{1, 0, 0, 0} Container.zero)
+      (fun i => Identity a i) ((still A) a) := .pure .refl
 
+/-- The returned value has the condition of the evidence. -/
+def stillReturned (A : Type) (a : A) : Identity a (stillReturns A a).returned.1 :=
+  (stillReturns A a).returned.2.2
+
+/-- A computation that makes no call gives its value to the continuation. -/
 def stillBind (A : Type) (a : A) (k : A → Container.Free Container.zero.{1, 0} Nat) :
-    Container.Free.Agreement (((still A) a).bind k) (k a) := (stillReturns A a).bind k
+    Container.Free.Agreement (((still A) a).bind k) (k a) := (stillReturns A a).returnedBind k
 
 def stillBindRun (A : Type) (a : A) (n : Nat) :
     (Identity.transport (fun k => Fin (k + 1))

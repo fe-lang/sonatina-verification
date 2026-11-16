@@ -84,6 +84,11 @@ def DepPoly.zero : DepPoly.{s, p, w, z} Container.zero where
   Pre _ := PEmpty
   Post _ _ _ := PEmpty
 
+/-- The specification that admits no call: no shape has a witness of its precondition. -/
+def DepPoly.noCall (C : Container.{s, p}) : DepPoly.{s, p, w, z} C where
+  Pre _ := PEmpty
+  Post _ pre _ := nomatch pre
+
 /-- Each specification of the polynomial with no shape has evidence. -/
 def Evidence.zero (r : DepPoly.{s, p, w, z} Container.zero) : Evidence r Section.zero :=
   fun a => nomatch a

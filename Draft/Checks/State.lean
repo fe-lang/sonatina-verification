@@ -213,8 +213,8 @@ def lowered : Homotopy (cellMachine.impl lower) machine
   | (⟨.succ, _⟩, _) => .refl
 
 /-- The successor returns without a call. -/
-def returns : sig.Returns lower
-  | .succ, _, args => ⟨⟨Boundary.only _, .cons (args.lookup .here + 1) .nil⟩, .pure .refl⟩
+def returns : ImplDep (sig.pureSpec Value) (DepPoly.noCall.{0, 0, 0, 0} (cell Nat)) lower
+  | ⟨.succ, _⟩, _ => .pure ⟨⟩
 
 /-- The operand of the successor: the input. -/
 def succArgs : PortMap [()] [()] := .cons .here .nil

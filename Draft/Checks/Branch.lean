@@ -78,9 +78,9 @@ def lower : Impl (sig.interface Value) (cell Nat)
       | _ + 1 => .pure ⟨⟨_, .there .here⟩, .nil⟩
 
 /-- The test returns without a call. -/
-def returns : sig.Returns lower
-  | .isZero, _, .cons 0 .nil => ⟨⟨⟨_, .here⟩, .nil⟩, .pure .refl⟩
-  | .isZero, _, .cons (_ + 1) .nil => ⟨⟨⟨_, .there .here⟩, .nil⟩, .pure .refl⟩
+def returns : ImplDep (sig.pureSpec Value) (DepPoly.noCall.{0, 0, 0, 0} (cell Nat)) lower
+  | ⟨.isZero, .cons 0 .nil⟩, _ => .pure ⟨⟩
+  | ⟨.isZero, .cons (_ + 1) .nil⟩, _ => .pure ⟨⟩
 
 /-! The diagram. -/
 

@@ -205,12 +205,10 @@ def handRun (flag : Bool) (u v x y : Nat) :
       ⟨x + y, Nat.lt_succ_self _⟩).val ≡ x + y := .refl
 
 /-- `add` and `isZero` return without a call. -/
-def returns : sig.Returns lower
-  | .add, _, args =>
-      ⟨⟨Boundary.only _, .cons (args.lookup .here + args.lookup (.there .here)) .nil⟩,
-        .pure .refl⟩
-  | .isZero, _, .cons 0 .nil => ⟨⟨⟨_, .here⟩, .nil⟩, .pure .refl⟩
-  | .isZero, _, .cons (_ + 1) .nil => ⟨⟨⟨_, .there .here⟩, .nil⟩, .pure .refl⟩
+def returns : ImplDep (sig.pureSpec Value) (DepPoly.noCall.{0, 0, 0, 0} store) lower
+  | ⟨.add, _⟩, _ => .pure ⟨⟩
+  | ⟨.isZero, .cons 0 .nil⟩, _ => .pure ⟨⟩
+  | ⟨.isZero, .cons (_ + 1) .nil⟩, _ => .pure ⟨⟩
 
 /-- The soundness of the rule gives the agreement of the two orders. -/
 def interchangeSound (x y : Nat) :

@@ -48,46 +48,7 @@ def Diagram.runSpec {R : Type u} (T : Signature.Calls.{u, v} S X R) {Γ : List T
   Pre _ := R
   Post env s p := d.Runs T (env, s) p
 
-/-! 2. An implementation that returns without a call. -/
-
-/-- The specification that admits no call. -/
-def noCall (D : Container.{0, 0}) : DepPoly.{0, 0, 0, 0} D where
-  Pre _ := PEmpty
-  Post _ e _ := nomatch e
-
-variable {C D : Container.{0, 0}}
-
-/-- Evidence against the specification that admits no call gives a returned value. -/
-def returned {α : Type} {Q : α → Type} {x : Free D α} (h : FreeDep (noCall D) Q x) :
-    (value : α) × (Free.Agreement x (.pure value) × Q value) :=
-  FreeDep.casesOn
-    (motive := fun x _ => (value : α) × (Free.Agreement x (.pure value) × Q value)) h
-    (fun {value} q => ⟨value, .pure .refl, q⟩)
-    (fun pre _ => nomatch pre)
-
-def Impl.Returns.toDep {f : Impl C D} {a : C.Shape} (r : f.Returns a) :
-    FreeDep (noCall D) (fun i => i ≡ r.response) (f a) :=
-  FreeDep.reindex r.agrees.symm (.pure .refl)
-
-def Impl.Returns.ofDep {f : Impl C D} {a : C.Shape} {Q : C.Pos a → Type}
-    (h : FreeDep (noCall D) Q (f a)) : f.Returns a :=
-  ⟨(returned h).1, (returned h).2.1⟩
-
-/-- The pure operations are a precondition on the request interface. -/
-def Signature.pureSpec (S : Signature Ty) (X : Ty → Type) : DepPoly.{0, 0, 0, 0} (S.interface X) where
-  Pre a := S.kind a.1 ≡ .pure
-  Post _ _ _ := PUnit
-
-/-- "Each pure operation returns without a call" is a verified implementation. -/
-def Signature.Returns.toDep {D : Container.{0, 0}} {impl : Impl (S.interface X) D}
-    (h : S.Returns impl) : ImplDep (S.pureSpec X) (noCall D) impl :=
-  fun a pre => FreeDep.reindex (h a.1 pre a.2).agrees.symm (.pure ⟨⟩)
-
-def Signature.Returns.ofDep {D : Container.{0, 0}} {impl : Impl (S.interface X) D}
-    (h : ImplDep (S.pureSpec X) (noCall D) impl) : S.Returns impl :=
-  fun o pure args => Impl.Returns.ofDep (h ⟨o, args⟩ pure)
-
-/-! 3. The frame. -/
+/-! 2. The frame. -/
 
 variable {α : Type}
 
@@ -123,7 +84,5 @@ def runnerEvidence (a : (sig.interface Value).Shape) (s : Nat) :
 
 end Draft.Checks.Countdown
 
-#print axioms Draft.Signature.Returns.toDep
-#print axioms Draft.Signature.Returns.ofDep
 #print axioms Draft.frameCurried
 #print axioms Draft.Signature.Calls.specOfSpec

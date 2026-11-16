@@ -178,6 +178,8 @@ closed provider: the specification that has the response of `f` at each shape.
 with no shape. `Section.zero` is its closed provider, `DepPoly.zero` is a
 specification of it, and `Evidence.zero r` is the evidence of each of its
 specifications. An implementation into `Container.zero` makes no call.
+`DepPoly.noCall C` is the specification of `C` that admits no call: no shape
+has a witness of its precondition.
 
 ```lean
 import Prelude
@@ -297,7 +299,6 @@ independent universe levels.
 | `Impl.copair f` | The implementation of `Container.sigma F` from an implementation at each index |
 | `Hom.toImpl f` | The implementation with one call at each shape |
 | `Impl.ofSection f` | The implementation that returns the response of a closed provider without a call. An operation with such an implementation is pure. |
-| `Impl.Returns f a` | The implementation of the shape `a` returns without a call: a response, and the agreement of `f a` with the computation that returns it. `Returns.bind` gives that response to a continuation. |
 
 A computation has functions as continuations. `Free.Agreement x y` is thus the
 relation of the laws: equal returned values, and the same call with agreement
@@ -341,6 +342,7 @@ postcondition for that witness. The universe levels of the specification and of
 | `h.run e` | The evidence at the value that `x.run provider` returns, for `e : Evidence r provider` |
 | `h.reindex agree` | The evidence of `y` from the evidence of `x` and `agree : Free.Agreement x y` |
 | `h.result`, `h.parts` | The evidence at a returned value; the precondition witness of a call with the evidence of its continuation |
+| `h.returned`, `h.returnedBind k` | For `h : FreeDep (DepPoly.noCall C) Q x`: the value that `x` returns, with the agreement of `x` with the computation that returns it and `Q` at the value; the agreement of `x.bind k` with `k` at that value |
 | `ImplDep r t f` | The lift of `f : Impl C D`: for each shape and each witness of its precondition in `r`, evidence that `f a` gives the postcondition, with `t` as the assumption on the calls |
 | `h.subst gg` | Replace each call with its verified implementation; the evidence of `x.subst g` |
 | `ImplDep.id r`, `ff.trans gg` | The lift of `Impl.id`; the lift of `f.trans g` |

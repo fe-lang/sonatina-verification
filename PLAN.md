@@ -32,7 +32,7 @@ The Prelude identity, indexed, decision, relation, and container modules,
 `Draft.Diagram`, `Draft.Verified`, `Draft.Stele`, and `Draft.Checks` exist.
 `Draft.Runtime` has the machines, the evidence of a diagram with a runtime,
 and the cell of a signature with the equations of global state.
-The other module families are the planned locations for stages D2 to D7. The module families divide the work
+The other module families are the planned locations for stages D3 to D7. The module families divide the work
 and not the system: the IR is the one diagram syntax of
 [CONCEPT.md](CONCEPT.md#design).
 
@@ -58,7 +58,7 @@ in AGENTS.
 | --- | --- | --- |
 | D0. Foundation probe | Minimal polynomial maps and dependent reindexing. Composition and consumer congruence compute for a nontrivial dependent family. Identity and index transports are constructed and eliminated in the dependent consumer. | Complete |
 | D1. Aberlé core | `Free`/`FreeDep`, verified composition, erasure compatibility, fold/append/concat, and distinguishable witness examples. Repeated composition preserves and exposes the supplied evidence. | Complete |
-| D2. Whole diagrams with effects | Signatures of pure and effectful operations, with input ports and an output boundary for each operation. Contexts, boundaries as lists of contexts, and their structural maps: copy, discard, and exchange on ports, and the join on cases. Diagrams: exits, steps, and composites. Continuations: copairings, frames with a bypass, and loops. The static size of a diagram. The structural agreement of two diagrams whose families agree at each case, with its soundness. The request interface of a signature at a family of values, with the specification of each operation as a part of the signature. The function meaning of a diagram into `Free`, with the remaining computation as an argument, for a number of unrollings of each loop and a computation for the limit. The verification of a diagram over its function meaning, in `FreeDep`, by the constructors of the diagram: a step takes the witness of the precondition of its operation from the context, and its continuation receives the postcondition of the response. The run family of a diagram, for the calls with a runtime: a recursion into the relations of `Prelude.Relation`, with its two exit equations as equivalences. Each law of the stage is an agreement of function meanings for each number of unrollings, and the evidence of a verified diagram moves along it. The interchange rule for a pure step and a step that no wire connects to it, with its agreement for each lowering in which each pure operation makes no call, and with the map of verified diagrams along that agreement. The state runner, with whiskering and pure centrality. The control equation set for the state runner: the two case equations, the pointwise uniqueness of a map out of a sum, preservation by whiskering, the agreement of a composite with the diagram that has the continuation at each exit, and the agreement of a frame with the copairing that has a copy of its diagram for each case of the bypass. Branching read/write with a shared invariant, and the applicable global-state rewrite evidence. Each law is a pointwise statement, so that the graph of a function carries it to the relations of D6. The D2 checks below pass. | Current |
+| D2. Whole diagrams with effects | Signatures of pure and effectful operations, with input ports and an output boundary for each operation. Contexts, boundaries as lists of contexts, and their structural maps: copy, discard, and exchange on ports, and the join on cases. Diagrams: exits, steps, and composites. Continuations: copairings, frames with a bypass, and loops. The static size of a diagram. The structural agreement of two diagrams whose families agree at each case, with its soundness. The request interface of a signature at a family of values, with the specification of each operation as a part of the signature. The function meaning of a diagram into `Free`, with the remaining computation as an argument, for a number of unrollings of each loop and a computation for the limit. The verification of a diagram over its function meaning, in `FreeDep`, by the constructors of the diagram: a step takes the witness of the precondition of its operation from the context, and its continuation receives the postcondition of the response. The run family of a diagram, for the calls with a runtime: a recursion into the relations of `Prelude.Relation`, with its two exit equations as equivalences. Each law of the stage is an agreement of function meanings for each number of unrollings, and the evidence of a verified diagram moves along it. The interchange rule for a pure step and a step that no wire connects to it, with its agreement for each lowering in which each pure operation makes no call, and with the map of verified diagrams along that agreement. The state runner, with whiskering and pure centrality. The control equation set for the state runner: the two case equations, the pointwise uniqueness of a map out of a sum, preservation by whiskering, the agreement of a composite with the diagram that has the continuation at each exit, and the agreement of a frame with the copairing that has a copy of its diagram for each case of the bypass. Branching read/write with a shared invariant, and the applicable global-state rewrite evidence. Each law is a pointwise statement, so that the graph of a function carries it to the relations of D6. The D2 checks below pass. | Complete |
 | D3. Dependency orders | Source diagrams for the fixed-occurrence fragment: one sequence of steps and one exit. The dependency graph of a diagram: its steps with their operand ports, and the order of its effectful steps. Each dependency-respecting order is a diagram of the same syntax with an interchange derivation from the source diagram, and its context at each step has the cut of live values. The evidence of each order is constructed from the evidence of the source along the derivation, with the condition on the specifications of the pure operations that the construction needs. Soundness for the interchange equation set: actual producer connections, exact call order, and returned-value preservation. Constructive coverage that returns a realization with its derivation for an arbitrary admissible order. The three interleavings and the shared, repeated, and discarded operand checks pass. | Pending |
 | D4. Control and sharing | Source diagrams with the control sum: tests as steps with one diagram for each case, copairing for values and for the runtime, joins as two exits to one case, composites for shared continuations, and guarded operations. The relation between two presentations of one VSDG, for the order of two pure tests that no wire connects and for the case of an operation. Occurrence partitions. Figure 5.6 and the five arrangements of Figure 5.7, each as a whole diagram. Retained bypass cases are related to source control information. Tail sharing is justified with the control equation set. Reuse and speculation are justified with the copy and discard equation sets, the applicable effect equations, and dependent evidence maps. Position invariance holds for each operation that is named for discard naturality, and a guarded operation consumes the port of its case. The two sharing hypotheses of CONCEPT are tested. Soundness and coverage hold for the claimed fragment. Costs are compared under the register-machine model of the thesis, which gives the instruction counts of the source contracts. | Pending |
 | D5. Substitution and composition laws | Exact silent resolution with closed cycles. Substitution with multiplied bypasses, and substitution closure. Identity and associativity with reindexing. Adequacy of finite routing certificates. Interpretation, runtime, and dependent verification commute with nested substitution. | Pending |
@@ -177,15 +177,16 @@ substitution of the implementations, the two computations are identical by
 constructs the evidence of one order from the evidence of the other order. The
 construction goes through the one computation, and it uses a condition of this
 example: the specification of each pure operation fixes its response. The
-construction for each diagram, and for a specification that does not fix the
-response, is open for D2 and D3.
+construction for each diagram is the map of verified implementations along a
+derivation of D2. The construction of the lift of an order, for a
+specification that does not fix the response, is open for D3.
 
 [N6](NOTES.md#n6-slow-elaboration-is-not-slow-kernel-checking) has the three
 results on cost that the checks gave: the effect of `smartUnfolding`, the cost
 of a generated matcher on an indexed family, and the cost of a sequence that
 binds its earlier part.
 
-## D2: current
+## D2: complete
 
 [Draft/Diagram.lean](Draft/Diagram.lean) has the plain part of each
 construction. [Draft/Verified.lean](Draft/Verified.lean) has the verification
@@ -363,17 +364,13 @@ the second value with the kept input, from the fact of the test. The frame
 equation moves the verified implementation to the other form, with the same
 payloads. The frame has 4 steps, and the other form has 7.
 
-Two plain parts of the module are open:
-
-- An implementation that returns without a call is a verified implementation
-  against the specification that admits no call. The two forms become one.
-  [Probes/DepPoly.lean](Probes/DepPoly.lean) has the two maps.
-- The form of the frame, which is a part of the work on the wiring.
-  [Probes/Wiring.lean](Probes/Wiring.lean) has the wiring of a diagram as a
-  map of `Int(Poly_*)` with a box for each step, and its runs.
-
 The modules of [Probes](Probes) are explorations on the Draft. They are not
 parts of the implementation, and no module of `Draft` imports them.
+[Probes/Wiring.lean](Probes/Wiring.lean) has the wiring of a diagram as a map
+of `Int(Poly_*)` with a box for each step, and its runs.
+[Probes/DepPoly.lean](Probes/DepPoly.lean) has the relation of calls with a
+runtime as a specification, and the continuation of a frame at the pairs of a
+bypass case and an exit case.
 
 The text below describes the plain part.
 
@@ -420,6 +417,12 @@ the identity of the runs on a machine from each runtime is a congruence that
 has it. The interchange rule relates the two orders of two steps
 that no wire connects, of which one is pure. It holds after the substitution
 of each implementation in which each pure operation returns without a call.
+That premise is a verified implementation. The specification of the pure
+operations has the identity of the kind of an operation with the pure kind as
+the witness of its precondition, and the implementation is verified for the
+specification that admits no call. Evidence for that specification gives the
+value that a computation returns, and the agreement of the computation with
+the computation that returns it.
 The equations of the control sum hold in each congruence. The two exit
 equations of the control sum are rules too. An exit to the boundary of a copairing, and
 then the copairing, is the diagram of the case of the exit, with renamed
@@ -445,8 +448,10 @@ rule sets gives a map of derivations, and a sum of two rule sets holds in each
 congruence in which the two sets hold.
 [Prelude/Indexed.lean](Prelude/Indexed.lean) has the positions of a
 concatenation, the case analysis of a position of a nonempty list, and the
-selection of values at a list of positions, with their laws. [Prelude/Container/Free.lean](Prelude/Container/Free.lean) has the
-implementation of a shape that returns without a call.
+selection of values at a list of positions, with their laws. [Prelude/Container/Section.lean](Prelude/Container/Section.lean) has the
+specification that admits no call, and
+[Prelude/Container/Verified.lean](Prelude/Container/Verified.lean) has the
+returned value of a computation with evidence for it.
 
 [Draft/Checks/Diagram.lean](Draft/Checks/Diagram.lean) has the plain
 computations of three required checks, and three more checks, with arbitrary inputs,

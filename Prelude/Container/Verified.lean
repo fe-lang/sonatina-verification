@@ -94,6 +94,21 @@ def parts {x : Free C α} (h : FreeDep r Q x) : PartsAt r Q x :=
   FreeDep.casesOn (motive := fun x _ => PartsAt r Q x) h (fun _ => ⟨⟩)
     (fun pre verified => ⟨pre, verified⟩)
 
+/-- Evidence for the specification that admits no call gives the value that the computation
+returns. The computation agrees with the computation that returns that value, and the value
+has the condition. -/
+def returned {x : Free C α} (h : FreeDep (DepPoly.noCall.{s, p, w, z} C) Q x) :
+    (value : α) × (Free.Agreement x (.pure value) × Q value) :=
+  FreeDep.casesOn
+    (motive := fun x _ => (value : α) × (Free.Agreement x (.pure value) × Q value)) h
+    (fun {value} q => ⟨value, .pure .refl, q⟩)
+    (fun pre _ => nomatch pre)
+
+/-- A computation that makes no call gives its value to the continuation. -/
+def returnedBind {x : Free C α} (h : FreeDep (DepPoly.noCall.{s, p, w, z} C) Q x)
+    (k : α → Free C β) : Free.Agreement (x.bind k) (k h.returned.1) :=
+  h.returned.2.1.bind (fun i => .refl (k i))
+
 /-- Evidence moves along an agreement of computations. An identity of two returned values
 moves the evidence at the first value to the second value. -/
 def reindex {x y : Free C α} (agree : Free.Agreement x y) : FreeDep r Q x → FreeDep r Q y :=
