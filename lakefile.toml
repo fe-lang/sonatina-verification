@@ -1,9 +1,12 @@
 name = "Prelude"
 version = "0.1.0"
-defaultTargets = ["Prelude", "PreludeTests"]
+defaultTargets = ["Prelude", "PreludeTests", "Draft"]
 
 [[lean_lib]]
 name = "Prelude"
+
+[[lean_lib]]
+name = "Draft"
 
 [[lean_lib]]
 name = "PreludeTests"
