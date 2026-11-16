@@ -91,7 +91,9 @@ Two modules are separate imports. `import Prelude` does not include them.
 `Elem` retains occurrence information, including repeated elements of a list.
 `All P xs` contains a `P x` at every position of `xs`.
 `Elem.left` and `Elem.right xs` are the positions of the two parts of
-`xs ++ ys`. `Elem.consCases` is the case analysis of a position of a nonempty
+`xs ++ ys`. `Elem.split xs i` gives the part of a position of `xs ++ ys`: a
+position of `xs` or a position of `ys`, with the identity of `i` with its
+image. `Elem.consCases` is the case analysis of a position of a nonempty
 list, and `Elem.ofNil` gives a value of each type from a position of the
 empty list. `All.select env positions` gives the values of `env` at a list of
 positions, which can repeat a position and omit a position.

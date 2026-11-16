@@ -62,6 +62,21 @@ def consCases {b : α} {xs : List α} {motive : (c : α) → Elem c (b :: xs) �
     (there : (c : α) → (j : Elem c xs) → motive c (.there j)) : motive a i :=
   consCasesOn.{u, w} i motive here there
 
+/-- A position of a concatenation is a position of the first part or a position of the second
+part. -/
+def split : (xs : List α) → {ys : List α} → {a : α} → (i : Elem a (xs ++ ys)) →
+    ((j : Elem a xs) × (i ≡ j.left)) ⊕ ((j : Elem a ys) × (i ≡ j.right xs))
+  | [], _, _, i => .inr ⟨i, .refl⟩
+  | b :: xs, ys, _, i =>
+      consCases
+        (motive := fun c (i : Elem c (b :: (xs ++ ys))) =>
+          ((j : Elem c (b :: xs)) × (i ≡ j.left)) ⊕ ((j : Elem c ys) × (i ≡ j.right (b :: xs))))
+        i (.inl ⟨.here, .refl⟩)
+        (fun _ j =>
+          match split xs j with
+          | .inl found => .inl ⟨.there found.1, Identity.cong Elem.there found.2⟩
+          | .inr found => .inr ⟨found.1, Identity.cong Elem.there found.2⟩)
+
 /-- A value of each type from a position of the empty list. -/
 def ofNil {β : Type w} (i : Elem a ([] : List α)) : β :=
   Elem.casesOn

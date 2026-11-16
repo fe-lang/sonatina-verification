@@ -99,6 +99,13 @@ inductive Kind where
   | pure
   | effectful
 
+/-- One of two kinds is the pure kind, or the two kinds are effectful. -/
+def Kind.central : (k l : Kind) → Option ((k ≡ .pure) ⊕ (l ≡ .pure))
+  | .pure, .pure => some (.inl .refl)
+  | .pure, .effectful => some (.inl .refl)
+  | .effectful, .pure => some (.inr .refl)
+  | .effectful, .effectful => none
+
 /-- Operations with a product of typed input ports and an output boundary. A test is an
 operation whose output boundary has two or more cases. -/
 structure Signature (Ty : Type) where
@@ -139,6 +146,21 @@ def exchange (Ξ Θ Γ : List Ty) : PortMap (Ξ ++ (Θ ++ Γ)) (Θ ++ (Ξ ++ Γ)
   (All.tabulate Θ (fun _ i => i.left.right Ξ)).append
     ((All.tabulate Ξ (fun _ i => i.left)).append
       (All.tabulate Γ (fun _ i => (i.right Θ).right Ξ)))
+
+/-- A port map into a context with more ports is a weakened port map when it has none of those
+ports. -/
+def strengthen (Ξ : List Ty) {Γ : List Ty} : {Δ : List Ty} → (ports : PortMap (Ξ ++ Γ) Δ) →
+    Option ((inner : PortMap Γ Δ) × (ports ≡ inner.weaken Ξ))
+  | _, .nil => some ⟨.nil, .refl⟩
+  | _, .cons p ps =>
+      match Elem.split Ξ p with
+      | .inl _ => none
+      | .inr found =>
+          match strengthen Ξ ps with
+          | none => none
+          | some inner =>
+              some ⟨.cons found.1 inner.1,
+                Identity.cong₂ (fun q qs => All.cons q qs) found.2 inner.2⟩
 
 variable {X : Ty → Type}
 

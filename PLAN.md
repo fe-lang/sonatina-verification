@@ -540,21 +540,34 @@ choices, and its derivation has one application of the theorem for each
 choice. The evidence of a ready step is for each diagram without a
 composite: a step that is ready in each case of a test moves before the test.
 
+[Draft/Source.lean](Draft/Source.lean) has the diagrams of the fragment with
+fixed occurrences: one sequence of steps and one exit. The evidence is a
+function of the diagram. The output boundary of each step has one case: the
+type of its cases has a center, and each case is identical to the center. The
+action of a port map keeps the fragment. For a diagram of the fragment, the
+ready steps are a list, and the schedules are a list: one schedule for each
+choice of a ready step at each point. A step of the rest of the first step is
+ready in the diagram when one of the two steps is pure and its operands have
+no output port of the first step. The diagram after a ready step and the
+realization of a schedule are diagrams of the fragment.
+[Prelude/Indexed.lean](Prelude/Indexed.lean) has the part of a position of a
+concatenation.
+
 [Draft/Checks/Schedule.lean](Draft/Checks/Schedule.lean) has three steps.
 `A` and `B` are pure, and `B` uses the output of `A`. `C` is effectful and
 uses one input only. Three schedules of the source diagram give the orders
 `A B C`, `A C B`, and `C A B`, and each realization has its steps in that
 order. Each realization gives the same values, for arbitrary inputs and an
 arbitrary response of the store. A check consumes the soundness of the
-derivation of a schedule through a dependent payload.
+derivation of a schedule through a dependent payload. The source diagram is a
+diagram of the fragment. Its ready steps are `A` and `C`. The list of its
+schedules has the three orders and no other order, and each realization of
+the list gives the same values.
 
 These parts are open:
 
-- The family of the diagrams of the fragment: one sequence of steps that have
-  one output case, and one exit.
-- The decision of the ready steps of a diagram of the fragment, and the list
-  of its schedules. The list gives that the three orders of the first check
-  are all its orders.
+- The completeness of the list of the schedules: each schedule of a diagram
+  of the fragment is in the list.
 - The dependency graph of a diagram: the container with a shape for each step
   and a position for each operand, the producer of each position, and the
   order of the effectful steps. A schedule keeps the producers.

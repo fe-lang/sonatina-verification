@@ -10,7 +10,11 @@ only. The source diagram has the order `A B C`.
 the orders `A B C`, `A C B`, and `C A B`. Each realization has its steps in that order. Each
 gives the same two values, for arbitrary inputs and an arbitrary response of the store. The
 derivation of each schedule is in the interchange equation set, and a check consumes its
-soundness through a dependent payload that has the response of the store. -/
+soundness through a dependent payload that has the response of the store.
+
+The source diagram is a diagram of the fragment with fixed occurrences. Its ready steps are `A`
+and `C`: `B` has the output of `A` as an operand. The list of its schedules has the three
+orders and no other order, and each realization of the list gives the same two values. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -137,6 +141,31 @@ def frontSound (flag : Bool) (u v x y : Nat) :
         ((sound stop count front x y).run (f := provider flag u v) (fun _ => .refl)))
       ⟨u + x, Nat.lt_succ_self _⟩).val ≡ u + x := .refl
 
+/-- The source diagram is a diagram of the fragment: each of its three steps has one output
+case. -/
+def straight : source.Straight := ⟨center, only, center, only, center, only, ()⟩
+
+set_option smartUnfolding false in
+/-- The ready steps of the source diagram are `A` and `C`. -/
+def readySteps : (Diagram.choices source straight).map (fun choice => choice.1) ≡
+    [Op.add, Op.emit] := .refl
+
+set_option smartUnfolding false in
+/-- The list of the schedules of the source diagram has the three orders. -/
+def allOrders :
+    ((Diagram.schedules source straight).map fun s =>
+        Diagram.ops s.realization (s.straight straight)) ≡
+      [[Op.add, Op.add, Op.emit], [Op.add, Op.emit, Op.add], [Op.emit, Op.add, Op.add]] :=
+  .refl
+
+set_option smartUnfolding false in
+/-- Each realization of the list gives the same two values, for arbitrary inputs and an
+arbitrary response of the store. -/
+def allRuns (flag : Bool) (u v x y : Nat) :
+    ((Diagram.schedules source straight).map fun s =>
+        observe stop count s.realization flag u v x y) ≡
+      [(x + y + y, u + x), (x + y + y, u + x), (x + y + y, u + x)] := .refl
+
 end Draft.Checks.Schedule
 
 /-- info: 'Draft.Checks.Schedule.orders' does not depend on any axioms -/
@@ -162,3 +191,15 @@ end Draft.Checks.Schedule
 /-- info: 'Draft.Checks.Schedule.frontSound' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Schedule.frontSound
+
+/-- info: 'Draft.Checks.Schedule.readySteps' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Schedule.readySteps
+
+/-- info: 'Draft.Checks.Schedule.allOrders' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Schedule.allOrders
+
+/-- info: 'Draft.Checks.Schedule.allRuns' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Schedule.allRuns
