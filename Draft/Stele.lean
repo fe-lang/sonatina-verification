@@ -29,7 +29,7 @@ continuation has the rest. A `while` is a loop whose entrance has the variables,
 exits to the entrance or to the continuation that has the rest. A `return` exits to the
 boundary of the returned value.
 
-The handler of the operations has the storage as its runtime, and it stops at `revert`. -/
+The machine of the operations has the storage as its runtime, and it stops at `revert`. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -289,7 +289,7 @@ returned integer. The end of the list is a `revert`. -/
 def Stmt.diagram {Γ : List Ty} (body : Stmt Γ) : Diagram sig Γ [Ret] :=
   body.compile .here Γ (PortMap.id Γ) fun _ _ => revert
 
-/-! The handler of the operations. -/
+/-! The machine of the operations. -/
 
 /-- The runtime: the value of each storage slot. -/
 abbrev Store : Type := Nat → Int
@@ -323,31 +323,31 @@ def evalCompare : Compare → Int → Int → Bool
 two. -/
 def wrap (bits : Nat) (a : Int) : Int := a % ((2 ^ bits : Nat) : Int)
 
-/-- The handler of the operations, with the storage as its runtime. `divide` has the second
+/-- The machine of the operations, with the storage as its runtime. `divide` has the second
 case at a zero divisor. `load` and `store` read and write one slot. `revert` stops. -/
-def handle : Handler (sig.interface Val) Store Unit
-  | ⟨.intLit n, _⟩, s => .inr (one (t := .int) n, s)
-  | ⟨.boolLit b, _⟩, s => .inr (one (t := .bool) b, s)
-  | ⟨.arith f, args⟩, s =>
+def handle : Machine (sig.interface Val) Store Unit
+  | (⟨.intLit n, _⟩, s) => .inr (one (t := .int) n, s)
+  | (⟨.boolLit b, _⟩, s) => .inr (one (t := .bool) b, s)
+  | (⟨.arith f, args⟩, s) =>
       .inr (one (t := .int) (evalArith f (args.lookup .here) (args.lookup (.there .here))), s)
-  | ⟨.divide f, args⟩, s =>
+  | (⟨.divide f, args⟩, s) =>
       match decide ((args.lookup (.there .here) : Int) = 0) with
       | true => .inr (⟨⟨_, .there .here⟩, .nil⟩, s)
       | false =>
           .inr (⟨⟨_, .here⟩,
             .cons (evalDivide f (args.lookup .here) (args.lookup (.there .here))) .nil⟩, s)
-  | ⟨.neg, args⟩, s => .inr (one (t := .int) (-(args.lookup .here : Int)), s)
-  | ⟨.wrap bits, args⟩, s => .inr (one (t := .int) (wrap bits (args.lookup .here)), s)
-  | ⟨.compare f, args⟩, s =>
+  | (⟨.neg, args⟩, s) => .inr (one (t := .int) (-(args.lookup .here : Int)), s)
+  | (⟨.wrap bits, args⟩, s) => .inr (one (t := .int) (wrap bits (args.lookup .here)), s)
+  | (⟨.compare f, args⟩, s) =>
       .inr (one (t := .bool) (evalCompare f (args.lookup .here) (args.lookup (.there .here))), s)
-  | ⟨.not, args⟩, s => .inr (one (t := .bool) (!(args.lookup .here : Bool)), s)
-  | ⟨.branch, args⟩, s =>
+  | (⟨.not, args⟩, s) => .inr (one (t := .bool) (!(args.lookup .here : Bool)), s)
+  | (⟨.branch, args⟩, s) =>
       match (args.lookup .here : Bool) with
       | true => .inr (⟨⟨_, .here⟩, .nil⟩, s)
       | false => .inr (⟨⟨_, .there .here⟩, .nil⟩, s)
-  | ⟨.load slot, _⟩, s => .inr (one (t := .int) (s slot), s)
-  | ⟨.store slot, args⟩, s => .inr (⟨Boundary.only _, .nil⟩, s.write slot (args.lookup .here))
-  | ⟨.revert, _⟩, _ => .inl ()
+  | (⟨.load slot, _⟩, s) => .inr (one (t := .int) (s slot), s)
+  | (⟨.store slot, args⟩, s) => .inr (⟨Boundary.only _, .nil⟩, s.write slot (args.lookup .here))
+  | (⟨.revert, _⟩, _) => .inl ()
 
 /-- The returned integer of the one exit. -/
 def returned : Exits.At [Ret] Val → Int

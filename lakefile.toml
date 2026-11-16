@@ -13,11 +13,11 @@ name = "Frontend"
 
 [[lean_lib]]
 name = "Probes"
-roots = ["Probes.Wiring", "Probes.DepPoly", "Probes.Machine"]
+roots = ["Probes.Wiring", "Probes.DepPoly"]
 
 [[lean_lib]]
 name = "PreludeTests"
-roots = ["PreludeTests.Prelude", "PreludeTests.Relation", "PreludeTests.Container", "PreludeTests.Eq", "PreludeTests.Axiom"]
+roots = ["PreludeTests.Prelude", "PreludeTests.Relation", "PreludeTests.Container", "PreludeTests.Runtime", "PreludeTests.Eq", "PreludeTests.Axiom"]
 
 [[require]]
 name = "evmlean"

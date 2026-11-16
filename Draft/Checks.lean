@@ -8,6 +8,7 @@ import Draft.Checks.Fold
 import Draft.Checks.Diagram
 import Draft.Checks.Countdown
 import Draft.Checks.Lift
+import Draft.Checks.State
 import Draft.Checks.Stele
 
 /-! Named kernel checks.

@@ -37,6 +37,7 @@ The Prelude imports Lean's `Init` and supplies the following modules:
 | [`Prelude.Container.Section`](../Prelude/Container/Section.lean) | Closed providers, morphism interpretation, specifications, witness-dependent evidence, and computational reindexing laws |
 | [`Prelude.Container.Free`](../Prelude/Container/Free.lean) | `Free` computations with bind, interpretation, and structural agreement; implementations with substitution, composition, and copairing; the laws of the two |
 | [`Prelude.Container.Verified`](../Prelude/Container/Verified.lean) | `FreeDep` evidence that a computation satisfies a specification, with bind, substitution, interpretation, and transport along agreement; `ImplDep` lifts of implementations with composition and copairing; the laws of interpretation |
+| [`Prelude.Container.Runtime`](../Prelude/Container/Runtime.lean) | The interface with a runtime (`Container.runtime`), machines as its closed providers (`Machine`), the computation and the implementation with a runtime at each call (`Free.thread`, `Impl.thread`), the run on a machine and the machine of an implementation (`Machine.run`, `Machine.impl`), the graph of a machine with its evidence, and the specification with an invariant of the runtime with the move of evidence to it (`DepPoly.invariant`, `FreeDep.thread`) |
 | [`Prelude.Container.Indexed`](../Prelude/Container/Indexed.lean) | Input/output indexed containers, typed extensions, index-preserving morphisms, and indexed composition |
 
 Ordinary data and effect interfaces are Lean's: `Empty`, `Unit`, `Bool`, `Nat`,

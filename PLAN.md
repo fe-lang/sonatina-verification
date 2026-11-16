@@ -15,10 +15,11 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Prelude.Identity`, `Prelude.Indexed`, `Prelude.Decision`, `Prelude.Relation` | Shared identity eliminators, indexed finite data, decisions, and structural relations |
 | `Prelude.Container` and its submodules | Shared polynomial interfaces, lenses, sums, products, families, reindexing, one-call dependent evidence, `Free` computations, implementations, and their structural laws |
 | `Prelude.Container.Section`, `Prelude.Container.Verified` | Shared `DepPoly`, `FreeDep`, verified implementations and composition |
+| `Prelude.Container.Runtime` | The interface with a runtime, machines, the computation with a runtime at each call, the graph of a machine, and the specification with an invariant of the runtime |
 | `Draft.Implementation` | Compiler operation interfaces with their specifications, and their verified implementations |
 | `Draft.Diagram` | The one diagram syntax: signatures of pure and effectful operations, contexts and boundaries with their structural maps, diagrams with exits, steps, and composites, continuations with copairings, frames, and loops, the function meaning and the run family, the derivation rules of each equation set, bypasses, resolution, substitution, the laws of the loop, and structural cells and execution certificates |
 | `Draft.Verified` | The verification over the diagram syntax: the interface of a diagram, the evidence of a diagram by its constructors, the lift for a specification, the verified implementation, and the map of verified implementations along a derivation |
-| `Draft.Runtime` | The runner of that syntax: a handler of the operations with a runtime, the run of a computation with a handler, the interpretation of effects with the runtime, state equations, invariant evidence, and dependent rewrite maps |
+| `Draft.Runtime` | The runner of that syntax: the machines of a signature with their relation of calls, the evidence of a diagram for a specification of the interface with a runtime, the interpretation of effects with the runtime, state equations, invariant evidence, and dependent rewrite maps |
 | `Draft.Stele` | The example frontend: a typed fragment of Stele, the signature of its operations, and its translation to diagrams |
 | `Draft.Source` | Source diagrams as presentations of a VSDG, the relation between two presentations, the frontend interface, sharing, control, and feedback translation, and admissibility evidence |
 | `Draft.Sequentialization` | The selection of a realization by cost, certified realizations, coverage, and soundness |
@@ -29,8 +30,8 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 
 The Prelude identity, indexed, decision, relation, and container modules,
 `Draft.Diagram`, `Draft.Verified`, `Draft.Stele`, and `Draft.Checks` exist.
-`Draft.Runtime` has the handler and its run. The other module families are the
-planned locations for stages D2 to D7. The module families divide the work
+`Draft.Runtime` has the machines and the evidence of a diagram with a runtime.
+The other module families are the planned locations for stages D2 to D7. The module families divide the work
 and not the system: the IR is the one diagram syntax of
 [CONCEPT.md](CONCEPT.md#design).
 
@@ -215,17 +216,44 @@ along the interchange derivation; one continuation of two control paths,
 with a condition on the sum that each path establishes from the postcondition
 of the test; one effectful step of two control paths in a frame; and the loop
 that counts down, with an invariant that has the receipts of the calls and
-the identity of the value. Three plain parts of the module are open:
+the identity of the value.
+
+The calls with a runtime have one form.
+[Prelude/Container/Runtime.lean](Prelude/Container/Runtime.lean) has the
+interface with a runtime: a call has a runtime, and a response has the next
+runtime, or the call stops. A machine is a closed provider of that interface,
+which is Aberlé's machine with an explicit carrier. A computation gives the
+computation with the runtime at each call, and an implementation gives an
+implementation in the same manner. The run on a machine is the run of that
+computation with the machine as the provider. A specification of the
+interface with a runtime relates the runtime before a call to the response
+and the runtime after it, and a relation of calls is such a specification.
+The graph of a machine is the specification that has its response at each
+call. A specification of an interface with an invariant of the runtime gives
+a specification of the interface with a runtime, and the evidence of a
+computation moves to it. [PreludeTests/Runtime.lean](PreludeTests/Runtime.lean)
+has her state invariant and a specification of two runtimes for one program.
+
+[Draft/Runtime.lean](Draft/Runtime.lean) has the evidence of a diagram for a
+specification of the interface with a runtime, by the constructors of the
+diagram. A condition has the runtime. The invariant of a loop has the runtime
+and the number of the unrollings that remain. A step for the graph of a
+machine has the response of the machine at its runtime.
+[Draft/Checks/State.lean](Draft/Checks/State.lean) has a cell with a read and
+a write: a read, a kept value, a write, and a second read, for an arbitrary
+cell, with the number of the reads; a write and a read in the two orders,
+which give different values; and the first diagram with a specification of
+two runtimes, whose evidence at the run on the machine a kernel check
+eliminates.
+
+Three plain parts of the module are open:
 
 - An implementation that returns without a call is a verified implementation
   against the specification that admits no call. The two forms become one.
   [Probes/DepPoly.lean](Probes/DepPoly.lean) has the two maps.
-- The form of the calls with a runtime: a relation of calls, or a machine
-  that has the runtime as its state. [Draft/Runtime.lean](Draft/Runtime.lean)
-  has a handler that is a function of the call and the runtime, and the
-  relation of calls that is its graph.
-  [Probes/Machine.lean](Probes/Machine.lean) has the machine with its
-  verification.
+- The laws of the state runner: the run of a derivation on a machine, from
+  the laws of the computation with a runtime for a bind and for the
+  substitution of an implementation.
 - The form of the frame, which is a part of the work on the wiring.
   [Probes/Wiring.lean](Probes/Wiring.lean) has the wiring of a diagram as a
   map of `Int(Poly_*)` with a box for each step, and its runs.
@@ -344,9 +372,10 @@ computation. The loop has 3 steps, and the body and then the loop has 6.
 
 These parts of the stage are open: the identity law and the composition law
 of the action of a port map as structural agreements of diagrams, the
-agreement of each frame with the copairing of its copies as a rule, the
-state runner with an arbitrary runtime and its invariant, the uniqueness of a
-map out of a sum, and the read/write evidence. The stage continues with one row
+agreement of each frame with the copairing of its copies as a rule, the laws
+of the state runner, the uniqueness of a map out of a sum, and the rules of
+the cell (the equations of a read and a write) with their soundness on the
+machine. The stage continues with one row
 of its table at a time.
 
 ## D6: generic definitions
@@ -394,7 +423,7 @@ one of two expressions, as in Stele: the two paths of a test exit to one case
 of the boundary of a continuation. The two paths of an `if` exit to one case
 of the boundary of a continuation, with the present value of each variable at
 its ports. A `while` is a loop whose entrance has the variables. The module
-has the handler of the operations, with the storage as its runtime.
+has the machine of the operations, with the storage as its runtime.
 
 [Draft/Checks/Stele.lean](Draft/Checks/Stele.lean) has kernel checks of
 compiled programs of the fragment: a declaration with a write and a read of
@@ -436,9 +465,10 @@ These parts are open:
   storage types, the range check of a cast, the other value types, mappings
   and arrays, calls, and the other values of the environment.
 - A function with no returned value, or with more than one.
-- The specification of a compiled program. A specification of a write and a
-  read relates two states, and the specification of an operation has no
-  state.
+- The correspondence of the fragment has Aberlé's form: the semantics of the
+  fragment is a specification of the interface with a runtime, and the
+  diagram of each program is a verified implementation of it, with the graph
+  of the machine of the operations as the assumption on each call.
 - The backend.
 
 ## Research scope after the bounded milestones
