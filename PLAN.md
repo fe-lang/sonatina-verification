@@ -640,6 +640,10 @@ These parts are open:
   default limit of the elaborator. The cause is open.
 - The converse: each diagram that an interchange derivation gives from a
   diagram of the fragment is an order of it.
+- The cost of the elaborator in the check modules `Lift`, `State`, `Diagram`,
+  and `Dependency`. Each of the four has most of its time in the elaborator
+  and little in the kernel. The work on the causes is the last part of the
+  stage, and it includes the cause of the check that exceeds the limit.
 
 ## D6: generic definitions
 
