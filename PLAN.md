@@ -13,9 +13,9 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | Module family | Responsibility |
 | --- | --- |
 | `Prelude.Identity`, `Prelude.Indexed`, `Prelude.Decision`, `Prelude.Relation` | Shared identity eliminators, indexed finite data, decisions, and structural relations |
-| `Prelude.Container` and its submodules | Shared polynomial interfaces, lenses, sums, products, families, reindexing, one-call dependent evidence, `Free` computations, implementations, and their structural laws |
+| `Prelude.Container` and its submodules | Shared polynomial interfaces, lenses, sums, products, families, composition, reindexing, one-call dependent evidence, `Free` computations, implementations, and their structural laws; comonoids for composition with their homomorphisms, and the state object with its lawful lenses |
 | `Prelude.Container.Section`, `Prelude.Container.Verified` | Shared `DepPoly`, `FreeDep`, verified implementations and composition |
-| `Prelude.Container.Runtime` | The interface with a runtime, machines, the computation with a runtime at each call, the graph of a machine, and the specification with an invariant of the runtime |
+| `Prelude.Container.Runtime` | The interface with a runtime, machines, the computation with a runtime at each call, the graph of a machine, the specification with an invariant of the runtime, the machine of a part of the runtime along a lens, and the interface and the machine of a cell with the equations of global state |
 | `Draft.Implementation` | Compiler operation interfaces with their specifications, and their verified implementations |
 | `Draft.Diagram` | The one diagram syntax: signatures of pure and effectful operations, contexts and boundaries with their structural maps, diagrams with exits, steps, and composites, continuations with copairings, frames, and loops, the function meaning and the run family, the derivation rules of each equation set, bypasses, resolution, substitution, the laws of the loop, and structural cells and execution certificates |
 | `Draft.Verified` | The verification over the diagram syntax: the interface of a diagram, the evidence of a diagram by its constructors, the lift for a specification, the verified implementation, and the map of verified implementations along a derivation |
@@ -237,6 +237,26 @@ an interface with an invariant of the runtime gives a specification of the
 interface with a runtime, and the evidence of a computation and a verified
 implementation move to it.
 
+A part of the runtime has a lens. The state object of a type has a value as a
+shape and the next value as a position, and a lens is a morphism of two state
+objects: its view gives the part, and its update gives the runtime with a new
+part. [Prelude/Container/Comonoid.lean](Prelude/Container/Comonoid.lean) has
+the data of a comonoid for the composition of containers, the homomorphisms of
+comonoids with their composition, and the comonoid of a state object. A lawful
+lens is a homomorphism of the comonoids of two state objects. Its counit square
+is the law of the update with the view. The inner shapes of its
+comultiplication square are the law of the view of an update, and its
+positions are the law of two updates. The comultiplication square is an
+agreement of the two layers of a composite, which needs no identity of two
+functions. A machine on a part gives a machine on the whole runtime along the
+lens. For a lawful lens, the run on the whole is the run on the part from the
+view, with the update of the first runtime at the last value of the part. Two
+computations with one run on the machine of the part thus have one run on
+each machine of the whole that is that machine along the lens at their calls,
+in each continuation. The module of the runtime has the interface of a cell,
+which is Aberlé's `State`, with its machine, and the five equations of global
+state hold on that machine by computation.
+
 The computation with a runtime has three laws, each as an agreement: it
 respects agreement, the computation of a bind is the first part and then the
 rest from its result, and the computation of a substitution is the
@@ -246,7 +266,10 @@ substitution on the machine of the implementation, and the machine of a
 composite. The evidence of a bind and of a substitution moves along the two
 laws. [PreludeTests/Runtime.lean](PreludeTests/Runtime.lean) has her state
 invariant, a specification of two runtimes for one program, and the laws for
-a computation that calls the program two times.
+a computation that calls the program two times. It has a lawful lens to the
+first part of a pair, the composite of two such lenses, the run of the machine
+of a cell along the lens, and two computations of a cell that have one run on
+a cell of pairs, in a continuation that reads the cell again.
 
 [Draft/Runtime.lean](Draft/Runtime.lean) has the evidence of a diagram for a
 specification of the interface with a runtime, by the constructors of the
@@ -284,6 +307,15 @@ each context, each port, and each rest, in the control equation set with the
 equations of global state. Its proof is the closed equation, the theorem of
 the frame, and two structural agreements.
 
+The cell of a signature is a morphism from the interface of a cell to the
+request interface of the signature, for each family of values: the typed read
+and the typed write are its calls. The equation set of global state holds on
+each machine that is, at the calls of the cell, the machine of a cell along a
+lawful lens of the runtime. Each equation is the equation of the machine of a
+cell, moved along the lens. The laws of the lens are identities of runtimes,
+so a runtime that is a function is not in the scope of the theorem, and a
+machine whose read or write stops or counts is not such a machine.
+
 [Draft/Checks/State.lean](Draft/Checks/State.lean) has a cell with a read and
 a write: a read, a kept value, a write, and a second read, for an arbitrary
 cell, with the number of the reads; a write and a read in the two orders,
@@ -299,9 +331,11 @@ one runtime give different payloads in each order. The run of the verified
 first order on the machine of the lowering is the evidence of its machine,
 and the derivation moves that evidence to the machine of the second order,
 with the same payloads. The module has a second machine of the cell, whose
-reads do not count. The control equation set and the equations of global
-state hold on the machine of the lowering to it, and each equation of global
-state holds there by computation. Each of the five theorems of the cell has
+reads do not count: the machine of a cell along the lens of the runtime to the
+value. At the calls of the cell of the signature, the machine of the lowering
+to it is that machine, by computation in each of the two cases. The equations
+of global state thus hold on the machine of the lowering, and the control
+equation set holds on it too. Each of the five theorems of the cell has
 one application, in a context with two inputs. A check consumes the identity
 of the two runs of each application through a dependent payload, for
 arbitrary inputs and an arbitrary runtime. The static sizes of the two sides
@@ -464,10 +498,8 @@ with its round trip by computation. The unrolling law and the fixpoint law of
 the loop apply to the run from the counter 2, and their round trips hold by
 computation. The loop has 3 steps, and the body and then the loop has 6.
 
-These parts of the stage are open: the soundness of the equations of global
-state for each machine with a premise on its runtime, and the check of two
-alternatives with a frame on a machine, with a shared invariant of the
-runtime.
+One part of the stage is open: the check of two alternatives with a frame on
+a machine, with a shared invariant of the runtime.
 
 ## D6: generic definitions
 

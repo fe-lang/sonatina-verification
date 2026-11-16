@@ -1,4 +1,5 @@
 import Prelude.Container.Verified
+import Prelude.Container.Comonoid
 
 /-! Interfaces with a runtime, and machines.
 
@@ -31,7 +32,17 @@ evidence. The evidence of a bind and of a substitution moves along the two laws.
 
 A specification of an interface, with an invariant of the runtime, gives a specification of the
 interface with a runtime. The evidence of a computation moves to it, and a verified
-implementation gives a verified implementation with a runtime. -/
+implementation gives a verified implementation with a runtime.
+
+A lens of runtimes is a morphism of two state objects: its view gives a part of the runtime, and
+its update gives the runtime with a new part. A machine on the part gives a machine on the
+whole runtime along the lens. For a lawful lens, the run on the whole is the run on the part
+from the view, with the update of the first runtime at the last value of the part. Thus two
+computations with one run on the machine of the part have one run on each machine of the whole
+that is that machine along the lens at their calls, in each continuation.
+
+The interface of a cell is Aberlé's `State`: a read and a write. Its machine has the value as
+the runtime (`state-mealy`). The five equations of global state hold on it by computation. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -277,5 +288,123 @@ def ImplDep.thread {r : DepPoly.{s, p, w, w} C} {t : DepPoly.{s', p', w, w} D}
     {T : R → Type w} {Z : E → Type w} {f : Impl C D} (ff : ImplDep r t f) :
     ImplDep (r.invariant T Z) (t.invariant T Z) f.thread :=
   fun a pre => (ff a.1 pre.2).thread a.2 pre.1
+
+section Lens
+
+variable {A : Type w}
+
+/-- The result on the whole runtime, from a result on a part: a stop stays, and the last
+runtime is the update of the runtime `s` with the last value of the part. -/
+def Hom.updateResult (ℓ : Hom (state R) (state A)) (s : R) : E ⊕ (α × A) → E ⊕ (α × R) :=
+  Sum.map _root_.id fun b => (b.1, ℓ.position s b.2)
+
+/-- Two runtimes with one update at each value give one result. -/
+def Hom.updateResultCongr (ℓ : Hom (state R) (state A)) {s s' : R}
+    (same : (a : A) → ℓ.position s a ≡ ℓ.position s' a) :
+    (out : E ⊕ (α × A)) → ℓ.updateResult s out ≡ ℓ.updateResult s' out
+  | .inl _ => .refl
+  | .inr b => Identity.cong (fun t => Sum.inr (b.1, t)) (same b.2)
+
+namespace Machine
+
+/-- A machine on a part of the runtime gives a machine on the whole runtime, along a lens: a
+call has the view of the runtime, and the next runtime is the update. -/
+def along (ℓ : Hom (state R) (state A)) (μ : Machine C A E) : Machine C R E :=
+  fun a => ℓ.updateResult a.2 (μ (a.1, ℓ.shape a.2))
+
+/-- The run on the whole runtime is the run on the part from the view, with the update of the
+first runtime at the last value of the part. A return uses the counit square of the lens, and a
+call uses its comultiplication square. -/
+def runAlong {ℓ : Hom (state R) (state A)} (law : ℓ.Lawful) (μ : Machine C A E) :
+    (x : Free C α) → (s : R) →
+      (μ.along ℓ).run x s ≡ ℓ.updateResult s (μ.run x (ℓ.shape s))
+  | .pure v, s => Identity.cong (fun t => Sum.inr (v, t)) (law.updateView s).symm
+  | .request d k, s =>
+      Sum.casesOn
+        (motive := fun out =>
+          (Free.resume k (ℓ.updateResult s out)).run (μ.along ℓ) ≡
+            ℓ.updateResult s ((Free.resume k out).run μ))
+        (μ (d, ℓ.shape s))
+        (fun _ => .refl)
+        (fun b =>
+          (runAlong law μ (k b.1) (ℓ.position s b.2)).trans
+            ((Identity.cong
+                (fun a => ℓ.updateResult (ℓ.position s b.2) (μ.run (k b.1) a))
+                (law.viewUpdate s b.2)).trans
+              (ℓ.updateResultCongr (fun c => law.updateUpdate s b.2 c) (μ.run (k b.1) b.2))))
+
+/-- Two computations with one run on the machine of a part have one run on a machine of the
+whole runtime, after an implementation and in each continuation. At the calls of the
+implementation, the machine of the whole is the machine of the part along a lawful lens. -/
+def alongCongr {ℓ : Hom (state R) (state A)} (law : ℓ.Lawful) (μ : Machine C A E)
+    (c : Impl C D) (m : Machine D R E) (same : Homotopy (m.impl c) (μ.along ℓ))
+    {x y : Free C β} (h : (a : A) → μ.run x a ≡ μ.run y a) (k : β → Free D α) (s : R) :
+    m.run ((x.subst c).bind k) s ≡ m.run ((y.subst c).bind k) s :=
+  let part (z : Free C β) :
+      m.run (z.subst c) s ≡ ℓ.updateResult s (μ.run z (ℓ.shape s)) :=
+    (runSubst c m z s).trans
+      ((runCongr (Free.Agreement.refl z) same s).trans (runAlong law μ z s))
+  let whole : m.run (x.subst c) s ≡ m.run (y.subst c) s :=
+    (part x).trans ((Identity.cong (ℓ.updateResult s) (h (ℓ.shape s))).trans (part y).symm)
+  (runBind m k (x.subst c) s).trans
+    ((Identity.cong (m.resume k) whole).trans (runBind m k (y.subst c) s).symm)
+
+end Machine
+
+end Lens
+
+/-- The calls of a cell: a read, and a write of a value. -/
+inductive CellOp (A : Type u) : Type u where
+  | get
+  | put (a : A)
+
+/-- The interface of a cell: a read has the value as its response, and a write has one
+response. -/
+def cell (A : Type u) : Container.{u, u} where
+  Shape := CellOp A
+  Pos
+    | .get => A
+    | .put _ => PUnit
+
+/-- The machine of a cell, with the value as the runtime. A read gives the value, and a write
+replaces it. The machine does not stop. -/
+def Machine.cell (A : Type u) (E : Type e) : Machine (cell A) A E
+  | (.get, a) => .inr (a, a)
+  | (.put b, _) => .inr (⟨⟩, b)
+
+namespace cell
+
+variable (A : Type u) (E : Type e)
+
+/-- Two reads give one value. -/
+def getGet (k : A → A → Free (cell A) β) (a : A) :
+    (Machine.cell A E).run (.request .get fun x => .request .get fun y => k x y) a ≡
+      (Machine.cell A E).run (.request .get fun x => k x x) a :=
+  .refl
+
+/-- A read whose value has no use does nothing. -/
+def getDiscard (x : Free (cell A) β) (a : A) :
+    (Machine.cell A E).run (.request .get fun _ => x) a ≡ (Machine.cell A E).run x a :=
+  .refl
+
+/-- Of two writes, the last one stays. -/
+def putPut (v w : A) (x : Free (cell A) β) (a : A) :
+    (Machine.cell A E).run (.request (.put v) fun _ => .request (.put w) fun _ => x) a ≡
+      (Machine.cell A E).run (.request (.put w) fun _ => x) a :=
+  .refl
+
+/-- A read and then a write of its value does nothing. -/
+def getPut (x : Free (cell A) β) (a : A) :
+    (Machine.cell A E).run (.request .get fun v => .request (.put v) fun _ => x) a ≡
+      (Machine.cell A E).run x a :=
+  .refl
+
+/-- A write and then a read gives the written value. -/
+def putGet (v : A) (k : A → Free (cell A) β) (a : A) :
+    (Machine.cell A E).run (.request (.put v) fun _ => .request .get k) a ≡
+      (Machine.cell A E).run (.request (.put v) fun _ => k v) a :=
+  .refl
+
+end cell
 
 end Prelude.Container

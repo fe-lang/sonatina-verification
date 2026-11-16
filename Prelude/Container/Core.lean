@@ -5,7 +5,7 @@ import Prelude.Identity
 set_option autoImplicit false
 set_option genInjectivity false
 
-universe s p s' p' s'' p'' u v w z
+universe s p s' p' s'' p'' s''' p''' u v w z
 
 namespace Prelude
 
@@ -167,6 +167,31 @@ def compIso : Iso (C.Ext (D.Ext α)) ((C.comp D).Ext α) :=
 
 def flattenMap (f : α → β) (x : C.Ext (D.Ext α)) :
     flatten (C.map (D.map f) x) ≡ (C.comp D).map f (flatten x) := .refl
+
+namespace Hom
+
+variable {C' : Container.{s'', p''}} {D' : Container.{s''', p'''}}
+
+/-- The action of two morphisms on a composite. -/
+def comp (f : Hom C C') (g : Hom D D') : Hom (C.comp D) (C'.comp D') where
+  shape a := ⟨f.shape a.1, fun i => g.shape (a.2 (f.position a.1 i))⟩
+  position a i := ⟨f.position a.1 i.1, g.position (a.2 (f.position a.1 i.1)) i.2⟩
+
+/-- The left unit of the composition product. -/
+def unitLeft (C : Container.{s, p}) : Hom C (identity.comp C) :=
+  ⟨fun a => ⟨(), fun _ => a⟩, fun _ i => i.2⟩
+
+/-- The right unit of the composition product. -/
+def unitRight (C : Container.{s, p}) : Hom C (C.comp identity) :=
+  ⟨fun a => ⟨a, fun _ => ()⟩, fun _ i => i.1⟩
+
+/-- The associativity of the composition product. -/
+def assoc (C : Container.{s, p}) (D : Container.{s', p'}) (E : Container.{s'', p''}) :
+    Hom ((C.comp D).comp E) (C.comp (D.comp E)) where
+  shape a := ⟨a.1.1, fun i => ⟨a.1.2 i, fun j => a.2 ⟨i, j⟩⟩⟩
+  position _ i := ⟨⟨i.1, i.2.1⟩, i.2.2⟩
+
+end Hom
 
 /-- A choice of an index and of a shape from the container at that index. -/
 def sigma {ι : Type z} (F : ι → Container.{s, p}) : Container.{max z s, p} where

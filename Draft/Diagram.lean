@@ -436,6 +436,35 @@ def Diagram.oneAt {Δ Γ : List Ty} {Qs : Exits Ty} {K : Boundary Ty} (e : Bound
 def Diagram.exitOne {Γ Δ : List Ty} (ports : PortMap Γ Δ) : Diagram S Γ [.one Δ] :=
   .exit ⟨_, .here, Boundary.only Δ, ports⟩
 
+/-- The values of a response at the boundary with one case. -/
+def Boundary.onlyValues {Δ : List Ty} (r : (Boundary.one Δ).At X) : All X Δ :=
+  Elem.consCases (motive := fun (Ξ : List Ty) _ => All X Ξ → All X Δ) r.1.2 (fun v => v)
+    (fun _ j => j.ofNil) r.2
+
+/-- The values of a response, at a boundary that is identical to the boundary with one case. -/
+def Boundary.valuesAt {Δ : List Ty} {K : Boundary Ty} (e : Boundary.one Δ ≡ K) :
+    K.At X → All X Δ :=
+  Identity.transport (fun K => Boundary.At K X → All X Δ) e Boundary.onlyValues
+
+/-- The computation of the diagram of a response is the computation of the diagram of the one
+case, at the values of the response. -/
+def Diagram.oneAtRun {Δ Γ : List Ty} {Qs : Exits Ty} {K : Boundary Ty}
+    (e : Boundary.one Δ ≡ K) (d : Diagram S (Δ ++ Γ) Qs) (env : All X Γ)
+    (rest : Qs.At X → Free (S.interface X) α) (r : K.At X) :
+    ((Diagram.oneAt e d) r.1).run stop n (r.2.append env) rest ≡
+      d.run stop n ((Boundary.valuesAt e r).append env) rest :=
+  Identity.ind
+    (fun K e => (r : Boundary.At K X) →
+      ((Diagram.oneAt e d) r.1).run stop n (r.2.append env) rest ≡
+        d.run stop n ((Boundary.valuesAt e r).append env) rest)
+    (fun r =>
+      Elem.consCases
+        (motive := fun (Δ' : List Ty) (i : Elem Δ' [Δ]) => (vals : All X Δ') →
+          ((Diagram.one d) ⟨Δ', i⟩).run stop n (vals.append env) rest ≡
+            d.run stop n ((Boundary.onlyValues (X := X) ⟨⟨Δ', i⟩, vals⟩).append env) rest)
+        r.1.2 (fun _ => .refl) (fun _ j => j.ofNil) r.2)
+    e r
+
 /-- The copairing over the boundary with one case. -/
 def Continuation.one {Δ : List Ty} {Qs : Exits Ty} (d : Diagram S Δ Qs) :
     Continuation S (.one Δ) Qs :=

@@ -1,11 +1,17 @@
 import Prelude.Container.Core
 
-/-! Identity of container extensions from shape and position identities. -/
+/-! Identity of container extensions from shape and position identities.
+
+Agreement of two elements of an extension has an identity of the shapes and an identity of the
+values at each position. A shape of a composite has a function, so agreement at a composite
+needs an identity of two functions. The agreement of the two layers has an identity of the
+outer shapes, an identity of the inner shapes at each position, and an identity of the values:
+it needs no identity of two functions. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
 
-universe s p s' p' s'' p'' u v w
+universe s p s' p' s'' p'' s''' p''' u v w
 
 namespace Prelude.Container
 
@@ -67,6 +73,61 @@ def all {x y : C.Ext α} (same : Agreement C x y) (P : α → Type v)
 
 end Agreement
 
+/-- Agreement of two elements of the extension of a composite, at the two layers: the outer
+shapes are identical, the inner shapes are identical at each position of the outer shape, and
+the values are identical. -/
+structure CompAgreement {D : Container.{s, p}} {E : Container.{s', p'}}
+    (x y : (D.comp E).Ext α) where
+  outer : x.1.1 ≡ y.1.1
+  inner : (i : D.Pos x.1.1) → x.1.2 i ≡ y.1.2 (Identity.transport D.Pos outer i)
+  values : (i : D.Pos x.1.1) → (j : E.Pos (x.1.2 i)) →
+    x.2 ⟨i, j⟩ ≡ y.2 ⟨Identity.transport D.Pos outer i, Identity.transport E.Pos (inner i) j⟩
+
+namespace CompAgreement
+
+variable {D : Container.{s, p}} {E : Container.{s', p'}}
+
+/-- The elimination of the identity of the outer shapes. The identities of the inner shapes
+stay, one for each position. -/
+def ind {motive : (x y : (D.comp E).Ext α) → CompAgreement x y → Sort w}
+    (base : (d : D.Shape) → (φ φ' : D.Pos d → E.Shape) →
+      (vals : ((i : D.Pos d) × E.Pos (φ i)) → α) → (vals' : ((i : D.Pos d) × E.Pos (φ' i)) → α) →
+      (inner : (i : D.Pos d) → φ i ≡ φ' i) →
+      (values : (i : D.Pos d) → (j : E.Pos (φ i)) →
+        vals ⟨i, j⟩ ≡ vals' ⟨i, Identity.transport E.Pos (inner i) j⟩) →
+      motive ⟨⟨d, φ⟩, vals⟩ ⟨⟨d, φ'⟩, vals'⟩ ⟨.refl, inner, values⟩)
+    {x y : (D.comp E).Ext α} (h : CompAgreement x y) : motive x y h :=
+  Identity.ind
+    (fun d' outer => (φ' : D.Pos d' → E.Shape) →
+      (vals' : ((i : D.Pos d') × E.Pos (φ' i)) → α) →
+      (inner : (i : D.Pos x.1.1) → x.1.2 i ≡ φ' (Identity.transport D.Pos outer i)) →
+      (values : (i : D.Pos x.1.1) → (j : E.Pos (x.1.2 i)) →
+        x.2 ⟨i, j⟩ ≡
+          vals' ⟨Identity.transport D.Pos outer i, Identity.transport E.Pos (inner i) j⟩) →
+      motive x ⟨⟨d', φ'⟩, vals'⟩ ⟨outer, inner, values⟩)
+    (fun φ' vals' inner values => base x.1.1 x.1.2 φ' x.2 vals' inner values)
+    h.outer y.1.2 y.2 h.inner h.values
+
+def refl (x : (D.comp E).Ext α) : CompAgreement x x := ⟨.refl, fun _ => .refl, fun _ _ => .refl⟩
+
+def trans {x y z : (D.comp E).Ext α} (h : CompAgreement x y) (k : CompAgreement y z) :
+    CompAgreement x z :=
+  ind (motive := fun x y _ => (z : (D.comp E).Ext α) → CompAgreement y z → CompAgreement x z)
+    (fun _ _ _ _ _ inner values z k =>
+      ⟨k.outer, fun i => (inner i).trans (k.inner i), fun i j =>
+        (values i j).trans
+          ((k.values i (Identity.transport E.Pos (inner i) j)).trans
+            (Identity.cong (fun w => z.2 ⟨Identity.transport D.Pos k.outer i, w⟩)
+              (Identity.transportTrans E.Pos (inner i) (k.inner i) j).symm))⟩)
+    h z k
+
+/-- A function of the values keeps the agreement. -/
+def map {β : Type v} (f : α → β) {x y : (D.comp E).Ext α} (h : CompAgreement x y) :
+    CompAgreement ((D.comp E).map f x) ((D.comp E).map f y) :=
+  ⟨h.outer, h.inner, fun i j => Identity.cong f (h.values i j)⟩
+
+end CompAgreement
+
 end Ext
 
 variable {C : Container.{s, p}} {D : Container.{s', p'}}
@@ -106,7 +167,33 @@ def transCongr {E : Container.{s'', p''}} {f f' : Hom C D} {g g' : Hom D E}
     (h : Agreement f f') (k : Agreement g g') : Agreement (f.trans g) (f'.trans g') :=
   fun a => k.apply (h a)
 
+/-- The position map of a morphism commutes with a transport along an identity of shapes. -/
+def positionTransport (f : Hom C D) {a b : C.Shape} (e : a ≡ b) (i : D.Pos (f.shape a)) :
+    Identity.transport C.Pos e (f.position a i) ≡
+      f.position b (Identity.transport D.Pos (Identity.cong f.shape e) i) :=
+  match e with
+  | .refl => .refl
+
+/-- Two morphisms into a composite agree at the two layers, at each shape. -/
+def CompAgreement {E : Container.{s'', p''}} (f g : Hom C (D.comp E)) :=
+  (a : C.Shape) → Ext.CompAgreement (f.component a) (g.component a)
+
 end Hom
+
+/-- The action of two morphisms on a composite keeps the agreement of the two layers. -/
+def Ext.CompAgreement.comp {E : Container.{s, p}} {C' : Container.{s'', p''}}
+    {D' : Container.{s''', p'''}} (f : Hom E C') (g : Hom D D') {x y : (E.comp D).Ext α}
+    (h : Ext.CompAgreement x y) :
+    Ext.CompAgreement ((Hom.comp f g).apply x) ((Hom.comp f g).apply y) :=
+  Ext.CompAgreement.ind
+    (motive := fun x y _ =>
+      Ext.CompAgreement ((Hom.comp f g).apply x) ((Hom.comp f g).apply y))
+    (fun d φ _ _ vals' inner values =>
+      ⟨.refl, fun i => Identity.cong g.shape (inner (f.position d i)), fun i j =>
+        (values (f.position d i) (g.position (φ (f.position d i)) j)).trans
+          (Identity.cong (fun w => vals' ⟨f.position d i, w⟩)
+            (g.positionTransport (inner (f.position d i)) j))⟩)
+    h
 
 /-- The second round trip of the product holds at each position. -/
 def productInOut (x : (C.product D).Ext α) : Ext.Agreement _ (productIn (productOut x)) x :=

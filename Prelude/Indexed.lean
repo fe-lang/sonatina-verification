@@ -118,6 +118,23 @@ def append {xs ys : List α} (x : All P xs) (y : All P ys) : All P (xs ++ ys) :=
   All.casesOn (motive := fun xs _ => All P (xs ++ ys)) x y
     (fun v rest => .cons v (rest.append y))
 
+/-- An environment of the empty list is the empty environment. -/
+def nilEta (env : All P ([] : List α)) : env ≡ .nil :=
+  All.casesOn
+    (motive := fun xs env =>
+      List.casesOn (motive := fun xs => All P xs → Type (max u v)) xs (fun env => env ≡ All.nil)
+        (fun _ _ _ => PUnit) env)
+    env .refl (fun _ _ => PUnit.unit)
+
+/-- The concatenation of an environment of one value and an environment. -/
+def appendOne {a : α} {xs : List α} (x : All P [a]) (env : All P xs) :
+    (x.append env : All P (a :: xs)) ≡ .cons x.head env :=
+  consCases
+    (motive := fun (x : All P [a]) => (x.append env : All P (a :: xs)) ≡ .cons x.head env) x
+    (fun v rest =>
+      Identity.cong (fun (r : All P []) => (All.cons v (r.append env) : All P (a :: xs)))
+        (nilEta rest))
+
 /-- The environment with a new value at one position. -/
 def set {a : α} {xs : List α} (env : All P xs) (i : Elem a xs) (x : P a) : All P xs :=
   Elem.casesOn (motive := fun xs _ => All P xs → All P xs) i (fun env => .cons x env.tail)

@@ -43,7 +43,11 @@ the diagram with a runtime.
 A cell of a signature at a value type is a read with no operand and one output port, and a
 write with one operand and no output port. The equations of global state are five equations
 between closed sequences of steps of a cell. Each equation gives a theorem for each context and
-each rest: a derivation in the control equation set with the equations of global state. -/
+each rest: a derivation in the control equation set with the equations of global state.
+
+The cell is a morphism from the interface of a cell to the request interface of the signature,
+for each family of values. The equation set of global state holds on each machine that is, at
+the calls of the cell, the machine of a cell along a lawful lens of the runtime. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -556,6 +560,132 @@ def Signature.Cell.putGet (v : Port Γ τ) (d : Diagram S (τ :: Γ) Qs) :
             (Identity.cong (All.cons v) (PortMap.weakenNil (PortMap.id Γ)))))))
 
 end Laws
+
+section Sound
+
+variable (cell : S.Cell τ) {α : Type}
+
+/-- The cell as a morphism from the interface of a cell to the request interface, for each
+family of values. A read is the call of the read with no operand, and its response gives the
+value. A write is the call of the write with the value. -/
+def Signature.Cell.hom : Hom (Container.cell (X τ)) (S.interface X) where
+  shape
+    | .get => ⟨cell.read, Identity.transport (All X) cell.readInput .nil⟩
+    | .put a => ⟨cell.write, Identity.transport (All X) cell.writeInput (.cons a .nil)⟩
+  position
+    | .get => fun r => (Boundary.valuesAt cell.readOutput r).head
+    | .put _ => fun _ => ⟨⟩
+
+variable (stop : Free (S.interface X) α) (count : Nat)
+
+/-- The computation of a typed read is the call of the cell, and then the rest with the
+value. -/
+def Signature.Cell.getRun {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S (τ :: Γ) Qs)
+    (env : All X Γ) (k : Qs.At X → Free (S.interface X) α) :
+    Free.Agreement ((cell.get d).run stop count env k)
+      ((cell.hom.toImpl .get).bind fun a => d.run stop count (.cons a env) k) :=
+  (Free.Agreement.ofIdentity
+      (Identity.cong
+        (fun args => Free.request (C := S.interface X) ⟨cell.read, args⟩ fun r =>
+          ((Diagram.oneAt cell.readOutput d) r.1).run stop count (r.2.append env) k)
+        (PortMap.selectTransport cell.readInput .nil env))).trans
+    (Free.Agreement.request (C := S.interface X)
+      (shape := ⟨cell.read, Identity.transport (All X) cell.readInput .nil⟩) fun r =>
+      Free.Agreement.ofIdentity
+        ((Diagram.oneAtRun stop count cell.readOutput d env k r).trans
+          (Identity.cong (fun v => d.run stop count v k)
+            (All.appendOne (Boundary.valuesAt cell.readOutput r) env))))
+
+/-- The computation of a typed write is the call of the cell at the value of the port, and
+then the rest. -/
+def Signature.Cell.putRun {Γ : List Ty} {Qs : Exits Ty} (v : Port Γ τ) (d : Diagram S Γ Qs)
+    (env : All X Γ) (k : Qs.At X → Free (S.interface X) α) :
+    Free.Agreement ((cell.put v d).run stop count env k)
+      ((cell.hom.toImpl (.put (env.lookup v))).bind fun _ => d.run stop count env k) :=
+  (Free.Agreement.ofIdentity
+      (Identity.cong
+        (fun args => Free.request (C := S.interface X) ⟨cell.write, args⟩ fun r =>
+          ((Diagram.oneAt (Δ := []) cell.writeOutput d) r.1).run stop count (r.2.append env) k)
+        (PortMap.selectTransport cell.writeInput (.cons v .nil) env))).trans
+    (Free.Agreement.request (C := S.interface X)
+      (shape :=
+        ⟨cell.write, Identity.transport (All X) cell.writeInput (.cons (env.lookup v) .nil)⟩)
+      fun r =>
+      Free.Agreement.ofIdentity
+        ((Diagram.oneAtRun stop count (Δ := []) cell.writeOutput d env k r).trans
+          (Identity.cong (fun (v : All X []) => d.run stop count (v.append env) k)
+            (All.nilEta (Boundary.valuesAt cell.writeOutput r)))))
+
+/-- The two sides of each equation of global state have one run on a machine that is, at the
+calls of the cell, the machine of a cell along a lawful lens of the runtime. Each equation is
+the equation of the machine of a cell, moved along the lens. -/
+def Diagram.GlobalState.sound (m : Machine (S.interface X) R E)
+    {ℓ : Hom (state R) (state (X τ))} (law : ℓ.Lawful)
+    (same : Homotopy (m.impl cell.hom.toImpl) ((Machine.cell (X τ) E).along ℓ)) :
+    {Γ : List Ty} → {Qs : Exits Ty} → {d e : Diagram S Γ Qs} → Diagram.GlobalState cell d e →
+    (env : All X Γ) → (k : Qs.At X → Free (S.interface X) α) → (s : R) →
+    m.run (d.run stop count env k) s ≡ m.run (e.run stop count env k) s
+  | _, _, _, _, .getGet, env, k, s =>
+      (Machine.runCongr
+          ((cell.getRun stop count _ env k).trans
+            (Free.Agreement.bind (.refl _) fun a => cell.getRun stop count _ (.cons a env) k))
+          (Homotopy.refl m) s).trans
+        ((Machine.alongCongr law (Machine.cell (X τ) E) cell.hom.toImpl m same
+            (Container.cell.getGet (X τ) E (fun x y => .pure (y, x)))
+            (fun (b : X τ × X τ) =>
+              k ⟨_, .here, Boundary.only [τ, τ], .cons b.1 (.cons b.2 .nil)⟩) s).trans
+          (Machine.runCongr
+            (cell.getRun stop count (.exitOne (.cons .here (.cons .here .nil))) env k)
+            (Homotopy.refl m) s).symm)
+  | _, _, _, _, .getDiscard, env, k, s =>
+      (Machine.runCongr (cell.getRun stop count (.exitOne .nil) env k) (Homotopy.refl m) s).trans
+        (Machine.alongCongr law (Machine.cell (X τ) E) cell.hom.toImpl m same
+          (Container.cell.getDiscard (X τ) E (.pure ()))
+          (fun (_ : Unit) => (Diagram.exitOne (S := S) .nil).run stop count env k) s)
+  | _, _, _, _, .putPut, env, k, s =>
+      (Machine.runCongr
+          ((cell.putRun stop count .here _ env k).trans
+            (Free.Agreement.bind (.refl _) fun _ =>
+              cell.putRun stop count (.there .here) (.exitOne .nil) env k))
+          (Homotopy.refl m) s).trans
+        ((Machine.alongCongr law (Machine.cell (X τ) E) cell.hom.toImpl m same
+            (Container.cell.putPut (X τ) E (env.lookup .here) (env.lookup (.there .here))
+              (.pure ()))
+            (fun (_ : Unit) => (Diagram.exitOne (S := S) .nil).run stop count env k) s).trans
+          (Machine.runCongr (cell.putRun stop count (.there .here) (.exitOne .nil) env k)
+            (Homotopy.refl m) s).symm)
+  | _, _, _, _, .getPut, env, k, s =>
+      (Machine.runCongr
+          ((cell.getRun stop count _ env k).trans
+            (Free.Agreement.bind (.refl _) fun a =>
+              cell.putRun stop count .here (.exitOne .nil) (.cons a env) k))
+          (Homotopy.refl m) s).trans
+        (Machine.alongCongr law (Machine.cell (X τ) E) cell.hom.toImpl m same
+          (Container.cell.getPut (X τ) E (.pure ()))
+          (fun (_ : Unit) => (Diagram.exitOne (S := S) .nil).run stop count env k) s)
+  | _, _, _, _, .putGet, env, k, s =>
+      (Machine.runCongr
+          ((cell.putRun stop count .here _ env k).trans
+            (Free.Agreement.bind (.refl _) fun _ => cell.getRun stop count _ env k))
+          (Homotopy.refl m) s).trans
+        ((Machine.alongCongr law (Machine.cell (X τ) E) cell.hom.toImpl m same
+            (Container.cell.putGet (X τ) E (env.lookup .here) .pure)
+            (fun (b : X τ) => k ⟨_, .here, Boundary.only [τ], .cons b .nil⟩) s).trans
+          (Machine.runCongr
+            (cell.putRun stop count .here (.exitOne (.cons .here .nil)) env k)
+            (Homotopy.refl m) s).symm)
+
+/-- The equation set of global state holds on each machine that is, at the calls of the cell,
+the machine of a cell along a lawful lens of the runtime. -/
+def Rules.Sound.globalState (m : Machine (S.interface X) R E)
+    {ℓ : Hom (state R) (state (X τ))} (law : ℓ.Lawful)
+    (same : Homotopy (m.impl cell.hom.toImpl) ((Machine.cell (X τ) E).along ℓ)) :
+    (Rules.globalState cell).Sound (α := α) m.congruence :=
+  ⟨fun stop count _ _ _ _ r env k s =>
+      Diagram.GlobalState.sound cell stop count m law same r env k s,
+    fun _ _ => fun r => nomatch r⟩
+
+end Sound
 
 end Cell
 

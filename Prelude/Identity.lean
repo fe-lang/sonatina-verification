@@ -104,6 +104,10 @@ def transportSymm (P : α → Type v) (p : a ≡ b) (x : P a) :
     transport P p.symm (transport P p x) ≡ x :=
   ind (fun _ p => transport P p.symm (transport P p x) ≡ x) .refl p
 
+/-- A transport in a constant family returns the value. -/
+def transportConst (p : a ≡ b) (x : β) : transport (fun _ => β) p x ≡ x :=
+  ind (fun _ p => transport (fun _ => β) p x ≡ x) .refl p
+
 /-- Dependent functions commute with transport in their argument family. -/
 def transportMap {P : α → Type v} {Q : α → Type w}
     (f : (x : α) → P x → Q x) (p : a ≡ b) (x : P a) :

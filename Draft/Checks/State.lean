@@ -37,9 +37,10 @@ its machine, and the derivation moves it to the machine of the second order, wit
 payloads.
 
 The sixth group has the cell of the signature, and a machine of the cell whose reads do not
-count. The control equation set and the equations of global state hold on the machine of the
-lowering to that machine. Each of the five theorems of the cell has one application, in a
-context with two inputs. The two diagrams of each application have one run, and a check
+count: the machine of a cell along the lens of the runtime to the value. At the calls of the
+cell of the signature, the machine of the lowering is that machine, so the equations of global
+state hold on it. The control equation set holds on it too. Each of the five theorems of the
+cell has one application, in a context with two inputs. The two diagrams of each application have one run, and a check
 consumes the identity of the two runs through a dependent payload, for arbitrary inputs and an
 arbitrary runtime. -/
 
@@ -193,27 +194,16 @@ def readWriteReads (n c k : Nat) (stop : Free (sig.interface Value) (Exits.At Tw
 
 /-! A pure step and a read in the two orders, on the machine of a lowering. -/
 
-/-- The calls of the cell: a read, and a write of a value. -/
-inductive CellOp where
-  | read
-  | write (value : Nat)
-
-/-- The interface of the cell. -/
-def cell : Container.{0, 0} :=
-  ⟨CellOp, fun
-    | .read => Nat
-    | .write _ => Unit⟩
-
 /-- The machine of the cell. A read gives the value and counts. A write replaces the value. -/
-def cellMachine : Machine cell Cell Empty
-  | (.read, s) => .inr (s.1, (s.1, s.2 + 1))
-  | (.write value, s) => .inr ((), (value, s.2))
+def cellMachine : Machine (cell Nat) Cell Empty
+  | (.get, s) => .inr (s.1, (s.1, s.2 + 1))
+  | (.put value, s) => .inr ((), (value, s.2))
 
 /-- The lowering. A read and a write are one call each. The successor returns without a
 call. -/
-def lower : Impl (sig.interface Value) cell
-  | ⟨.get, _⟩ => .request .read fun (value : Nat) => .pure ⟨Boundary.only _, .cons value .nil⟩
-  | ⟨.put, args⟩ => .request (.write (args.lookup .here)) fun _ => .pure ⟨Boundary.only _, .nil⟩
+def lower : Impl (sig.interface Value) (cell Nat)
+  | ⟨.get, _⟩ => .request .get fun (value : Nat) => .pure ⟨Boundary.only _, .cons value .nil⟩
+  | ⟨.put, args⟩ => .request (.put (args.lookup .here)) fun _ => .pure ⟨Boundary.only _, .nil⟩
   | ⟨.succ, args⟩ => .pure ⟨Boundary.only _, .cons (args.lookup .here + 1) .nil⟩
 
 /-- The machine of the lowering is the machine of the signature. -/
@@ -333,7 +323,7 @@ def counter {a : All Value [()] × Cell} {pre : counted.Pre a} :
 /-- The evidence at the result of the run on the machine of the cell, which has evidence of
 its graph. -/
 def evidence {f : Impl ((Diagram.interface Value [()] Two).runtime Cell Empty)
-      (cell.runtime Cell Empty)}
+      ((cell Nat).runtime Cell Empty)}
     (ff : ImplDep counted cellMachine.graph f) (a : Nat) (s : Cell)
     (pre : counted.Pre (.cons a .nil, s)) :
     counted.Post (.cons a .nil, s) pre (f.run cellMachine (.cons a .nil, s)) :=
@@ -403,25 +393,37 @@ def machineCounter (a c b j : Nat) :
 /-- The cell of the signature. Each identity of arities holds by computation. -/
 def sigCell : sig.Cell () := ⟨.get, .put, .refl, .refl, .refl, .refl⟩
 
-/-- The machine of the cell with no count. A read gives the value and keeps the runtime. A
-write replaces the value, and the second part of the runtime stays. -/
-def still : Machine cell Cell Empty
-  | (.read, s) => .inr (s.1, s)
-  | (.write value, s) => .inr ((), (value, s.2))
+/-- The lens of the runtime to the value of the cell: the view is the first part, and the
+update replaces it. -/
+def toValue : Hom (state Cell) (state Nat) where
+  shape s := s.1
+  position s a := (a, s.2)
 
-set_option smartUnfolding false in
+/-- The lens is lawful: its two squares hold by computation. -/
+def toValueLawful : toValue.Lawful where
+  counit _ := .refl
+  comult _ := ⟨.refl, fun _ => .refl, fun _ _ => .refl⟩
+
+/-- The machine of the cell with no count: the machine of a cell along the lens. A read gives
+the value and keeps the runtime. A write replaces the value, and the second part of the
+runtime stays. -/
+def still : Machine (cell Nat) Cell Empty := (Machine.cell Nat Empty).along toValue
+
+/-- At the calls of the cell of the signature, the machine of the lowering is the machine of a
+cell along the lens. -/
+def stillCell :
+    Homotopy ((still.impl lower).impl (sigCell.hom (X := Value)).toImpl)
+      ((Machine.cell Nat Empty).along toValue)
+  | (.get, _) => .refl
+  | (.put _, _) => .refl
+
 /-- The control equation set and the equations of global state hold on the machine of the
-lowering. The interchange rule holds because the successor returns without a call, and each
-equation of global state holds by computation. -/
+lowering. The interchange rule holds because the successor returns without a call. The
+equations of global state hold because the machine is the machine of a cell along a lawful
+lens, at the calls of the cell. -/
 def stateSound (α : Type) : sigCell.rules.Sound (α := α) (still.impl lower).congruence :=
   .sum (.withControl ((Rules.Sound.interchange returns).machine still))
-    ⟨fun _ _ => fun r => match r with
-      | .getGet => fun _ _ _ => .refl
-      | .getDiscard => fun _ _ _ => .refl
-      | .putPut => fun _ _ _ => .refl
-      | .getPut => fun _ _ _ => .refl
-      | .putGet => fun _ _ _ => .refl,
-      fun _ _ => fun r => nomatch r⟩
+    (.globalState sigCell (still.impl lower) toValueLawful stillCell)
 
 /-- The rest after one read: the exit with the value of the read and the second input. -/
 def afterRead : Diagram sig (() :: [(), ()]) Two :=

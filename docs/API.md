@@ -31,13 +31,14 @@ The Prelude imports Lean's `Init` and supplies the following modules:
 | [`Prelude.Decision`](../Prelude/Decision.lean) | `Refute`, `Dec`, `DecEq`, `decideEq`, decision combinators, and structural `DecEq` instances |
 | [`Prelude.Indexed`](../Prelude/Indexed.lean) | `Elem` positions and `All` dependent environments over `List`, with lookup, update at a position, mapping, concatenation, tabulation, the positions of a concatenation, and selection, with their laws |
 | [`Prelude.Relation`](../Prelude/Relation.lean) | `Steps` with composition, mapping, and length; `Accessible` and `TypeWellFounded` for Type-valued relations; `Rel` computations with graph, composition, copairing, and agreement; `Loop` with its initial property, laws, domain evidence, and function with fuel |
-| [`Prelude.Container`](../Prelude/Container.lean) | The import of the six container modules |
-| [`Prelude.Container.Core`](../Prelude/Container/Core.lean) | Shapes and positions, polynomial extensions, lawful mapping, morphisms, constants, identity, sums, family sums, products, and composition |
-| [`Prelude.Container.Agreement`](../Prelude/Container/Agreement.lean) | Extension and morphism agreement with their congruence laws |
+| [`Prelude.Container`](../Prelude/Container.lean) | The import of the eight container modules |
+| [`Prelude.Container.Core`](../Prelude/Container/Core.lean) | Shapes and positions, polynomial extensions, lawful mapping, morphisms, constants, identity, sums, family sums, products, and composition, with the action of two morphisms on a composite and the unit and associativity morphisms of composition |
+| [`Prelude.Container.Agreement`](../Prelude/Container/Agreement.lean) | Extension and morphism agreement with their congruence laws, and the agreement of the two layers of a composite |
+| [`Prelude.Container.Comonoid`](../Prelude/Container/Comonoid.lean) | The data of a comonoid for composition, homomorphisms of comonoids with their composition, the state object with its comonoid, and lawful lenses with their three laws |
 | [`Prelude.Container.Section`](../Prelude/Container/Section.lean) | Closed providers, morphism interpretation, specifications, witness-dependent evidence, and computational reindexing laws |
 | [`Prelude.Container.Free`](../Prelude/Container/Free.lean) | `Free` computations with bind, interpretation, and structural agreement; implementations with substitution, composition, and copairing; the laws of the two |
 | [`Prelude.Container.Verified`](../Prelude/Container/Verified.lean) | `FreeDep` evidence that a computation satisfies a specification, with bind, substitution, interpretation, and transport along agreement; `ImplDep` lifts of implementations with composition and copairing; the laws of interpretation |
-| [`Prelude.Container.Runtime`](../Prelude/Container/Runtime.lean) | The interface with a runtime (`Container.runtime`), machines as its closed providers (`Machine`), the computation and the implementation with a runtime at each call (`Free.thread`, `Impl.thread`) with their laws for agreement, bind, and substitution, the run on a machine and the machine of an implementation (`Machine.run`, `Machine.impl`) with the laws of the run, and the specification with an invariant of the runtime with the move of evidence and of a verified implementation to it (`DepPoly.invariant`, `FreeDep.thread`, `ImplDep.thread`) |
+| [`Prelude.Container.Runtime`](../Prelude/Container/Runtime.lean) | The interface with a runtime (`Container.runtime`), machines as its closed providers (`Machine`), the computation and the implementation with a runtime at each call (`Free.thread`, `Impl.thread`) with their laws for agreement, bind, and substitution, the run on a machine and the machine of an implementation (`Machine.run`, `Machine.impl`) with the laws of the run, the specification with an invariant of the runtime with the move of evidence and of a verified implementation to it (`DepPoly.invariant`, `FreeDep.thread`, `ImplDep.thread`), the machine of a part of the runtime along a lens with the law of its run (`Machine.along`, `Machine.runAlong`, `Machine.alongCongr`), and the interface and the machine of a cell with the five equations of global state (`Container.cell`, `Machine.cell`) |
 | [`Prelude.Container.Indexed`](../Prelude/Container/Indexed.lean) | Input/output indexed containers, typed extensions, index-preserving morphisms, and indexed composition |
 
 Ordinary data and effect interfaces are Lean's: `Empty`, `Unit`, `Bool`, `Nat`,
@@ -60,6 +61,9 @@ is reserved for propositions.
 `Identity.trans p q` traverses `p` followed by `q`; the `Trans` instance supports
 `calc` blocks. `Identity.sigma` combines a base identity with an identity in
 the transported fiber.
+
+`Identity.transportConst` shows that a transport in a constant family returns
+the value.
 
 `Identity.toEq` supplies Lean equality premises from internal evidence.
 
@@ -101,7 +105,10 @@ the laws of `All.map`. `All.mapTabulate` gives the map of a table, and
 part. `All.selectAppend` gives the selection at a
 concatenation of two lists of positions. `All.selectTabulate` gives the
 selection at a table of positions, from the value at each position of the
-table. `All.selectSelect` gives the selection at selected positions. The
+table. `All.selectSelect` gives the selection at selected positions.
+`All.nilEta` shows that an environment of the empty list is the empty
+environment, and `All.appendOne` gives the concatenation of an environment of
+one value and an environment. The
 functions on `Elem` and `All` use `casesOn` with an explicit motive, so their
 evaluation eliminates no equality of lists.
 `Steps R a b` retains the individual transitions, so executions with equal
@@ -219,12 +226,57 @@ For products, `productOutIn` gives internal identity and `productInOut` gives
 Sums use `ULift` on positions to accommodate different position universes;
 `sumIn` and `sumOut` handle these lifts.
 
+`Hom.comp f g` is the action of two morphisms on a composite, from `C.comp D`
+to `C'.comp D'`. `Hom.unitLeft C`, `Hom.unitRight C`, and `Hom.assoc C D E`
+are the unit and associativity morphisms of composition.
+
+A shape of a composite has a function, so `Ext.Agreement` at a composite needs
+an identity of two functions. `Ext.CompAgreement x y` is the agreement of the
+two layers: an identity of the outer shapes, an identity of the inner shapes at
+each position of the outer shape, and an identity of the values. It needs no
+identity of two functions. `CompAgreement.ind` eliminates the identity of the
+outer shapes. The relation is reflexive and transitive, and `CompAgreement.map`
+and `CompAgreement.comp` keep it for a function of the values and for the
+action of two morphisms. `Hom.CompAgreement f g` is that agreement at each
+shape, for two morphisms into a composite. `Hom.positionTransport` shows that
+the position map of a morphism commutes with a transport along an identity of
+shapes.
+
 `Container.sigma F` is the sum of a family `F : ι → Container`. A shape is an
 index with a shape of the container at that index, and the index type has its
 own universe level. `Hom.inj F i` is the inclusion of one member, and
 `Hom.copair f` is the morphism out of the sum that has `f i` at each index.
 `Hom.injCopair` and `Hom.copairInj` are the two equations of the coproduct, and
 each holds by `.refl`.
+
+### Comonoids and lenses
+
+`Comonoid C` is the data of a comonoid for composition: `counit : Hom C
+identity` and `comult : Hom C (C.comp C)`. The laws of a comonoid are not a
+part of the structure. `Comonoid.Morphism cc dd f` is a homomorphism: the
+morphism `f` with the counit square and the comultiplication square, each at
+each shape. The comultiplication square is a `Hom.CompAgreement`.
+`Morphism.trans` is the composition of two homomorphisms, for each three
+comonoids.
+
+`Container.state A` is the state object of a type: a shape is a value, and a
+position is the next value. A morphism of two state objects is a lens: its
+shape map is the view, and its position map is the update.
+`Comonoid.state A` is the comonoid of the state object. Its counit keeps the
+value, and its comultiplication has the next value as the next shape.
+`Comonoid.stateUnitLeft`, `Comonoid.stateUnitRight`, and `Comonoid.stateAssoc`
+are its three laws, and each holds by `.refl`.
+
+`Hom.Lawful ℓ` is a homomorphism of the comonoids of the two state objects of
+a lens `ℓ`.
+
+| Definition | Meaning |
+| --- | --- |
+| `law.updateView s` | The update with the view keeps the runtime: the counit square |
+| `law.viewUpdate s a` | The view of an update is the new value: the inner shapes of the comultiplication square |
+| `law.updateUpdate s a b` | The second of two updates stays: the positions of the comultiplication square |
+| `Hom.Lawful.ofLaws` | The lawful lens from the three laws |
+| `ff.trans gg` | The composite of two lawful lenses, by `Morphism.trans` |
 
 ### Computations and implementations
 
@@ -334,6 +386,10 @@ independent universe levels.
 | `ff.thread` | The lift of `f.thread` for the two specifications with the invariant, from the lift `ff` of `f` |
 | `h.threadBind k` | The evidence of `(x.bind f).thread s`, from the evidence of `x.thread s` and the evidence of the rest from each result |
 | `h.threadSubst gg` | The evidence of `(x.subst g).thread s`, from the evidence of `x.thread s` and a lift `gg` of `g.thread` |
+| `ℓ.updateResult s` | The result on the whole runtime from a result on a part, for a lens `ℓ`: a stop stays, and the last runtime is the update of `s` |
+| `μ.along ℓ` | The machine on the whole runtime from a machine `μ` on a part: a call has the view of the runtime, and the next runtime is the update |
+| `Container.cell A` | The interface of a cell, which is Aberlé's `State`: a read `.get` with the value as its response, and a write `.put a` with one response |
+| `Machine.cell A E` | The machine of a cell with the value as the runtime, which is her `state-mealy` |
 
 A specification of `C.runtime R E` relates the runtime before a call to the
 response and the runtime after it. The graph of a machine is such a
@@ -353,6 +409,9 @@ with the evidence of a machine is the evidence of the machine `m.impl f`.
 | `Machine.runSubst` | `m.run (x.subst g) s` is `(m.impl g).run x s` |
 | `Machine.implId`, `Machine.implTrans` | The machine of the implementation with one call is the machine; the machine of `f.trans g` is `(m.impl g).impl f` |
 | `Machine.runOfSubst` | Computations that `Congruence.subst g` relates have one run on the machine `m.impl g` from each runtime |
+| `Machine.runAlong` | For a lawful lens, `(μ.along ℓ).run x s` is `ℓ.updateResult s (μ.run x (ℓ.shape s))`. A return uses the counit square, and a call uses the comultiplication square. |
+| `Machine.alongCongr` | Two computations with one run on `μ` have one run on a machine `m` of the whole runtime, after an implementation `c` and in each continuation, when `m.impl c` is `μ.along ℓ` at each call |
+| `cell.getGet`, `cell.getDiscard`, `cell.putPut`, `cell.getPut`, `cell.putGet` | The five equations of global state on `Machine.cell A E`; each holds by `.refl` |
 
 `IndexedContainer I O` has `Shape : O → Type s`, positions at each shape,
 and `index : (s : Shape o) → Pos s → I`. Its extension is
@@ -387,7 +446,7 @@ identity elimination. The container modules import only the Prelude foundation.
 lake build
 ```
 
-`lake build` checks the Prelude and its tests. The tests have five modules.
+`lake build` checks the Prelude and its tests. The tests have six modules.
 [`PreludeTests.Prelude`](../PreludeTests/Prelude.lean) covers universe levels,
 dependent transport, kernel reduction of equality decisions, and indexed
 environments.
@@ -401,8 +460,11 @@ state in `Type` and the result in `Type 1`.
 [`PreludeTests.Runtime`](../PreludeTests/Runtime.lean) checks machines: a state
 invariant, a specification of two runtimes for one program, the laws of the
 run for a bind, a substitution, and a composite, evidence that moves along the
-laws of a bind and of a substitution, and the two general lifts of an
-implementation with a runtime.
+laws of a bind and of a substitution, the two general lifts of an
+implementation with a runtime, and the congruence of a machine. They check a
+lawful lens of runtimes with its three laws, the composite of two lenses, the
+run of a machine along a lens, and two computations of a cell that have one
+run on a cell of pairs.
 [`PreludeTests.Container`](../PreludeTests/Container.lean) checks container
 universes, position selection and sharing, polynomial composition, the round
 trips of `sumIso` and `compIso`, the value witnesses of composed agreements, a
