@@ -343,6 +343,26 @@ are 2 and 1 for two reads, 1 and 0 for a read with no use, 2 and 1 for two
 writes, 2 and 0 for a read and then a write, and 2 and 1 for a write and then
 a read.
 
+[Draft/Checks/Branch.lean](Draft/Checks/Branch.lean) has the required check
+of two alternatives with a frame, on a machine. The signature has a read, a
+write, and a pure test. The two alternatives of the test share one read of
+the cell in a frame, and the bypass keeps the alternative and one input.
+After the read, the first alternative writes the kept input, and the second
+alternative reads the cell again. Each run on the machine of the lowering has
+the steps of its alternative only, for an arbitrary kept input and an
+arbitrary runtime. The frame equation relates the frame to the copairing that
+has the frame of each alternative alone, and the two forms have one run on
+the machine. The specification has an invariant of the runtime: a lower bound
+of the number of the reads. The machine of the cell has evidence of the
+invariant, and the lift of the diagram is built by its constructors. The
+shared read takes the invariant from the entry of the frame, and the exit of
+each alternative has the invariant at the last runtime. Two witnesses of one
+runtime give different payloads, and the payload has the number of the reads
+of the alternative. On the first alternative, the exit has the identity of
+the second value with the kept input, from the fact of the test. The frame
+equation moves the verified implementation to the other form, with the same
+payloads. The frame has 4 steps, and the other form has 7.
+
 Two plain parts of the module are open:
 
 - An implementation that returns without a call is a verified implementation
@@ -497,9 +517,6 @@ value and the runtime, and the first exit equation gives its run of the loop,
 with its round trip by computation. The unrolling law and the fixpoint law of
 the loop apply to the run from the counter 2, and their round trips hold by
 computation. The loop has 3 steps, and the body and then the loop has 6.
-
-One part of the stage is open: the check of two alternatives with a frame on
-a machine, with a shared invariant of the runtime.
 
 ## D6: generic definitions
 
