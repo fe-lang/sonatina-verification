@@ -179,3 +179,15 @@ def unitSingle (x y key : Nat) :
 #guard consumeMoved true 3 4 (.second 5) == 20
 
 end Draft.Checks.Verified
+
+/-- info: 'Draft.Checks.Verified.consumeRunReindex' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Verified.consumeRunReindex
+
+/-- info: 'Draft.Checks.Verified.unitDep' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Verified.unitDep
+
+/-- info: 'Draft.Checks.Verified.unitSingle' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Verified.unitSingle

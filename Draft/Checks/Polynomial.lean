@@ -79,3 +79,15 @@ def consumeComposedTrue (x y : Nat) :
     Identity (Identity.transport Ports (composeCongruence true).shape (x, y)) (x, y) := .refl
 
 end Draft.Checks.Polynomial
+
+/-- info: 'Draft.Checks.Polynomial.consumeActCongruence' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Polynomial.consumeActCongruence
+
+/-- info: 'Draft.Checks.Polynomial.composeCongruence' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Polynomial.composeCongruence
+
+/-- info: 'Draft.Checks.Polynomial.consumeComposedTrue' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Polynomial.consumeComposedTrue

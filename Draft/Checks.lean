@@ -7,6 +7,7 @@ import Draft.Checks.Composite
 import Draft.Checks.Fold
 import Draft.Checks.Diagram
 import Draft.Checks.Countdown
+import Draft.Checks.Lift
 
 /-! Named kernel checks.
 

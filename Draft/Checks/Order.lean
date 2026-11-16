@@ -163,3 +163,15 @@ def pureOnly (a b : Nat) :
 #guard readLate true 3 4 5 6 == 20
 
 end Draft.Checks.Order
+
+/-- info: 'Draft.Checks.Order.movedPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Order.movedPayload
+
+/-- info: 'Draft.Checks.Order.sums' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Order.sums
+
+/-- info: 'Draft.Checks.Order.pureOnly' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Order.pureOnly

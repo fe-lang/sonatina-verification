@@ -359,3 +359,15 @@ end checks
 #guard consumeTallyMoved true 3 4 [10, 20] (.second 5) == 36
 
 end Draft.Checks.Fold
+
+/-- info: 'Draft.Checks.Fold.tallyDirectSecond' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Fold.tallyDirectSecond
+
+/-- info: 'Draft.Checks.Fold.tallyMovedFirst' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Fold.tallyMovedFirst
+
+/-- info: 'Draft.Checks.Fold.tallyMovedSecond' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Fold.tallyMovedSecond

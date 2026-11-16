@@ -232,3 +232,19 @@ def fixpointBack (a s : Nat) : (Loop.fixpoint Step _ _).invTo (runs 2 a s).2 ≡
 #guard countdown.size == 3 && unpeeled.size == 6
 
 end Draft.Checks.Countdown
+
+/-- info: 'Draft.Checks.Countdown.threeUnrollings' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Countdown.threeUnrollings
+
+/-- info: 'Draft.Checks.Countdown.loopOfWholeBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Countdown.loopOfWholeBack
+
+/-- info: 'Draft.Checks.Countdown.unrolledBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Countdown.unrolledBack
+
+/-- info: 'Draft.Checks.Countdown.fixpointBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Countdown.fixpointBack

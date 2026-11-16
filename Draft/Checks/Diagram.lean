@@ -906,3 +906,35 @@ def pastSoundRun (flag : Bool) (u v x y : Nat) :
 #guard nested.size == 4 && nestedCopied.size == 5 && partFramed.size == 6
 
 end Draft.Checks.Diagram
+
+/-- info: 'Draft.Checks.Diagram.interchangeRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.interchangeRun
+
+/-- info: 'Draft.Checks.Diagram.exitSoundRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.exitSoundRun
+
+/-- info: 'Draft.Checks.Diagram.compositeRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.compositeRun
+
+/-- info: 'Draft.Checks.Diagram.acrossPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.acrossPayload
+
+/-- info: 'Draft.Checks.Diagram.agreementSucc' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.agreementSucc
+
+/-- info: 'Draft.Checks.Diagram.nestedAgreementSucc' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.nestedAgreementSucc
+
+/-- info: 'Draft.Checks.Diagram.frameSucc' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.frameSucc
+
+/-- info: 'Draft.Checks.Diagram.partFramedCallThird' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.partFramedCallThird

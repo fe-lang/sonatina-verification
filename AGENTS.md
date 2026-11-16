@@ -22,9 +22,9 @@ placeholder.
    depends on an axiom or is `unsafe`, `partial`, `opaque`, or
    `noncomputable`. Thus `sorry`, `native_decide`, `funext`, `propext`,
    `Quot.sound`, and `Classical.choice` are not available. Prelude has no
-   exemption. A check module ends with `#guard_msgs in #print axioms` for its
-   checks. The build fails when a check, or a construction that the check
-   consumes, depends on an axiom.
+   exemption. A check module ends with `#guard_msgs in #print axioms` on the
+   checks that consume its constructions. The build fails when such a check,
+   or a construction that it consumes, depends on an axiom.
 2. **Computation.** A kernel check eliminates the actual witness and closes by
    `.refl`, with arbitrary values where possible. Freedom from axioms does not
    show that evidence computes: an identity that passes through `Prop` has no
@@ -130,8 +130,8 @@ Before building dependent layers:
    through branching, repeated substitution, and witness-dependent
    postconditions, with arbitrary witness/state parameters where possible. Add
    functional tests for observations.
-2. End each check module with `#guard_msgs in #print axioms` for its checks,
-   and run `lake build`. A module that `import Draft` does not load is not
+2. End each check module with `#guard_msgs in #print axioms` on the checks
+   that consume its constructions, and run `lake build`. A module that `import Draft` does not load is not
    built, so `Draft.lean` imports each module.
 
 Each kernel check in `Draft` sets `smartUnfolding false`. With the default, the

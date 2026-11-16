@@ -16,7 +16,8 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Prelude.Container` and its submodules | Shared polynomial interfaces, lenses, sums, products, families, reindexing, one-call dependent evidence, `Free` computations, implementations, and their structural laws |
 | `Prelude.Container.Section`, `Prelude.Container.Verified` | Shared `DepPoly`, `FreeDep`, verified implementations and composition |
 | `Draft.Implementation` | Compiler operation interfaces with their specifications, and their verified implementations |
-| `Draft.Diagram` | The one diagram syntax: signatures of pure and effectful operations with their specifications, contexts and boundaries with their structural maps, diagrams with exits, steps, and composites, continuations with copairings, frames, and loops, the function meaning and the run family, the verification of a diagram over its function meaning, the derivation rules of each equation set with their maps of verified diagrams, bypasses, resolution, substitution, the laws of the loop, and structural cells and execution certificates |
+| `Draft.Diagram` | The one diagram syntax: signatures of pure and effectful operations, contexts and boundaries with their structural maps, diagrams with exits, steps, and composites, continuations with copairings, frames, and loops, the function meaning and the run family, the derivation rules of each equation set, bypasses, resolution, substitution, the laws of the loop, and structural cells and execution certificates |
+| `Draft.Verified` | The verification over the diagram syntax: the interface of a diagram, the evidence of a diagram by its constructors, the lift for a specification, the verified implementation, and the map of verified implementations along a derivation |
 | `Draft.Runtime` | The runner of that syntax: the interpretation of effects with the runtime, state equations, invariant evidence, and dependent rewrite maps |
 | `Draft.Source` | Source diagrams as presentations of a VSDG, the relation between two presentations, the frontend interface, sharing, control, and feedback translation, and admissibility evidence |
 | `Draft.Sequentialization` | The selection of a realization by cost, certified realizations, coverage, and soundness |
@@ -25,7 +26,7 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Observations` | Observational proofs of correctness for metatheoretical verification. They can use axioms, and no implementation module depends on them. |
 
 The Prelude identity, indexed, decision, relation, and container modules,
-`Draft.Diagram`, and `Draft.Checks` exist. The other module families are the
+`Draft.Diagram`, `Draft.Verified`, and `Draft.Checks` exist. The other module families are the
 planned locations for stages D2 to D7. The module families divide the work
 and not the system: the IR is the one diagram syntax of
 [CONCEPT.md](CONCEPT.md#design).
@@ -182,14 +183,36 @@ binds its earlier part.
 ## D2: current
 
 [Draft/Diagram.lean](Draft/Diagram.lean) has the plain part of each
-construction, and it has no verification. An operation has no specification,
-no diagram has a verification, and no diagram of a check consumes evidence.
-The module does not use `DepPoly`, `FreeDep`, or `ImplDep`. The next work of
-the stage is the verification over the present plain part, by the method of
-[CONCEPT.md](CONCEPT.md#design): the specification of an operation as a part
-of the signature, the verification of a diagram by its constructors, the
-verified lowering, and the map of verified diagrams along the agreement of
-each rule. Three plain parts of the module are open:
+construction. [Draft/Verified.lean](Draft/Verified.lean) has the verification
+over it, by the method of [CONCEPT.md](CONCEPT.md#design):
+
+- The interface of a diagram, and the diagram as an implementation of that
+  interface by calls of the interface of its signature.
+- The evidence of a diagram at the values of its context, for a postcondition
+  at each exit. It is the dependent form of the function meaning: it has the
+  evidence of the remaining computation as an argument, and the evidence of
+  the computation at the limit of a loop. Each constructor of a diagram and
+  of a continuation has its evidence. A step takes a witness of the
+  precondition of its operation, and the diagram of each response receives
+  the postcondition. A composite has a condition at the boundary of its
+  continuation, a frame has a condition at the exit of its diagram, and a loop
+  has an invariant.
+- The lift of a diagram for a specification, which is a `DepPoly` on the
+  interface of the diagram, and the verified implementation (`ImplDep`) that
+  the lift gives. The composition with a verified lowering is `ImplDep.trans`.
+- The map of verified implementations along a derivation, for a rule set that
+  holds in the lowering.
+
+The specification of the operations is a `DepPoly` on the request interface
+of the signature. [Draft/Checks/Lift.lean](Draft/Checks/Lift.lean) has four
+verified diagrams, each with a verified lowering and kernel checks that
+eliminate the evidence at the exit: the two orders of a pure step and an
+effectful step, with the lift of the first order moved to the second order
+along the interchange derivation; one continuation of two control paths,
+with a condition on the sum that each path establishes from the postcondition
+of the test; one effectful step of two control paths in a frame; and the loop
+that counts down, with an invariant that has the receipts of the calls and
+the identity of the value. Three plain parts of the module are open:
 
 - An implementation that returns without a call is a verified implementation
   against the specification that admits no call. The two forms become one.
@@ -309,9 +332,8 @@ computation. The loop has 3 steps, and the body and then the loop has 6.
 These parts of the stage are open: the identity law and the composition law
 of the action of a port map as structural agreements of diagrams, the
 agreement of each frame with the copairing of its copies as a rule, the
-specifications and the response evidence of the three checks, the state
-runner with an arbitrary runtime and its invariant, the uniqueness of a map
-out of a sum, and the read/write evidence. The stage continues with one row
+state runner with an arbitrary runtime and its invariant, the uniqueness of a
+map out of a sum, and the read/write evidence. The stage continues with one row
 of its table at a time.
 
 ## D6: generic definitions

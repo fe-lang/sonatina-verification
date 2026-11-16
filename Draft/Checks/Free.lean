@@ -127,3 +127,15 @@ def consumeRunTrans (x y : Nat) :
 #guard read units true 3 4 == 11
 
 end Draft.Checks.Free
+
+/-- info: 'Draft.Checks.Free.congruencePair' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Free.congruencePair
+
+/-- info: 'Draft.Checks.Free.congruenceSingle' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Free.congruenceSingle
+
+/-- info: 'Draft.Checks.Free.consumeRunTrans' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Free.consumeRunTrans

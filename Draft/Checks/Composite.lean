@@ -148,3 +148,15 @@ def consumeRunTrans (x y key : Nat) :
 #guard consume movedDep false 3 4 (.second 5) == 28
 
 end Draft.Checks.Composite
+
+/-- info: 'Draft.Checks.Composite.movedSingle' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Composite.movedSingle
+
+/-- info: 'Draft.Checks.Composite.movedPair' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Composite.movedPair
+
+/-- info: 'Draft.Checks.Composite.consumeRunTrans' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Composite.consumeRunTrans

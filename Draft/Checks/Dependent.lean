@@ -121,3 +121,15 @@ def consumeTrans (x y key : Nat) :
 #guard consume 2 7 99 true (.second 3) == 18
 
 end Draft.Checks.Dependent
+
+/-- info: 'Draft.Checks.Dependent.consumeRoundTrip' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependent.consumeRoundTrip
+
+/-- info: 'Draft.Checks.Dependent.consumeAssoc' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependent.consumeAssoc
+
+/-- info: 'Draft.Checks.Dependent.consumeTrans' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependent.consumeTrans
