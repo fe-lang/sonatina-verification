@@ -534,65 +534,72 @@ step is pure. The evidence follows the path to the step, and it has the
 diagram after the step. One theorem gives the derivation from the diagram to
 the diagram with the ready step at the front, for each rule set that has the
 interchange rule. The derivation has one interchange for each step that the
-ready step passes. A schedule of a diagram is the choice of one ready step at
-each point. Its realization is the diagram with the steps in the order of the
-choices, and its derivation has one application of the theorem for each
-choice. The evidence of a ready step is for each diagram without a
+ready step passes. The evidence of a ready step is for each diagram without a
 composite: a step that is ready in each case of a test moves before the test.
+
+An order of a diagram is a diagram with the evidence that it is an order. The
+diagram is the plain part, and the evidence follows its constructors. An exit
+is the source diagram. A step has the evidence that it is ready in the source
+diagram, which is the witness of a precondition, and the diagram of each
+output case has the evidence for the diagram after the step. The derivation
+from the source diagram to an order has one application of the theorem for
+each step.
 
 [Draft/Source.lean](Draft/Source.lean) has the diagrams of the fragment with
 fixed occurrences: one sequence of steps and one exit. The evidence is a
 function of the diagram. The output boundary of each step has one case: the
 type of its cases has a center, and each case is identical to the center. The
 action of a port map keeps the fragment. For a diagram of the fragment, the
-ready steps are a list, and the schedules are a list: one schedule for each
-choice of a ready step at each point. A step of the rest of the first step is
-ready in the diagram when one of the two steps is pure and its operands have
-no output port of the first step. The diagram after a ready step and the
-realization of a schedule are diagrams of the fragment.
+ready steps are a list, and the orders are a list: one order for each choice
+of a ready step at each point. A step of the rest of the first step is ready
+in the diagram when one of the two steps is pure and its operands have no
+output port of the first step. The diagram after a ready step and each order
+are diagrams of the fragment.
 [Prelude/Indexed.lean](Prelude/Indexed.lean) has the part of a position of a
 concatenation.
 
-[Draft/Checks/Schedule.lean](Draft/Checks/Schedule.lean) has three steps.
-`A` and `B` are pure, and `B` uses the output of `A`. `C` is effectful and
-uses one input only. Three schedules of the source diagram give the orders
-`A B C`, `A C B`, and `C A B`, and each realization has its steps in that
-order. Each realization gives the same values, for arbitrary inputs and an
-arbitrary response of the store. A check consumes the soundness of the
-derivation of a schedule through a dependent payload. The source diagram is a
-diagram of the fragment. Its ready steps are `A` and `C`. The list of its
-schedules has the three orders and no other order, and each realization of
-the list gives the same values. The source diagram has a verified
+[Draft/Checks/Dependency.lean](Draft/Checks/Dependency.lean) has the three
+required checks. The first source diagram has three steps. `A` and `B` are
+pure, and `B` uses the output of `A`. `C` is effectful and uses one input
+only. The orders `A C B` and `C A B` are two diagrams, each with the evidence
+that it is an order of the source diagram. Each order gives the same values,
+for arbitrary inputs and an arbitrary response of the store. A check consumes
+the soundness of the derivation of an order through a dependent payload. The
+source diagram is a diagram of the fragment. Its ready steps are `A` and `C`.
+The list of its orders has the three orders and no other order, and each
+order of the list gives the same values. The source diagram has a verified
 implementation for a specification with an admission. The map of verified
-implementations along the derivation of a schedule, which is the map of D2,
+implementations along the derivation of an order, which is the map of D2,
 gives the verified implementation of each order. The receipt at the exit of
 the order `A C B` gives the payload of the source diagram through its
 identity, for an arbitrary admission. The evidence of the order `C A B` has
 the same value in its receipt, and a check consumes its postcondition of `B`
 through a dependent payload.
 
-The module has the two other required checks. The second source diagram has
-a shared operand and a repeated operand: `B` has the output of `A` as its two
-operands, the effectful `C` has that output as its operand, and `D` has the
-outputs of `B` and `C`. The list of its schedules has the two orders of `B`
-and `C`. Each realization has four steps, so `A` has one occurrence, and each
-gives the same values. The third source diagram has a discarded value: no
-step and no exit port has the response of the effectful `A`. The list of its
-schedules has the two orders of `A` and the pure `B`, and each realization is
-one call of the store after the lowering.
+The second source diagram has a shared operand and a repeated operand: `B`
+has the output of `A` as its two operands, the effectful `C` has that output
+as its operand, and `D` has the outputs of `B` and `C`. The list of its
+orders has the two orders of `B` and `C`. Each order has four steps, so `A`
+has one occurrence, and each gives the same values. The third source diagram
+has a discarded value: no step and no exit port has the response of the
+effectful `A`. The list of its orders has the two orders of `A` and the pure
+`B`, and each order is one call of the store after the lowering.
 
 These parts are open:
 
-- The completeness of the list of the schedules: each schedule of a diagram
-  of the fragment is in the list.
+- The completeness of the list of the orders: each order of a diagram of the
+  fragment is in the list.
 - The dependency graph of a diagram: the container with a shape for each step
-  and a position for each operand, the producer of each position, and the
-  order of the effectful steps. A schedule keeps the producers.
+  and a position for each operand, and the specification of the runs of the
+  steps with the list of the done steps as the runtime. A step is admitted
+  when the producer of each operand is done, and the effectful step before it
+  is done. An order gives evidence of that specification for its word of
+  steps.
 - The check that reads the receipt of the order `C A B` through its
   identity. Its derivation has two interchanges, and the check exceeds the
   default limit of the elaborator. The cause is open.
 - The converse: each diagram that an interchange derivation gives from a
-  diagram of the fragment is the realization of a schedule.
+  diagram of the fragment is an order of it.
 
 ## D6: generic definitions
 

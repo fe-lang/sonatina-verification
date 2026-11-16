@@ -10,7 +10,7 @@ import Draft.Checks.Countdown
 import Draft.Checks.Lift
 import Draft.Checks.State
 import Draft.Checks.Branch
-import Draft.Checks.Schedule
+import Draft.Checks.Dependency
 import Draft.Checks.Stele
 
 /-! Named kernel checks.

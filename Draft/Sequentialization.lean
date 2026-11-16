@@ -14,16 +14,18 @@ One theorem gives the derivation from a diagram to the diagram with a ready step
 in each rule set that has the interchange rule. The derivation has one interchange for each
 step that the ready step passes.
 
-A schedule of a diagram is the choice of one ready step at each point, and then a schedule of
-the diagram after that step at each output case. The realization of a schedule is the diagram
-with the steps in the order of the choices. The derivation from the diagram to the realization
-has one application of the theorem for each choice.
+An order of a diagram is a diagram with the evidence that it is an order. The diagram is the
+plain part, and the evidence follows its constructors. An exit is the source diagram. A step
+has the evidence that it is ready in the source diagram, which is the witness of a
+precondition, and the diagram of each output case has the evidence for the diagram after the
+step. The derivation from the source diagram to an order has one application of the theorem
+for each step.
 
 For a diagram of the fragment with fixed occurrences, the ready steps are a list. A step of the
 rest of the first step is ready in the diagram when one of the two steps is pure and its
-operands have no output port of the first step. The schedules of the diagram are a list too:
-one schedule for each choice of a ready step at each point. The diagram after a ready step and
-the realization of a schedule are diagrams of the fragment. -/
+operands have no output port of the first step. The orders of the diagram are a list too: one
+order for each choice of a ready step at each point. The diagram after a ready step and each
+order are diagrams of the fragment. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -95,32 +97,30 @@ def Diagram.Ready.pastOne {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} (a : S.Op)
       (only ca) ⟨after, inner⟩
   ⟨fun ca => (spread ca).1, .past a central first second fun ca => (spread ca).2⟩
 
-/-- A schedule of a diagram: the choice of one ready step at each point, and a schedule of the
-diagram after that step at each output case. -/
-inductive Diagram.Schedule : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs → Type where
-  | exit {Γ : List Ty} {Qs : Exits Ty} (out : Qs.At (Port Γ)) : Diagram.Schedule (.exit out)
-  | pick {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs} (b : S.Op)
-      {args : PortMap Γ (S.input b)}
-      {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
-      (ready : Diagram.Ready b d args after)
-      (next : (cb : (S.output b).Case) → Diagram.Schedule (after cb)) : Diagram.Schedule d
+/-- The evidence that the diagram `e` is an order of the diagram `d`, by the constructors of
+`e`. An exit is the diagram `d`. A step has the diagram after it and the evidence that it is
+ready in `d`, and the diagram of each output case has the evidence for the diagram after the
+step at that case. -/
+def Diagram.Order : {Γ : List Ty} → {Qs : Exits Ty} → (e d : Diagram S Γ Qs) → Type
+  | _, _, .exit out, d => Diagram.exit out ≡ d
+  | Γ, Qs, .step call rest, d =>
+      (after : (cb : (S.output call.1).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
+        (Diagram.Ready call.1 d call.2 after ×
+          ((cb : (S.output call.1).Case) → Diagram.Order (rest cb) (after cb)))
+  | _, _, .seq _ _, _ => Empty
 
-/-- The realization of a schedule: the diagram with the steps in the order of the choices. -/
-def Diagram.Schedule.realization {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
-    (s : Diagram.Schedule d) : Diagram S Γ Qs :=
-  Diagram.Schedule.casesOn (motive := @fun Γ Qs _ _ => Diagram S Γ Qs) s
-    (fun out => .exit out)
-    (@fun _ _ _ b args _ _ next => .step ⟨b, args⟩ fun cb => (next cb).realization)
-
-/-- The derivation from a diagram to the realization of a schedule, in each rule set that has
-the interchange rule: one move of a ready step for each choice. -/
-def Diagram.Schedule.derivation {R : Rules S} (inter : Rules.Map (Rules.interchange S) R)
-    {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs} (s : Diagram.Schedule d) :
-    Diagram.Derivation R d s.realization :=
-  Diagram.Schedule.casesOn (motive := @fun _ _ d s => Diagram.Derivation R d s.realization) s
-    (fun out => .agree (.refl (.exit out)))
-    (@fun _ _ _ b args _ ready next =>
-      .trans (ready.derivation inter) (.step ⟨b, args⟩ fun cb => (next cb).derivation inter))
+/-- The derivation from a diagram to an order of it, in each rule set that has the interchange
+rule: one move of a ready step for each step of the order. -/
+def Diagram.Order.derivation {R : Rules S} (inter : Rules.Map (Rules.interchange S) R) :
+    {Γ : List Ty} → {Qs : Exits Ty} → (e d : Diagram S Γ Qs) → Diagram.Order e d →
+    Diagram.Derivation R d e
+  | _, _, .exit out, _, same =>
+      Identity.transport (fun x => Diagram.Derivation R x (.exit out)) same
+        (.agree (.refl (.exit out)))
+  | _, _, .step call rest, _, o =>
+      .trans (o.2.1.derivation inter)
+        (.step call fun cb => Diagram.Order.derivation inter (rest cb) (o.1 cb) (o.2.2 cb))
+  | _, _, .seq _ _, _, o => nomatch o
 
 /-- The output boundary of a ready step of a diagram of the fragment has one case. -/
 def Diagram.Ready.single {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
@@ -152,14 +152,15 @@ def Diagram.Ready.straight {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagra
         Diagram.Straight.rename (PortMap.exchange h.1.1 cb.1 Γ) (after h.1 cb)
           ((inner h.1).straight h.2.2 cb)⟩)
 
-/-- The realization of a schedule of a diagram of the fragment is a diagram of the fragment. -/
-def Diagram.Schedule.straight {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
-    (s : Diagram.Schedule d) : d.Straight → s.realization.Straight :=
-  Diagram.Schedule.casesOn (motive := @fun _ _ d s => d.Straight → s.realization.Straight) s
-    (fun _ _ => ())
-    (@fun _ _ _ _ _ _ ready next h =>
-      ⟨(ready.single h).1, (ready.single h).2,
-        (next (ready.single h).1).straight (ready.straight h (ready.single h).1)⟩)
+/-- An order of a diagram of the fragment is a diagram of the fragment. -/
+def Diagram.Order.straight : {Γ : List Ty} → {Qs : Exits Ty} → (e d : Diagram S Γ Qs) →
+    Diagram.Order e d → d.Straight → e.Straight
+  | _, _, .exit _, _, _, _ => ()
+  | _, _, .step _ rest, _, o, h =>
+      ⟨(o.2.1.single h).1, (o.2.1.single h).2,
+        Diagram.Order.straight (rest (o.2.1.single h).1) (o.1 (o.2.1.single h).1)
+          (o.2.2 (o.2.1.single h).1) (o.2.1.straight h (o.2.1.single h).1)⟩
+  | _, _, .seq _ _, _, o, _ => nomatch o
 
 /-- A ready step of a diagram: its operation, its operands, the diagram after it, and the
 evidence. -/
@@ -190,27 +191,43 @@ def Diagram.choices : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Q
                         choice.2.2.2)).2⟩
   | _, _, .seq _ _, _ => []
 
-/-- The schedules of a diagram of the fragment that has at most a given number of steps: one
-schedule for each choice of a ready step at each point. -/
-def Diagram.schedulesWithin : Nat → {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
-    d.Straight → List d.Schedule
-  | 0, _, _, .exit out, _ => [.exit out]
+/-- The order with a ready step first, from an order of the diagram after that step at the
+center of the output cases of the step. The order at the center gives the order at each
+case. -/
+def Diagram.Order.pick {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs} (b : S.Op)
+    {args : PortMap Γ (S.input b)}
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
+    (ready : Diagram.Ready b d args after) (center : (S.output b).Case)
+    (only : (c : (S.output b).Case) → center ≡ c)
+    (tail : (e : Diagram S (center.1 ++ Γ) Qs) × Diagram.Order e (after center)) :
+    (e : Diagram S Γ Qs) × Diagram.Order e d :=
+  let spread (cb : (S.output b).Case) :
+      (e : Diagram S (cb.1 ++ Γ) Qs) × Diagram.Order e (after cb) :=
+    Identity.transport
+      (fun (c : (S.output b).Case) =>
+        (e : Diagram S (c.1 ++ Γ) Qs) × Diagram.Order e (after c))
+      (only cb) tail
+  ⟨.step ⟨b, args⟩ fun cb => (spread cb).1, after, ready, fun cb => (spread cb).2⟩
+
+/-- The orders of a diagram of the fragment that has at most a given number of steps: one
+order for each choice of a ready step at each point. -/
+def Diagram.ordersWithin : Nat → {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    d.Straight → List ((e : Diagram S Γ Qs) × Diagram.Order e d)
+  | 0, _, _, .exit out, _ => [⟨.exit out, .refl⟩]
   | 0, _, _, .step _ _, _ => []
   | 0, _, _, .seq _ _, _ => []
-  | _ + 1, _, _, .exit out, _ => [.exit out]
+  | _ + 1, _, _, .exit out, _ => [⟨.exit out, .refl⟩]
   | n + 1, _, _, .step call rest, h =>
       (Diagram.choices (.step call rest) h).flatMap fun choice =>
-        (Diagram.schedulesWithin n (choice.2.2.1 (choice.2.2.2.single h).1)
-            (choice.2.2.2.straight h (choice.2.2.2.single h).1)).map fun s =>
-          .pick choice.1 choice.2.2.2 fun cb =>
-            Identity.transport
-              (fun (c : (S.output choice.1).Case) => Diagram.Schedule (choice.2.2.1 c))
-              ((choice.2.2.2.single h).2 cb) s
+        (Diagram.ordersWithin n (choice.2.2.1 (choice.2.2.2.single h).1)
+            (choice.2.2.2.straight h (choice.2.2.2.single h).1)).map fun tail =>
+          Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h).1
+            (choice.2.2.2.single h).2 tail
   | _ + 1, _, _, .seq _ _, _ => []
 
-/-- The schedules of a diagram of the fragment. -/
-def Diagram.schedules {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (h : d.Straight) :
-    List d.Schedule :=
-  Diagram.schedulesWithin (d.ops h).length d h
+/-- The orders of a diagram of the fragment. -/
+def Diagram.orders {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (h : d.Straight) :
+    List ((e : Diagram S Γ Qs) × Diagram.Order e d) :=
+  Diagram.ordersWithin (d.ops h).length d h
 
 end Draft
