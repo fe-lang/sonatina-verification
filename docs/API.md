@@ -342,6 +342,8 @@ laws, evidence that depends on the run across unrolling, and a loop with the
 state in `Type` and the result in `Type 1`.
 [`PreludeTests.Eq`](../PreludeTests/Eq.lean) and
 [`PreludeTests.Axiom`](../PreludeTests/Axiom.lean) check the separate modules.
+[`PreludeTests.Runtime`](../PreludeTests/Runtime.lean) checks machines: a state
+invariant, and a specification of two runtimes for one program.
 [`PreludeTests.Container`](../PreludeTests/Container.lean) checks container
 universes, position selection and sharing, polynomial composition, the round
 trips of `sumIso` and `compIso`, the value witnesses of composed agreements, a
