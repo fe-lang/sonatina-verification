@@ -29,7 +29,7 @@ The Prelude imports Lean's `Init` and supplies the following modules:
 | --- | --- |
 | [`Prelude.Identity`](../Prelude/Identity.lean) | Internal identity, path induction, transport, congruence, identity laws, dependent pair identities, constructor facts for `Option` and `Sum`, and `toEq`; `Iso` with its transport of dependent evidence; `Homotopy` with `refl`, `symm`, and `trans` |
 | [`Prelude.Decision`](../Prelude/Decision.lean) | `Refute`, `Dec`, `DecEq`, `decideEq`, decision combinators, and structural `DecEq` instances |
-| [`Prelude.Indexed`](../Prelude/Indexed.lean) | `Elem` positions and `All` dependent environments over `List`, with lookup, mapping, concatenation, tabulation, the positions of a concatenation, and selection, with their laws |
+| [`Prelude.Indexed`](../Prelude/Indexed.lean) | `Elem` positions and `All` dependent environments over `List`, with lookup, update at a position, mapping, concatenation, tabulation, the positions of a concatenation, and selection, with their laws |
 | [`Prelude.Relation`](../Prelude/Relation.lean) | `Steps` with composition, mapping, and length; `Accessible` and `TypeWellFounded` for Type-valued relations; `Rel` computations with graph, composition, copairing, and agreement; `Loop` with its initial property, laws, domain evidence, and function with fuel |
 | [`Prelude.Container`](../Prelude/Container.lean) | The import of the six container modules |
 | [`Prelude.Container.Core`](../Prelude/Container/Core.lean) | Shapes and positions, polynomial extensions, lawful mapping, morphisms, constants, identity, sums, family sums, products, and composition |
