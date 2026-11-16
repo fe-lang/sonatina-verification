@@ -22,14 +22,17 @@ computes. See the [API reference](docs/API.md).
 `Draft` is a compiler IR on the Prelude. It has one diagram syntax over a
 signature of pure and effectful operations, the function meaning of a diagram,
 the verification of a diagram by its constructors, and an example frontend for
-a typed fragment of Stele. [PLAN.md](PLAN.md) gives the stages and their
-status, [CONCEPT.md](CONCEPT.md) gives the design, and `Probes` has
-explorations that are not parts of the implementation.
+a typed fragment of Stele. `Frontend` translates the Stele syntax of
+[EquiVM](https://github.com/argotorg/EquiVM) to that fragment, and it compares
+the runs of the compiled functions with the interpreter of EquiVM.
+[PLAN.md](PLAN.md) gives the stages and their status, [CONCEPT.md](CONCEPT.md)
+gives the design, and `Probes` has explorations that are not parts of the
+implementation.
 
 ## Build
 
 Lean 4.29.0 is pinned in `lean-toolchain`.
 
 ```sh
-lake build    # the Prelude, the Draft, the probes, and their checks
+lake build    # the Prelude, the Draft, the frontend, the probes, and their checks
 ```

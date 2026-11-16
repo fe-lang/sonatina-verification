@@ -1,6 +1,6 @@
 name = "Prelude"
 version = "0.1.0"
-defaultTargets = ["Prelude", "PreludeTests", "Draft", "Probes"]
+defaultTargets = ["Prelude", "PreludeTests", "Draft", "Frontend", "Probes"]
 
 [[lean_lib]]
 name = "Prelude"
@@ -9,9 +9,22 @@ name = "Prelude"
 name = "Draft"
 
 [[lean_lib]]
+name = "Frontend"
+
+[[lean_lib]]
 name = "Probes"
 roots = ["Probes.Wiring", "Probes.DepPoly", "Probes.Machine"]
 
 [[lean_lib]]
 name = "PreludeTests"
 roots = ["PreludeTests.Prelude", "PreludeTests.Relation", "PreludeTests.Container", "PreludeTests.Eq", "PreludeTests.Axiom"]
+
+[[require]]
+name = "evmlean"
+git = "https://github.com/lefterislazar/EVMLean.git"
+rev = "fd4f5e6d6d6b4a18eb73f5a71ae2df909ac2b542"
+
+[[require]]
+name = "EquiVM"
+git = "https://github.com/argotorg/EquiVM.git"
+rev = "fc74a6466b92113a6fe16d577de0f553ee46f7cf"

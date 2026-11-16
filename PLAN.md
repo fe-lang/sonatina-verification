@@ -24,6 +24,7 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Draft.Sequentialization` | The selection of a realization by cost, certified realizations, coverage, and soundness |
 | `Draft.Lowering` | The backend interface, placement and storage obligations, the Stele and EVM adapters, and target refinement |
 | `Draft.Checks` | Named kernel consumers and functional checks |
+| `Frontend` | The translations from source languages to the fragments of `Draft`, with compiled observations. It imports the libraries of the source languages, and no module of `Draft` imports it. |
 | `Observations` | Observational proofs of correctness for metatheoretical verification. They can use axioms, and no implementation module depends on them. |
 
 The Prelude identity, indexed, decision, relation, and container modules,
@@ -376,37 +377,65 @@ feedback equation set.
 [Draft/Stele.lean](Draft/Stele.lean) has a typed fragment of Stele. The types
 are integers with no bound, and booleans. An expression has a context of
 local variables, and a variable is a position of the context. The constructs
-are literals, variables, a read of a storage variable, the arithmetic,
-comparison, and logic operations, Euclidean division, a declaration, an
-assignment to a local variable or to a storage variable, `require`, `if`,
-`while`, and `return`. A storage variable is a slot number.
+are literals, variables, a read of a storage variable, the arithmetic and
+comparison operations, negation, Euclidean division and remainder, the
+reduction of an integer to a number of bits, `&&`, `||`, the conditional
+expression, a declaration, an assignment to a local variable or to a storage
+variable, `require`, `if`, `while`, and `return`. A storage variable is a slot
+number.
 
 The signature has one operation for each construct that computes. A read and
 a write of storage are effectful. `revert` is effectful and has no output
-case. Division is pure, and its output boundary has a case for a zero
-divisor. The translation is a recursion on the syntax. A table has the port
-of the present value of each local variable, and an assignment changes the
-table only. The two paths of an `if` exit to one case of the boundary of a
-continuation, with the present value of each variable at its ports. A `while`
-is a loop whose entrance has the variables.
+case. Division and remainder are pure, and their output boundary has a case
+for a zero divisor. The translation is a recursion on the syntax. A table has
+the port of the present value of each local variable, and an assignment
+changes the table only. `&&`, `||`, and the conditional expression evaluate
+one of two expressions, as in Stele: the two paths of a test exit to one case
+of the boundary of a continuation. The two paths of an `if` exit to one case
+of the boundary of a continuation, with the present value of each variable at
+its ports. A `while` is a loop whose entrance has the variables. The module
+has the handler of the operations, with the storage as its runtime.
 
-[Draft/Checks/Stele.lean](Draft/Checks/Stele.lean) has a handler of the
-operations with the storage as its runtime, and five compiled programs: a
-declaration with a write and a read of storage, for arbitrary arguments and an
-arbitrary storage; an `if` with an assignment in one path; a `while` with two
-assignments; a `while` that writes storage, for an arbitrary storage; and a
-`require` and a division that stop at a zero divisor.
+[Draft/Checks/Stele.lean](Draft/Checks/Stele.lean) has kernel checks of
+compiled programs of the fragment: a declaration with a write and a read of
+storage, for arbitrary arguments and an arbitrary storage; an `if` with an
+assignment in one path; a `while` with two assignments; a `while` that writes
+storage, for an arbitrary storage; a `require` and a division that stop at a
+zero divisor; and `&&`, `||`, and the conditional expression at a zero
+divisor.
+
+The library `Frontend` imports EquiVM, so it is outside `Draft`.
+[Frontend/Stele.lean](Frontend/Stele.lean) has the translation from the Stele
+syntax of EquiVM to the typed fragment. It resolves each name to a position
+or to a slot, and it checks each type. The value of the call is a variable
+with no name at the first position of the context of a function. A write of
+a storage variable reduces the value to the bits of the variable. The
+translation rejects a declaration of a name that is in scope, because the
+locals of Stele are one map for a function and the fragment ends the scope of
+a declaration with its block. A rejection has a reason as data. The
+translation depends on no axiom.
+
+[Frontend/Checks/Stele.lean](Frontend/Checks/Stele.lean) has a contract in
+the notation of EquiVM, and compiled observations of the runs of its
+translated transitions.
+[Frontend/Checks/Agreement.lean](Frontend/Checks/Agreement.lean) runs each
+transition two times, from one value of the call, one list of arguments, and
+one storage: the diagram of the translated function, and the body by the
+executable semantics of EquiVM with the Solidity layout of the storage. The
+two observations are equal for each of the 16 cases.
 
 These parts are open:
 
-- The translation from the Stele syntax of EquiVM to the typed fragment: the
-  resolution of names to positions and to slots, and the check of types. It
-  imports EquiVM, so its module is outside `Draft`.
-- The correspondence between the semantics of Stele and the meaning of the
-  diagram, for the fragment.
-- The other constructs of Stele: the conditional expression, `for`, `break`,
-  `continue`, the bounded integer types and their casts, the other value
-  types, mappings and arrays, calls, and the environment.
+- The correspondence of the fragment: a semantics of the typed fragment, and
+  the proof that the run of the diagram of each program has the result of
+  that semantics. It is a part of the implementation.
+- The correspondence of the translation: the relation between the semantics
+  of Stele in EquiVM and the semantics of the typed fragment, for each
+  program that the translation accepts. It is an observational proof.
+- The other constructs of Stele: `for`, `break`, `continue`, the signed
+  storage types, the range check of a cast, the other value types, mappings
+  and arrays, calls, and the other values of the environment.
+- A function with no returned value, or with more than one.
 - The specification of a compiled program. A specification of a write and a
   read relates two states, and the specification of an operation has no
   state.

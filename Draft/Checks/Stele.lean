@@ -1,18 +1,19 @@
 import Draft.Stele
-import Draft.Runtime
 
 /-! Compiled programs of the Stele fragment.
 
 Each program is a function body of the fragment. Its diagram is the translation of the body,
-and a run of the diagram has a handler of the operations with the storage as its runtime. The
-handler stops at `revert`. A run gives the returned integer with the last storage, no value at
-the limit of a loop, or a stop.
+and a run of the diagram has the handler of the operations with the storage as its runtime. A
+run gives the returned integer with the last storage, no value at the limit of a loop, or a
+stop at a `revert`.
 
 The first program has a declaration, a write of storage, and a read of storage. Its check has
 arbitrary arguments and an arbitrary storage. The second program has an `if` with an assignment
 in one path, and the two paths have one continuation. The third program has a `while` with two
 assignments in its body, and the fourth has a `while` that writes storage in its body. The
-last program has a `require` and a division, and each of the two stops at a zero divisor.
+fifth group has a `require` and a division, and each of the two stops at a zero divisor. The
+last group has `&&`, `||`, and the conditional expression: the expression that the test does
+not select has no step in the run, so its division by zero does not stop the run.
 
 A check with a test of a value has closed arguments. -/
 
@@ -26,74 +27,12 @@ namespace Draft.Checks.Stele
 open Container
 open Draft.Stele
 
-/-- The runtime: the value of each storage slot. -/
-abbrev Store : Type := Nat → Int
-
-/-- The storage with a new value at one slot. -/
-def Store.write (s : Store) (slot : Nat) (v : Int) : Store :=
-  fun k => cond (Nat.beq k slot) v (s k)
-
-/-- The response with one value. -/
-def one {t : Ty} (v : Val t) : (Boundary.one [t]).At Val := ⟨Boundary.only _, .cons v .nil⟩
-
-def evalArith : Arith → Int → Int → Int
-  | .add, a, b => a + b
-  | .sub, a, b => a - b
-  | .mul, a, b => a * b
-
-def evalCompare : Compare → Int → Int → Bool
-  | .eq, a, b => decide (a = b)
-  | .lt, a, b => decide (a < b)
-  | .le, a, b => decide (a ≤ b)
-
-def evalLogic : Logic → Bool → Bool → Bool
-  | .and, a, b => a && b
-  | .or, a, b => a || b
-
-/-- The handler of the operations, with the storage as its runtime. Division is Euclidean, and
-it has the second case at a zero divisor. `load` and `store` read and write one slot. `revert`
-stops. -/
-def handle : Handler (sig.interface Val) Store Unit
-  | ⟨.intLit n, _⟩, s => .inr (one (t := .int) n, s)
-  | ⟨.boolLit b, _⟩, s => .inr (one (t := .bool) b, s)
-  | ⟨.arith f, args⟩, s =>
-      .inr (one (t := .int) (evalArith f (args.lookup .here) (args.lookup (.there .here))), s)
-  | ⟨.div, args⟩, s =>
-      match decide ((args.lookup (.there .here) : Int) = 0) with
-      | true => .inr (⟨⟨_, .there .here⟩, .nil⟩, s)
-      | false =>
-          .inr (⟨⟨_, .here⟩,
-            .cons ((args.lookup .here : Int) / (args.lookup (.there .here) : Int)) .nil⟩, s)
-  | ⟨.compare f, args⟩, s =>
-      .inr (one (t := .bool) (evalCompare f (args.lookup .here) (args.lookup (.there .here))), s)
-  | ⟨.logic f, args⟩, s =>
-      .inr (one (t := .bool) (evalLogic f (args.lookup .here) (args.lookup (.there .here))), s)
-  | ⟨.not, args⟩, s => .inr (one (t := .bool) (!(args.lookup .here : Bool)), s)
-  | ⟨.branch, args⟩, s =>
-      match (args.lookup .here : Bool) with
-      | true => .inr (⟨⟨_, .here⟩, .nil⟩, s)
-      | false => .inr (⟨⟨_, .there .here⟩, .nil⟩, s)
-  | ⟨.load slot, _⟩, s => .inr (one (t := .int) (s slot), s)
-  | ⟨.store slot, args⟩, s => .inr (⟨Boundary.only _, .nil⟩, s.write slot (args.lookup .here))
-  | ⟨.revert, _⟩, _ => .inl ()
-
-/-- The returned integer of the one exit. -/
-def returned : Exits.At [Ret] Val → Int
-  | ⟨_, .here, ⟨_, .here⟩, out⟩ => out.lookup .here
-
-/-- The run of a function body with a number of unrollings of each loop, from the arguments
-and a storage: a stop at a `revert`, or the returned integer with the last storage. The
-integer has no value at the limit of a loop. -/
-def run {Γ : List Ty} (body : Stmt Γ) (n : Nat) (args : All Val Γ) (s : Store) :
-    Unit ⊕ (Option Int × Store) :=
-  handle.run (body.diagram.run (.pure none) n args fun r => .pure (some (returned r))) s
-
 /-! A declaration, a write of storage, and a read of storage. -/
 
-/-- `let z = x * y + 3; slot0 = slot0 + z; return slot0 - x;` -/
+/-- `let z = x * y + 3; slot0 = uint256(slot0 + z); return slot0 - x;` -/
 def update : Stmt [.int, .int] :=
   .letDecl (.arith .add (.arith .mul (.var .here) (.var (.there .here))) (.intLit 3))
-    (.assignStorage 0 (.arith .add (.storage 0) (.var .here))
+    (.assignStorage 0 (.wrap 256 (.arith .add (.storage 0) (.var .here)))
       (.ret (.arith .sub (.storage 0) (.var (.there .here)))))
 
 def args₂ (x y : Int) : All Val [.int, .int] := .cons x (.cons y .nil)
@@ -103,11 +42,13 @@ set_option smartUnfolding false in
 and an arbitrary number of unrollings. -/
 def updateRun (n : Nat) (x y : Int) (s : Store) :
     run update n (args₂ x y) s ≡
-      .inr (some (s 0 + (x * y + 3) - x), s.write 0 (s 0 + (x * y + 3))) := .refl
+      .inr (some (wrap 256 (s 0 + (x * y + 3)) - x), s.write 0 (wrap 256 (s 0 + (x * y + 3)))) :=
+  .refl
 
-/-- The diagram has 8 steps: a product, a literal, and a sum for the declaration, a read, a
-sum, and a write for the assignment, and a read and a difference for the return. -/
-def updateSize : update.diagram.size ≡ 8 := .refl
+/-- The diagram has 9 steps: a product, a literal, and a sum for the declaration, a read, a
+sum, a reduction to 256 bits, and a write for the assignment, and a read and a difference for
+the return. -/
+def updateSize : update.diagram.size ≡ 9 := .refl
 
 /-! An `if` with an assignment in one path. -/
 
@@ -167,10 +108,10 @@ def accumulateRun (n : Nat) (s : Store) :
 /-- `require(!(y == 0)); return x / y;` -/
 def guarded : Stmt [.int, .int] :=
   .require (.not (.compare .eq (.var (.there .here)) (.intLit 0)))
-    (.ret (.div (.var .here) (.var (.there .here))))
+    (.ret (.divide .div (.var .here) (.var (.there .here))))
 
 /-- `return x / y;` -/
-def quotient : Stmt [.int, .int] := .ret (.div (.var .here) (.var (.there .here)))
+def quotient : Stmt [.int, .int] := .ret (.divide .div (.var .here) (.var (.there .here)))
 
 set_option smartUnfolding false in
 def guardedRun (n : Nat) (s : Store) : run guarded n (args₂ 7 2) s ≡ .inr (some 3, s) := .refl
@@ -187,6 +128,36 @@ set_option smartUnfolding false in
 /-- Division is Euclidean. -/
 def quotientNegative (n : Nat) (s : Store) :
     run quotient n (args₂ (-7) 2) s ≡ .inr (some (-4), s) := .refl
+
+/-! `&&`, `||`, and the conditional expression. -/
+
+/-- `x / y == 0` -/
+def divides : Expr [.int, .int] .bool :=
+  .compare .eq (.divide .div (.var .here) (.var (.there .here))) (.intLit 0)
+
+/-- `return (!(y == 0) && x / y == 0) ? 1 : 2;` -/
+def both : Stmt [.int, .int] :=
+  .ret (.ite (.and (.not (.compare .eq (.var (.there .here)) (.intLit 0))) divides)
+    (.intLit 1) (.intLit 2))
+
+/-- `return (y == 0 || x / y == 0) ? 1 : 2;` -/
+def either : Stmt [.int, .int] :=
+  .ret (.ite (.or (.compare .eq (.var (.there .here)) (.intLit 0)) divides)
+    (.intLit 1) (.intLit 2))
+
+set_option smartUnfolding false in
+/-- At a zero divisor, `&&` does not evaluate the division, and the run does not stop. -/
+def bothZero (n : Nat) (s : Store) : run both n (args₂ 7 0) s ≡ .inr (some 2, s) := .refl
+
+set_option smartUnfolding false in
+def bothSmall (n : Nat) (s : Store) : run both n (args₂ 1 2) s ≡ .inr (some 1, s) := .refl
+
+set_option smartUnfolding false in
+/-- At a zero divisor, `||` does not evaluate the division. -/
+def eitherZero (n : Nat) (s : Store) : run either n (args₂ 7 0) s ≡ .inr (some 1, s) := .refl
+
+set_option smartUnfolding false in
+def eitherLarge (n : Nat) (s : Store) : run either n (args₂ 7 2) s ≡ .inr (some 2, s) := .refl
 
 end Draft.Checks.Stele
 
@@ -209,3 +180,11 @@ end Draft.Checks.Stele
 /-- info: 'Draft.Checks.Stele.quotientNegative' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Stele.quotientNegative
+
+/-- info: 'Draft.Checks.Stele.bothZero' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.bothZero
+
+/-- info: 'Draft.Checks.Stele.eitherLarge' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.eitherLarge
