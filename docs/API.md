@@ -93,7 +93,9 @@ Two modules are separate imports. `import Prelude` does not include them.
 `Elem.left` and `Elem.right xs` are the positions of the two parts of
 `xs ++ ys`. `Elem.split xs i` gives the part of a position of `xs ++ ys`: a
 position of `xs` or a position of `ys`, with the identity of `i` with its
-image. `Elem.consCases` is the case analysis of a position of a nonempty
+image. `Elem.uncons i` gives the first position or a position of the tail for a
+position of a nonempty list. `Elem.find a xs` is the decision of a position
+of `a` in `xs`, for a type with decidable identity. `Elem.consCases` is the case analysis of a position of a nonempty
 list, and `Elem.ofNil` gives a value of each type from a position of the
 empty list. `All.select env positions` gives the values of `env` at a list of
 positions, which can repeat a position and omit a position.

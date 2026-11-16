@@ -24,6 +24,13 @@ of the source diagram and of the order `A C B` gives the same payload through it
 for an arbitrary admission. The evidence of the order `C A B` has the same value in its
 receipt, and a check consumes its postcondition of `B` through a dependent payload.
 
+The dependency graph of the source diagram has three occurrences. `A` has two inputs, `B` has
+the output of `A` and an input, and `C` has an input. The steps of each order of the list have
+the names of the steps of the source diagram, and the word of each order has evidence that it
+is an admissible order of the graph. The word with `B` before `A` has no such evidence. The
+evidence of the order `C A B` runs on the machine of the done steps, and a check reads the
+position of `C` in the list of the done steps at its end.
+
 The second group has a shared operand and a repeated operand. `A` is pure. `B` is pure and has
 the output of `A` as its two operands. `C` is effectful and has the output of `A` as its
 operand. `D` has the outputs of `B` and `C`. The list of the orders has the two orders of `B`
@@ -274,6 +281,72 @@ def frontSum (flag : Bool) (u v x y : Nat) (pre : Admission) :
 
 end
 
+/-! The dependency graph. -/
+
+/-- The dependency graph of the source diagram. -/
+def graph : List (sig.Occurrence Nat) := source.graph straight
+
+set_option smartUnfolding false in
+/-- `A` has two inputs. `B` has the output of `A` and an input. `C` has an input, and no
+effectful step is before it. -/
+def graphOccurrences :
+    graph ≡
+      [(0, ⟨Op.add, .cons none (.cons none .nil)⟩, none),
+        (1, ⟨Op.add, .cons (some 0) (.cons none .nil)⟩, none),
+        (2, ⟨Op.emit, .cons none .nil⟩, none)] := .refl
+
+/-- The steps of the graph with a list of names. -/
+def named (names : List Nat) : List (Signature.runs (S := sig) graph).Shape :=
+  names.filterMap fun n => Signature.named? (S := sig) n graph
+
+set_option smartUnfolding false in
+/-- The steps of each order of the list have the names of the steps of the source diagram. -/
+def allNames :
+    ((Diagram.orders source straight).map fun r =>
+        Diagram.Order.names r.1 source r.2 straight (source.numbers straight 0)) ≡
+      [[0, 1, 2], [0, 2, 1], [2, 0, 1]] := .refl
+
+set_option smartUnfolding false in
+/-- The word of each order of the list has evidence that it is an admissible order of the
+graph. -/
+def allAdmissible :
+    ((Diagram.orders source straight).map fun r =>
+        (Signature.accept (S := sig) (G := graph)
+          (named (Diagram.Order.names r.1 source r.2 straight (source.numbers straight 0)))
+          []).isSome) ≡
+      [true, true, true] := .refl
+
+set_option smartUnfolding false in
+/-- The word with `B` before `A` has no evidence: the producer of an operand of `B` is not
+done. -/
+def notAdmissible :
+    (Signature.accept (S := sig) (G := graph) (named [1, 0, 2]) []).isSome ≡ false := .refl
+
+/-- The value of an option that has a value. -/
+def extract {α : Type} : (x : Option α) → x.isSome ≡ true → α
+  | some a, _ => a
+
+/-- The machine of the runs: the response has the list with the step. -/
+def doneMachine : Machine (Signature.runs (S := sig) graph) (List Nat) Empty :=
+  fun a => .inr ((), a.1.1.1 :: a.2)
+
+/-- The machine has evidence of the specification of the graph. -/
+def doneEvidence : Evidence (Signature.admissible (S := sig) graph) doneMachine :=
+  fun _ _ => .refl
+
+set_option smartUnfolding false in
+/-- The evidence that the word `C A B` is an admissible order, by the decision of each
+precondition. -/
+def frontAdmissible :=
+  extract (Signature.accept (S := sig) (G := graph) (named [2, 0, 1]) []) .refl
+
+set_option smartUnfolding false in
+/-- The run of that evidence on the machine gives each step in the list of the done steps at
+the end. `C` is the first step of the word, so it has the last position of the list. -/
+def frontDone :
+    ((FreeDep.run doneEvidence frontAdmissible) (2, ⟨Op.emit, .cons none .nil⟩, none)
+      (.there (.there .here))).toFin.val ≡ 2 := .refl
+
 /-! A shared operand and a repeated operand. -/
 
 /-- `A` on the two inputs. `B` has the output of `A` as its two operands. `C` is effectful and
@@ -408,3 +481,23 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.frontValue' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.frontValue
+
+/-- info: 'Draft.Checks.Dependency.graphOccurrences' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.graphOccurrences
+
+/-- info: 'Draft.Checks.Dependency.allNames' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.allNames
+
+/-- info: 'Draft.Checks.Dependency.allAdmissible' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.allAdmissible
+
+/-- info: 'Draft.Checks.Dependency.notAdmissible' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.notAdmissible
+
+/-- info: 'Draft.Checks.Dependency.frontDone' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.frontDone

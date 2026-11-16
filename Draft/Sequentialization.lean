@@ -230,4 +230,36 @@ def Diagram.orders {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (h : d.S
     List ((e : Diagram S Γ Qs) × Diagram.Order e d) :=
   Diagram.ordersWithin (d.ops h).length d h
 
+/-- The number of the steps that a ready step of a diagram of the fragment passes. -/
+def Diagram.Ready.depth {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    {args : PortMap Γ (S.input b)}
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
+    (r : Diagram.Ready b d args after) : d.Straight → Nat :=
+  Diagram.Ready.casesOn (motive := @fun _ _ d _ _ _ => d.Straight → Nat) r
+    (fun _ _ _ => 0)
+    (@fun _ _ _ _ _ _ _ _ inner h => (inner h.1).depth h.2.2 + 1)
+
+/-- The element at a number in a list, with the other elements in their order. -/
+def takeAt {α : Type} : Nat → List α → Option (α × List α)
+  | _, [] => none
+  | 0, a :: rest => some (a, rest)
+  | k + 1, a :: rest =>
+      match takeAt k rest with
+      | none => none
+      | some found => some (found.1, a :: found.2)
+
+/-- The names of the steps of an order of a diagram of the fragment, from the names of the
+steps of the diagram: each step of the order has the name of its ready step. -/
+def Diagram.Order.names {N : Type} : {Γ : List Ty} → {Qs : Exits Ty} →
+    (e d : Diagram S Γ Qs) → Diagram.Order e d → d.Straight → List N → List N
+  | _, _, .exit _, _, _, _, _ => []
+  | _, _, .step _ rest, _, o, h, names =>
+      match takeAt (o.2.1.depth h) names with
+      | none => []
+      | some found =>
+          found.1 ::
+            Diagram.Order.names (rest (o.2.1.single h).1) (o.1 (o.2.1.single h).1)
+              (o.2.2 (o.2.1.single h).1) (o.2.1.straight h (o.2.1.single h).1) found.2
+  | _, _, .seq _ _, _, o, _, _ => nomatch o
+
 end Draft

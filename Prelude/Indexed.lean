@@ -1,4 +1,5 @@
 import Prelude.Identity
+import Prelude.Decision
 
 /-! Type-valued positions and dependent environments over ordinary Lean lists.
 
@@ -77,11 +78,32 @@ def split : (xs : List α) → {ys : List α} → {a : α} → (i : Elem a (xs +
           | .inl found => .inl ⟨.there found.1, Identity.cong Elem.there found.2⟩
           | .inr found => .inr ⟨found.1, Identity.cong Elem.there found.2⟩)
 
+/-- A position of a nonempty list is the first position, with the identity of the two elements,
+or a position of the tail. -/
+def uncons {b : α} {xs : List α} (i : Elem a (b :: xs)) : (a ≡ b) ⊕ Elem a xs :=
+  consCases (motive := fun c (_ : Elem c (b :: xs)) => (c ≡ b) ⊕ Elem c xs) i (.inl .refl)
+    (fun _ j => .inr j)
+
 /-- A value of each type from a position of the empty list. -/
 def ofNil {β : Type w} (i : Elem a ([] : List α)) : β :=
   Elem.casesOn
     (motive := fun zs _ => List.casesOn (motive := fun _ => Type w) zs β (fun _ _ => PUnit))
     i PUnit.unit (fun _ => PUnit.unit)
+
+/-- A position of an element in a list, or the evidence that the list has no such position. -/
+def find [DecEq α] (a : α) : (xs : List α) → Dec (Elem a xs)
+  | [] => .no (fun i => ofNil i)
+  | b :: xs =>
+      match decideEq a b with
+      | .yes same => .yes (Identity.transport (fun c => Elem a (c :: xs)) same .here)
+      | .no differ =>
+          match find a xs with
+          | .yes i => .yes (.there i)
+          | .no absent =>
+              .no (fun i =>
+                match uncons i with
+                | .inl same => differ same
+                | .inr j => absent j)
 
 end Elem
 
