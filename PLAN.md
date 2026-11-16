@@ -559,20 +559,34 @@ are diagrams of the fragment.
 concatenation, and the search of a position of an element in a list.
 
 [Draft/Source.lean](Draft/Source.lean) has the dependency graph of a diagram
-of the fragment: the list of the occurrences of its steps. An occurrence has
-the name of the step, its call of the request interface at the producers of
-its operands, and the effectful step before it. The producer of an operand is
-the name of a step, or no name for an input of the diagram. The occurrences
-are the calls of the diagram at the names: each step gives its name to its
-output ports. The container of the graph has a shape for each occurrence and
-a position for each operand. The graph is a specification of the runs of its
-steps, with the list of the done steps as the runtime. A step is admitted
-when it is not done, the producer of each operand is done, and the effectful
-step before it is done. The response has the list with the step. A word of
-steps is an admissible order when it has evidence of this specification, with
-each step done at its end. The precondition has a decision, so a word has its
-evidence by computation. The steps of an order have the names of the steps of
-the source diagram: each step of the order has the name of its ready step.
+of the fragment, with no names. A value is its history: an input of the
+diagram, or an output port of the call that made it. A call has the histories
+of its operands and the effectful call before it, which is the state edge of
+the graph. The graph is the list of the occurrences of the steps: each step
+is a call at the histories of its context, and its output ports have that
+call as their history. The container of the graph has a shape for each
+occurrence and a position for each operand. The occurrences of a diagram with
+renamed ports are the occurrences of the diagram at the selected histories.
+
+The graph is a specification of the runs of its steps. The runtime has the
+list of the remaining occurrences and the list of the done occurrences. A run
+has the number of an occurrence in the remaining list. It is admitted when
+the call of each operand is done, and the effectful call before it is done.
+The response has the remaining list without the occurrence and the done list
+with it. A word of runs is an admissible order when it has evidence of this
+specification, with no remaining occurrence at its end. Each occurrence thus
+has one run.
+
+[Draft/Sequentialization.lean](Draft/Sequentialization.lean) has the theorem
+of the move: a move of a ready step keeps each occurrence. The occurrences of
+the diagram have the occurrence of the ready step at the number of the steps
+that it passes, and the other occurrences, in their order, are the
+occurrences of the diagram after the step. The proof has the law of renamed
+ports, the two laws of the selection of values of the interchange proof, and
+three laws of the kinds. The word of an order has that number for each step.
+It is an admissible order of the occurrences of the source diagram, for each
+order of each diagram of the fragment: the evidence follows the steps of the
+order, with the theorem of the move as the witness of each precondition.
 
 [Draft/Checks/Dependency.lean](Draft/Checks/Dependency.lean) has the three
 required checks. The first source diagram has three steps. `A` and `B` are
@@ -592,12 +606,15 @@ identity, for an arbitrary admission. The evidence of the order `C A B` has
 the same value in its receipt, and a check consumes its postcondition of `B`
 through a dependent payload.
 
-The dependency graph of the first source diagram has three occurrences: `A`
-has two inputs, `B` has the output of `A` and an input, and `C` has an input.
-The word of each order of the list has evidence that it is an admissible
-order of the graph. The word with `B` before `A` has no such evidence. The
-evidence of the order `C A B` runs on the machine of the done steps, and a
-check reads the position of `C` in the list of the done steps at its end.
+The dependency graph of the first source diagram has the occurrences of its
+three steps. The orders `A C B` and `C A B` have the same occurrences in the
+other order, and no occurrence changes. A check consumes the identity of the
+theorem of the move of `C` through a dependent payload. The evidence that the
+word of the order `C A B` is an admissible order comes from the theorem. It
+runs on the machine of the runs, and a check consumes the identity that no
+occurrence remains. The done occurrences at the end are the occurrences of
+the order, with the last run first. A word that starts with `B` has no
+evidence, because the call of an operand of `B` is not done.
 
 The second source diagram has a shared operand and a repeated operand: `B`
 has the output of `A` as its two operands, the effectful `C` has that output
@@ -612,11 +629,12 @@ These parts are open:
 
 - The completeness of the list of the orders: each order of a diagram of the
   fragment is in the list.
-- The theorem of the dependency graph: the word of each order of a diagram
-  of the fragment has evidence that it is an admissible order of the graph of
-  the diagram, and each admissible order of the graph is the word of an
-  order. The checks have this evidence for the orders of one diagram, by the
-  decision.
+- The other direction of the theorem of the dependency graph: an admissible
+  order of the occurrences of a diagram of the fragment is the word of an
+  order. Two equal calls have one history, so this direction needs the
+  condition that no two occurrences are equal, or the equation of a copy.
+- The decision of the identity of two histories, which the decision of the
+  precondition of a run needs.
 - The check that reads the receipt of the order `C A B` through its
   identity. Its derivation has two interchanges, and the check exceeds the
   default limit of the elaborator. The cause is open.

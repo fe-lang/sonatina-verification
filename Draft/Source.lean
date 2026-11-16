@@ -8,18 +8,21 @@ center. The evidence is a function of the diagram, by a recursion on it. The act
 map keeps the fragment. The operations of a diagram of the fragment are a list, in the order of
 its steps.
 
-The dependency graph of a diagram of the fragment is the list of the occurrences of its steps.
-An occurrence has the name of the step, its call of the request interface at the producers of
-its operands, and the effectful step before it. The producer of an operand is the name of a
-step, or no name for an input of the diagram. The occurrences are the calls of the diagram at
-the names: each step gives its name to its output ports. The container of the graph has a shape
-for each occurrence and a position for each operand.
+The dependency graph of a diagram of the fragment has no names. A value is its history: an
+input of the diagram, or an output port of the call that made it. A call has the histories of
+its operands and the effectful call before it, which is the state edge of the graph. The graph
+is the list of the occurrences of the steps of the diagram: each step is a call at the
+histories of its context, and its output ports have that call as their history. The container
+of the graph has a shape for each occurrence and a position for each operand. The occurrences
+of a diagram with renamed ports are the occurrences of the diagram at the selected histories.
 
-The graph is a specification of the runs of its steps, with the list of the done steps as the
-runtime. A step is admitted when it is not done, the producer of each operand is done, and the
-effectful step before it is done. The response has the list with the step. A word of steps is
-an admissible order when it has evidence of this specification, with each step done at its
-end. The precondition has a decision, so a word has its evidence by computation. -/
+The graph is a specification of the runs of its steps. The runtime has the list of the
+remaining occurrences and the list of the done occurrences. A run has the number of an
+occurrence in the list of the remaining occurrences. It is admitted when the call of each
+operand is done, and the effectful call before it is done. The response has the remaining list
+without the occurrence and the done list with it. A word of runs is an admissible order when it
+has evidence of this specification, with no remaining occurrence at its end. Each occurrence
+thus has one run. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -56,205 +59,253 @@ def Diagram.ops : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) �
 
 /-! The dependency graph. -/
 
-/-- An occurrence of a step in a dependency graph with names of the type `N`: the name of the
-step, its call of the request interface at the producers of its operands, and the effectful
-step before it. -/
-abbrev Signature.Occurrence (S : Signature Ty) (N : Type) : Type :=
-  N × ((S.interface (fun _ => Option N)).Shape × Option N)
+mutual
 
-/-- The effectful step before a step of a kind. A pure step has none. -/
+/-- The history of a value: an input of the source diagram, or an output port of a call at an
+output case. -/
+inductive History (S : Signature Ty) (Γ₀ : List Ty) : Ty → Type where
+  | input {t : Ty} (p : Port Γ₀ t) : History S Γ₀ t
+  | output {t : Ty} {o : S.Op} (call : Call S Γ₀ o) (c : (S.output o).Case) (q : Port c.1 t) :
+      History S Γ₀ t
+
+/-- A call of an operation: the histories of its operands, and the effectful call before it. A
+pure call has no effectful call before it. -/
+inductive Call (S : Signature Ty) (Γ₀ : List Ty) : S.Op → Type where
+  | mk {o : S.Op} (args : All (History S Γ₀) (S.input o)) (before : Option (Effect S Γ₀)) :
+      Call S Γ₀ o
+
+/-- An effectful call. -/
+inductive Effect (S : Signature Ty) (Γ₀ : List Ty) : Type where
+  | after {o : S.Op} (call : Call S Γ₀ o) : Effect S Γ₀
+
+end
+
+variable {Γ₀ : List Ty}
+
+/-- An occurrence of a step: its operation with its call. -/
+abbrev Signature.Occurrence (S : Signature Ty) (Γ₀ : List Ty) : Type :=
+  (o : S.Op) × Call S Γ₀ o
+
+/-- The histories of the operands of a call. -/
+def Call.args {o : S.Op} : Call S Γ₀ o → All (History S Γ₀) (S.input o)
+  | .mk args _ => args
+
+/-- The effectful call before a call. -/
+def Call.before {o : S.Op} : Call S Γ₀ o → Option (Effect S Γ₀)
+  | .mk _ before => before
+
+/-- The effectful call before a step of a kind. A pure step has none. -/
 def Kind.before {N : Type} : Kind → Option N → Option N
   | .pure, _ => none
   | .effectful, last => last
 
-/-- The last effectful step after a step of a kind with a name. -/
+/-- The last effectful call after a step of a kind. -/
 def Kind.last {N : Type} : Kind → Option N → N → Option N
   | .pure, last, _ => last
   | .effectful, _, n => some n
 
-/-- The occurrences of the steps of a diagram of the fragment, for the producer of each port of
-its context, the last effectful step before it, and a name for each step. Each step gives its
-name to its output ports. -/
-def Diagram.occurrences {N : Type} : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
-    d.Straight → All (fun _ => Option N) Γ → Option N → List N → List (S.Occurrence N)
-  | _, _, .exit _, _, _, _, _ => []
-  | _, _, .step _ _, _, _, _, [] => []
-  | _, _, .step call rest, h, env, last, n :: names =>
-      (n, ⟨call.1, env.select call.2⟩, Kind.before (S.kind call.1) last) ::
+/-- The effectful call before the second of two steps does not change when the first step moves
+past it: one of the two kinds is the pure kind. -/
+def Kind.beforeSecond {N : Type} : (k l : Kind) → ((k ≡ .pure) ⊕ (l ≡ .pure)) →
+    (last : Option N) → (x : N) → Kind.before l (Kind.last k last x) ≡ Kind.before l last
+  | .pure, .pure, _, _, _ => .refl
+  | .pure, .effectful, _, _, _ => .refl
+  | .effectful, .pure, _, _, _ => .refl
+  | .effectful, .effectful, .inl e, _, _ => nomatch e
+  | .effectful, .effectful, .inr e, _, _ => nomatch e
+
+/-- The same for the first of the two steps. -/
+def Kind.beforeFirst {N : Type} : (k l : Kind) → ((k ≡ .pure) ⊕ (l ≡ .pure)) →
+    (last : Option N) → (y : N) → Kind.before k (Kind.last l last y) ≡ Kind.before k last
+  | .pure, .pure, _, _, _ => .refl
+  | .pure, .effectful, _, _, _ => .refl
+  | .effectful, .pure, _, _, _ => .refl
+  | .effectful, .effectful, .inl e, _, _ => nomatch e
+  | .effectful, .effectful, .inr e, _, _ => nomatch e
+
+/-- The last effectful call after two steps does not change with their order, when one of the
+two kinds is the pure kind. -/
+def Kind.lastSwap {N : Type} : (k l : Kind) → ((k ≡ .pure) ⊕ (l ≡ .pure)) →
+    (last : Option N) → (x y : N) →
+    Kind.last l (Kind.last k last x) y ≡ Kind.last k (Kind.last l last y) x
+  | .pure, .pure, _, _, _, _ => .refl
+  | .pure, .effectful, _, _, _, _ => .refl
+  | .effectful, .pure, _, _, _, _ => .refl
+  | .effectful, .effectful, .inl e, _, _, _ => nomatch e
+  | .effectful, .effectful, .inr e, _, _, _ => nomatch e
+
+/-- The histories of a context after a call at an output case: the output ports of the call,
+and then the histories of the context before it. -/
+def Call.outputs {o : S.Op} (call : Call S Γ₀ o) (c : (S.output o).Case) {Γ : List Ty}
+    (env : All (History S Γ₀) Γ) : All (History S Γ₀) (c.1 ++ Γ) :=
+  (All.tabulate c.1 fun _ q => History.output call c q).append env
+
+/-- The call of a step at the histories of its context, after the last effectful call. -/
+def Call.at (o : S.Op) {Γ : List Ty} (args : PortMap Γ (S.input o)) (env : All (History S Γ₀) Γ)
+    (last : Option (Effect S Γ₀)) : Call S Γ₀ o :=
+  .mk (env.select args) (Kind.before (S.kind o) last)
+
+/-- The last effectful call after a call. -/
+def Call.next {o : S.Op} (call : Call S Γ₀ o) (last : Option (Effect S Γ₀)) :
+    Option (Effect S Γ₀) :=
+  Kind.last (S.kind o) last (.after call)
+
+/-- The occurrences of the steps of a diagram of the fragment at the histories of its context,
+after the last effectful call. Each step is a call at the histories of its context, and its
+output ports have that call as their history. -/
+def Diagram.occurrences : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    d.Straight → All (History S Γ₀) Γ → Option (Effect S Γ₀) → List (S.Occurrence Γ₀)
+  | _, _, .exit _, _, _, _ => []
+  | _, _, .step call rest, h, env, last =>
+      ⟨call.1, Call.at call.1 call.2 env last⟩ ::
         Diagram.occurrences (rest h.1) h.2.2
-          ((All.tabulate h.1.1 fun _ _ => some n).append env)
-          (Kind.last (S.kind call.1) last n) names
-  | _, _, .seq _ _, _, _, _, _ => []
+          ((Call.at call.1 call.2 env last).outputs h.1 env)
+          ((Call.at call.1 call.2 env last).next last)
+  | _, _, .seq _ _, _, _, _ => []
 
-/-- The numbers of the steps of a diagram of the fragment, from a first number. -/
-def Diagram.numbers : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) → d.Straight →
-    Nat → List Nat
-  | _, _, .exit _, _, _ => []
-  | _, _, .step _ rest, h, k => k :: Diagram.numbers (rest h.1) h.2.2 (k + 1)
-  | _, _, .seq _ _, _, _ => []
+/-- The histories of the inputs of a source diagram. -/
+def Signature.inputs (S : Signature Ty) (Γ₀ : List Ty) : All (History S Γ₀) Γ₀ :=
+  All.tabulate Γ₀ fun _ p => .input p
 
-/-- The dependency graph of a diagram of the fragment: the occurrences of its steps, with the
-number of each step as its name. Each port of the context is an input. -/
+/-- The dependency graph of a diagram of the fragment: the occurrences of its steps at the
+histories of its inputs. -/
 def Diagram.graph {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (h : d.Straight) :
-    List (S.Occurrence Nat) :=
-  d.occurrences h (All.tabulate Γ fun _ _ => none) none (d.numbers h 0)
+    List (S.Occurrence Γ) :=
+  d.occurrences h (S.inputs Γ) none
 
-section Graph
+/-- The occurrences of a diagram with renamed ports are the occurrences of the diagram at the
+selected histories. -/
+def Diagram.occurrencesRename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap Γ Δ) →
+    (d : Diagram S Δ Qs) → (h : d.Straight) → (env : All (History S Γ₀) Γ) →
+    (last : Option (Effect S Γ₀)) →
+    (d.rename ρ).occurrences (Diagram.Straight.rename ρ d h) env last ≡
+      d.occurrences h (env.select ρ) last
+  | _, _, _, _, .exit _, _, _, _ => .refl
+  | _, _, _, ρ, .step call rest, h, env, last =>
+      (Identity.cong
+          (fun tail =>
+            (⟨call.1, Call.at call.1 (ρ.select call.2) env last⟩ : S.Occurrence Γ₀) :: tail)
+          ((Diagram.occurrencesRename (ρ.lift h.1.1) (rest h.1) h.2.2
+              ((Call.at call.1 (ρ.select call.2) env last).outputs h.1 env)
+              ((Call.at call.1 (ρ.select call.2) env last).next last)).trans
+            (Identity.cong
+              (fun vals =>
+                Diagram.occurrences (rest h.1) h.2.2 vals
+                  ((Call.at call.1 (ρ.select call.2) env last).next last))
+              (PortMap.selectLift _ env ρ)))).trans
+        (Identity.cong
+          (fun (args : All (History S Γ₀) (S.input call.1)) =>
+            ((⟨call.1, .mk args (Kind.before (S.kind call.1) last)⟩ : S.Occurrence Γ₀) ::
+              Diagram.occurrences (rest h.1) h.2.2
+                ((Call.mk args (Kind.before (S.kind call.1) last)).outputs h.1
+                  (env.select ρ))
+                ((Call.mk args (Kind.before (S.kind call.1) last)).next last)))
+          (All.selectSelect env ρ call.2))
+  | _, _, _, _, .seq _ _, h, _, _ => nomatch h
 
-variable {N : Type} (G : List (S.Occurrence N))
+/-- The occurrences of the rest of a step at a case are the occurrences at the center of the
+cases. -/
+def Diagram.occurrencesCase {o : S.Op} {Γ : List Ty} {Qs : Exits Ty}
+    (rest : (c : (S.output o).Case) → Diagram S (c.1 ++ Γ) Qs) {center c : (S.output o).Case}
+    (p : center ≡ c) (tail : (rest center).Straight) (call : Call S Γ₀ o)
+    (env : All (History S Γ₀) Γ) (last : Option (Effect S Γ₀)) :
+    (rest center).occurrences tail (call.outputs center env) last ≡
+      (rest c).occurrences (Identity.transport (fun c => (rest c).Straight) p tail)
+        (call.outputs c env) last :=
+  Identity.ind
+    (fun c p =>
+      (rest center).occurrences tail (call.outputs center env) last ≡
+        (rest c).occurrences (Identity.transport (fun c => (rest c).Straight) p tail)
+          (call.outputs c env) last)
+    .refl p
 
 /-- The container of a dependency graph: a shape for each occurrence, and a position for each
 operand. -/
-def Signature.incidence : Container where
-  Shape := (a : S.Occurrence N) × Elem a G
-  Pos s := (t : Ty) × Port (S.input s.1.2.1.1) t
+def Signature.incidence (G : List (S.Occurrence Γ₀)) : Container where
+  Shape := (a : S.Occurrence Γ₀) × Elem a G
+  Pos s := (t : Ty) × Port (S.input s.1.1) t
 
-/-- The producer of each operand: the name of a step, or no name for an input. -/
-def Signature.producer (s : (Signature.incidence G).Shape) (p : (Signature.incidence G).Pos s) :
-    Option N :=
-  s.1.2.1.2.lookup p.2
+/-- The producer of each operand: its history. -/
+def Signature.producer (G : List (S.Occurrence Γ₀)) (s : (Signature.incidence G).Shape)
+    (p : (Signature.incidence G).Pos s) : History S Γ₀ p.1 :=
+  s.1.2.args.lookup p.2
 
-/-- A producer is in the list of the done steps, or the operand is an input. -/
-def Signature.Produced (done : List N) : Option N → Type
+/-! The specification of the runs. -/
+
+/-- The element at a number in a list, with the other elements in their order. -/
+def takeAt {α : Type} : Nat → List α → Option (α × List α)
+  | _, [] => none
+  | 0, a :: rest => some (a, rest)
+  | k + 1, a :: rest => (takeAt k rest).map fun found => (found.1, a :: found.2)
+
+/-- A history is produced for a list of done occurrences: it is an input, or its call is in the
+list. -/
+def History.Produced (done : List (S.Occurrence Γ₀)) : {t : Ty} → History S Γ₀ t → Type
+  | _, .input _ => Unit
+  | _, .output (o := o) call _ _ => Elem (⟨o, call⟩ : S.Occurrence Γ₀) done
+
+/-- The effectful call before a call is done, or the call has none. -/
+def Effect.Produced (done : List (S.Occurrence Γ₀)) : Option (Effect S Γ₀) → Type
   | none => Unit
-  | some m => Elem m done
+  | some (.after (o := o) call) => Elem (⟨o, call⟩ : S.Occurrence Γ₀) done
 
-/-- The interface of the runs of a dependency graph: one call for each occurrence. -/
-def Signature.runs : Container := ⟨(a : S.Occurrence N) × Elem a G, fun _ => Unit⟩
+/-- The interface of the runs: a call has the number of an occurrence in the list of the
+remaining occurrences. -/
+def runs : Container := ⟨Nat, fun _ => Unit⟩
 
-/-- The dependency graph as a specification of the runs of its steps, with the list of the done
-steps as the runtime. A step is admitted when it is not done, the producer of each operand is
-done, and the effectful step before it is done. The response has the list with the step. -/
-def Signature.admissible : DepPoly.{0, 0, 0, 0} ((Signature.runs G).runtime (List N) Empty) where
+/-- The runtime of the runs of a dependency graph: the remaining occurrences, and the done
+occurrences. -/
+abbrev Signature.Progress (S : Signature Ty) (Γ₀ : List Ty) : Type :=
+  List (S.Occurrence Γ₀) × List (S.Occurrence Γ₀)
+
+/-- The specification of the runs of a dependency graph. A run is admitted when its number has
+an occurrence in the list of the remaining occurrences, the call of each operand of that
+occurrence is done, and the effectful call before it is done. The response has the remaining
+list without the occurrence and the done list with it. -/
+def Signature.admissible (S : Signature Ty) (Γ₀ : List Ty) :
+    DepPoly.{0, 0, 0, 0} (runs.runtime (S.Progress Γ₀) Empty) where
   Pre a :=
-    (Elem a.1.1.1 a.2 → Empty) ×
-      (((p : (Signature.incidence G).Pos a.1) →
-          Signature.Produced a.2 (Signature.producer G a.1 p)) ×
-        Signature.Produced a.2 a.1.1.2.2)
-  Post a _ := fun
+    (found : S.Occurrence Γ₀ × List (S.Occurrence Γ₀)) ×
+      ((takeAt a.1 a.2.1 ≡ some found) ×
+        (((t : Ty) → (p : Port (S.input found.1.1) t) →
+            History.Produced a.2.2 (found.1.2.args.lookup p)) ×
+          Effect.Produced a.2.2 found.1.2.before))
+  Post a pre := fun
     | .inl _ => Empty
-    | .inr next => next.2 ≡ a.1.1.1 :: a.2
+    | .inr next => next.2 ≡ (pre.1.2, pre.1.1 :: a.2.2)
 
-/-- The condition at the end of a word: each step of the graph is done. -/
-def Signature.Finished : Empty ⊕ (Unit × List N) → Type
+/-- The condition at the end of a word: no occurrence remains. -/
+def Signature.Finished (S : Signature Ty) (Γ₀ : List Ty) :
+    Empty ⊕ (Unit × S.Progress Γ₀) → Type
   | .inl _ => Empty
-  | .inr out => (a : S.Occurrence N) → Elem a G → Elem a.1 out.2
+  | .inr out => out.2.1 ≡ []
 
-/-- The word of a list of steps: one run for each step. -/
-def Signature.word : List (Signature.runs G).Shape → Free (Signature.runs G) Unit
+/-- The word of a list of numbers: one run for each number. -/
+def word : List Nat → Free runs Unit
   | [] => .pure ()
-  | s :: rest => .request s fun _ => Signature.word rest
-
-variable {G}
+  | k :: rest => .request k fun _ => word rest
 
 /-- The evidence of one run and then the rest: a witness of the precondition, and the evidence
-of the rest from the list with the step. -/
-def Signature.ran {Q : Empty ⊕ (Unit × List N) → Type} (s : (Signature.runs G).Shape)
-    (done : List N) {rest : Free (Signature.runs G) Unit}
-    (pre : (Signature.admissible G).Pre (s, done))
-    (next : FreeDep (Signature.admissible G) Q (rest.thread (E := Empty) (s.1.1 :: done))) :
-    FreeDep (Signature.admissible G) Q
-      ((Free.request (C := Signature.runs G) s fun _ => rest).thread done) :=
-  FreeDep.request (r := Signature.admissible G) (shape := (s, done))
+of the rest from the next runtime. -/
+def Signature.ran {Q : Empty ⊕ (Unit × S.Progress Γ₀) → Type} (k : Nat)
+    (state : S.Progress Γ₀) {rest : Free runs Unit}
+    (pre : (S.admissible Γ₀).Pre (k, state))
+    (next : FreeDep (S.admissible Γ₀) Q
+      (rest.thread (E := Empty) (pre.1.2, pre.1.1 :: state.2))) :
+    FreeDep (S.admissible Γ₀) Q ((Free.request (C := runs) k fun _ => rest).thread state) :=
+  FreeDep.request (r := S.admissible Γ₀) (shape := (k, state))
     (next := Sum.elim (fun stopped => .pure (.inl stopped))
-      (fun (b : Unit × List N) => rest.thread b.2))
+      (fun (b : Unit × S.Progress Γ₀) => rest.thread b.2))
     pre
     fun b =>
       Sum.casesOn
-        (motive := fun b => (Signature.admissible G).Post (s, done) pre b →
-          FreeDep (Signature.admissible G) Q
+        (motive := fun b => (S.admissible Γ₀).Post (k, state) pre b →
+          FreeDep (S.admissible Γ₀) Q
             (Sum.elim (fun stopped => Free.pure (.inl stopped))
-              (fun (b : Unit × List N) => rest.thread b.2) b))
+              (fun (b : Unit × S.Progress Γ₀) => rest.thread b.2) b))
         b (fun _ post => post.elim)
         (fun _ post =>
-          Identity.transport (fun l => FreeDep (Signature.admissible G) Q (rest.thread l))
+          Identity.transport (fun st => FreeDep (S.admissible Γ₀) Q (rest.thread st))
             post.symm next)
-
-variable [DecEq N]
-
-/-- The decision that one producer is done. -/
-def Signature.produced? (done : List N) : (x : Option N) → Option (Signature.Produced done x)
-  | none => some ()
-  | some m =>
-      match Elem.find m done with
-      | .yes i => some i
-      | .no _ => none
-
-/-- The decision that the producer of each operand is done. -/
-def Signature.producedAll? (done : List N) : {Δ : List Ty} →
-    (args : All (fun _ => Option N) Δ) →
-    Option ((t : Ty) → (p : Port Δ t) → Signature.Produced done (args.lookup p))
-  | _, .nil => some (fun _ p => Elem.ofNil p)
-  | _, .cons x xs =>
-      match Signature.produced? done x with
-      | none => none
-      | some first =>
-          match Signature.producedAll? done xs with
-          | none => none
-          | some others =>
-              some (fun _ p =>
-                Elem.consCases
-                  (motive := fun _ i =>
-                    Signature.Produced done
-                      ((All.cons (P := fun _ => Option N) x xs).lookup i))
-                  p first others)
-
-/-- The decision of the precondition of a run. -/
-def Signature.admit? (s : (Signature.runs G).Shape) (done : List N) :
-    Option ((Signature.admissible G).Pre (s, done)) :=
-  match Elem.find s.1.1 done with
-  | .yes _ => none
-  | .no fresh =>
-      match Signature.producedAll? done s.1.2.1.2 with
-      | none => none
-      | some operands =>
-          match Signature.produced? done s.1.2.2 with
-          | none => none
-          | some before => some (fresh, fun p => operands p.1 p.2, before)
-
-/-- The decision that each step of a list of occurrences is done. -/
-def Signature.finished? (done : List N) : (H : List (S.Occurrence N)) →
-    Option ((a : S.Occurrence N) → Elem a H → Elem a.1 done)
-  | [] => some (fun _ i => Elem.ofNil i)
-  | b :: H =>
-      match Elem.find b.1 done with
-      | .no _ => none
-      | .yes first =>
-          match Signature.finished? done H with
-          | none => none
-          | some others =>
-              some (fun _ i =>
-                Elem.consCases (motive := fun c _ => Elem c.1 done) i first others)
-
-/-- The occurrence with a name in a list of occurrences, when the list has one. -/
-def Signature.named? (n : N) : (H : List (S.Occurrence N)) →
-    Option ((a : S.Occurrence N) × Elem a H)
-  | [] => none
-  | b :: H =>
-      match decideEq n b.1 with
-      | .yes _ => some ⟨b, .here⟩
-      | .no _ =>
-          match Signature.named? n H with
-          | none => none
-          | some found => some ⟨found.1, .there found.2⟩
-
-/-- The evidence that a word of steps is an admissible order from a list of done steps, when it
-is one. -/
-def Signature.accept : (w : List (Signature.runs G).Shape) → (done : List N) →
-    Option (FreeDep (Signature.admissible G) (Signature.Finished G)
-      ((Signature.word G w).thread (E := Empty) done))
-  | [], done =>
-      match Signature.finished? done G with
-      | none => none
-      | some all => some (.pure all)
-  | s :: rest, done =>
-      match Signature.admit? s done with
-      | none => none
-      | some pre =>
-          match Signature.accept rest (s.1.1 :: done) with
-          | none => none
-          | some next => some (Signature.ran s done pre next)
-
-end Graph
 
 end Draft

@@ -24,12 +24,14 @@ of the source diagram and of the order `A C B` gives the same payload through it
 for an arbitrary admission. The evidence of the order `C A B` has the same value in its
 receipt, and a check consumes its postcondition of `B` through a dependent payload.
 
-The dependency graph of the source diagram has three occurrences. `A` has two inputs, `B` has
-the output of `A` and an input, and `C` has an input. The steps of each order of the list have
-the names of the steps of the source diagram, and the word of each order has evidence that it
-is an admissible order of the graph. The word with `B` before `A` has no such evidence. The
-evidence of the order `C A B` runs on the machine of the done steps, and a check reads the
-position of `C` in the list of the done steps at its end.
+The dependency graph of the source diagram has the occurrences of its three steps at the
+histories of its inputs. The orders `A C B` and `C A B` have the same occurrences in the other
+order: no occurrence changes. A check consumes the identity of the theorem of the move of `C`
+through a dependent payload. The word of each order has the number of each ready step. The
+evidence that the word of the order `C A B` is an admissible order comes from the theorem. It
+runs on the machine of the runs, and a check consumes the identity that no occurrence remains.
+The done occurrences at the end are the occurrences of the order, with the last run first. A
+word that starts with `B` has no evidence, because the call of an operand of `B` is not done.
 
 The second group has a shared operand and a repeated operand. `A` is pure. `B` is pure and has
 the output of `A` as its two operands. `C` is effectful and has the output of `A` as its
@@ -283,69 +285,121 @@ end
 
 /-! The dependency graph. -/
 
-/-- The dependency graph of the source diagram. -/
-def graph : List (sig.Occurrence Nat) := source.graph straight
+/-- The dependency graph of the source diagram: the occurrences of its steps at the histories
+of its inputs. -/
+def graph : List (sig.Occurrence [(), ()]) := source.graph straight
+
+/-- The list with the element at a number at the front. -/
+def toFront {α : Type} (k : Nat) (xs : List α) : List α :=
+  match takeAt k xs with
+  | none => xs
+  | some found => found.1 :: found.2
 
 set_option smartUnfolding false in
-/-- `A` has two inputs. `B` has the output of `A` and an input. `C` has an input, and no
-effectful step is before it. -/
-def graphOccurrences :
-    graph ≡
-      [(0, ⟨Op.add, .cons none (.cons none .nil)⟩, none),
-        (1, ⟨Op.add, .cons (some 0) (.cons none .nil)⟩, none),
-        (2, ⟨Op.emit, .cons none .nil⟩, none)] := .refl
-
-/-- The steps of the graph with a list of names. -/
-def named (names : List Nat) : List (Signature.runs (S := sig) graph).Shape :=
-  names.filterMap fun n => Signature.named? (S := sig) n graph
+/-- The order `C A B` has the occurrences of the source diagram, with `C` at the front. No
+occurrence changes. -/
+def frontGraph :
+    front.graph (Diagram.Order.straight front source frontOrder straight) ≡ toFront 2 graph :=
+  .refl
 
 set_option smartUnfolding false in
-/-- The steps of each order of the list have the names of the steps of the source diagram. -/
-def allNames :
-    ((Diagram.orders source straight).map fun r =>
-        Diagram.Order.names r.1 source r.2 straight (source.numbers straight 0)) ≡
-      [[0, 1, 2], [0, 2, 1], [2, 0, 1]] := .refl
+/-- The order `A C B` has them with `C` at the second position. -/
+def middleGraph :
+    middle.graph (Diagram.Order.straight middle source middleOrder straight) ≡
+      toFront 1 (toFront 2 graph) := .refl
+
+/-- The number of the other occurrences of a result of a move. -/
+def others {α : Type} : Option (α × List α) → Nat
+  | none => 0
+  | some found => found.2.length
 
 set_option smartUnfolding false in
-/-- The word of each order of the list has evidence that it is an admissible order of the
-graph. -/
-def allAdmissible :
-    ((Diagram.orders source straight).map fun r =>
-        (Signature.accept (S := sig) (G := graph)
-          (named (Diagram.Order.names r.1 source r.2 straight (source.numbers straight 0)))
-          []).isSome) ≡
-      [true, true, true] := .refl
+/-- The identity of the theorem for the move of `C` past `B` and `A` is consumed through a
+dependent payload. -/
+def movedPayload :
+    (Identity.transport (fun r => Fin (others r + 1))
+      (pastA.2.moved (Γ₀ := [(), ()]) straight (sig.inputs _) none)
+      ⟨2, Nat.lt_succ_self _⟩).val ≡ 2 := .refl
 
 set_option smartUnfolding false in
-/-- The word with `B` before `A` has no evidence: the producer of an operand of `B` is not
-done. -/
-def notAdmissible :
-    (Signature.accept (S := sig) (G := graph) (named [1, 0, 2]) []).isSome ≡ false := .refl
+/-- The word of each order: the number of each ready step. -/
+def words :
+    (Diagram.Order.depths source source sourceOrder straight,
+      Diagram.Order.depths middle source middleOrder straight,
+      Diagram.Order.depths front source frontOrder straight) ≡
+      ([0, 0, 0], [0, 1, 0], [2, 0, 0]) := .refl
 
-/-- The value of an option that has a value. -/
-def extract {α : Type} : (x : Option α) → x.isSome ≡ true → α
-  | some a, _ => a
+/-- The next runtime of a run: the remaining occurrences without the occurrence of the run, and
+the done occurrences with it. -/
+def progress : Option (sig.Occurrence [(), ()] × List (sig.Occurrence [(), ()])) →
+    sig.Progress [(), ()] → sig.Progress [(), ()]
+  | none, state => state
+  | some found, state => (found.2, found.1 :: state.2)
 
-/-- The machine of the runs: the response has the list with the step. -/
-def doneMachine : Machine (Signature.runs (S := sig) graph) (List Nat) Empty :=
-  fun a => .inr ((), a.1.1.1 :: a.2)
+/-- The machine of the runs. -/
+def machine : Machine runs (sig.Progress [(), ()]) Empty :=
+  fun a => .inr ((), progress (takeAt a.1 a.2.1) a.2)
 
-/-- The machine has evidence of the specification of the graph. -/
-def doneEvidence : Evidence (Signature.admissible (S := sig) graph) doneMachine :=
-  fun _ _ => .refl
+/-- The machine has evidence of the specification of the runs. -/
+def machineEvidence : Evidence (sig.admissible [(), ()]) machine :=
+  fun a pre => Identity.cong (fun r => progress r a.2) pre.2.1
 
-set_option smartUnfolding false in
-/-- The evidence that the word `C A B` is an admissible order, by the decision of each
-precondition. -/
+/-- The evidence that the word of the order `C A B` is an admissible order of the graph, from
+the theorem. -/
 def frontAdmissible :=
-  extract (Signature.accept (S := sig) (G := graph) (named [2, 0, 1]) []) .refl
+  Diagram.Order.admissible front source frontOrder straight (sig.inputs [(), ()]) none []
+    Signature.Known.inputs ()
+
+/-- The result of the run of a word on the machine, from the graph. -/
+def ran (w : List Nat) : Empty ⊕ (Unit × sig.Progress [(), ()]) := machine.run (word w) (graph, [])
+
+/-- The remaining occurrences at a result. -/
+def remainingAt : Empty ⊕ (Unit × sig.Progress [(), ()]) → List (sig.Occurrence [(), ()])
+  | .inr out => out.2.1
+
+/-- The condition at the end of a word is the identity that no occurrence remains. -/
+def finished : (r : Empty ⊕ (Unit × sig.Progress [(), ()])) → sig.Finished [(), ()] r →
+    remainingAt r ≡ []
+  | .inr _, h => h
 
 set_option smartUnfolding false in
-/-- The run of that evidence on the machine gives each step in the list of the done steps at
-the end. `C` is the first step of the word, so it has the last position of the list. -/
+/-- The run of that evidence on the machine gives the identity that no occurrence remains. The
+identity is consumed through a dependent payload. -/
+def frontFinished :
+    (Identity.transport (fun (l : List (sig.Occurrence [(), ()])) => Fin (l.length + 1))
+      (finished (ran (Diagram.Order.depths front source frontOrder straight))
+        (FreeDep.run machineEvidence frontAdmissible))
+      ⟨0, Nat.zero_lt_succ _⟩).val ≡ 0 := .refl
+
+/-- The done occurrences at a result. -/
+def doneAt : Empty ⊕ (Unit × sig.Progress [(), ()]) → List (sig.Occurrence [(), ()])
+  | .inr out => out.2.2
+
+set_option smartUnfolding false in
+/-- The done occurrences at the end of the word of the order `C A B` are the occurrences of the
+order, with the last run first. -/
 def frontDone :
-    ((FreeDep.run doneEvidence frontAdmissible) (2, ⟨Op.emit, .cons none .nil⟩, none)
-      (.there (.there .here))).toFin.val ≡ 2 := .refl
+    doneAt (ran (Diagram.Order.depths front source frontOrder straight)) ≡
+      (front.graph (Diagram.Order.straight front source frontOrder straight)).reverse := .refl
+
+/-- A result of a move has no occurrence with evidence that the call of each operand is done
+for the empty list of done occurrences. -/
+def Blocked : Option (sig.Occurrence [(), ()] × List (sig.Occurrence [(), ()])) → Type
+  | none => Unit
+  | some found =>
+      ((t : Unit) → (p : Port (sig.input found.1.1) t) →
+        History.Produced [] (found.1.2.args.lookup p)) → Empty
+
+set_option smartUnfolding false in
+/-- The second occurrence of the graph is blocked at the start: the call of the first operand
+of `B` is not done. -/
+def blocked : Blocked (takeAt 1 graph) := fun operands => nomatch operands () .here
+
+/-- A word that starts with `B` has no evidence that it is an admissible order. -/
+def notAdmissible (rest : List Nat)
+    (h : FreeDep (sig.admissible [(), ()]) (sig.Finished [(), ()])
+      ((word (1 :: rest)).thread (E := Empty) (graph, []))) : Empty :=
+  Identity.transport Blocked h.parts.1.2.1 blocked h.parts.1.2.2.1
 
 /-! A shared operand and a repeated operand. -/
 
@@ -482,21 +536,29 @@ end Draft.Checks.Dependency
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.frontValue
 
-/-- info: 'Draft.Checks.Dependency.graphOccurrences' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Draft.Checks.Dependency.graphOccurrences
-
-/-- info: 'Draft.Checks.Dependency.allNames' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Draft.Checks.Dependency.allNames
-
-/-- info: 'Draft.Checks.Dependency.allAdmissible' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Draft.Checks.Dependency.allAdmissible
-
 /-- info: 'Draft.Checks.Dependency.notAdmissible' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.notAdmissible
+
+/-- info: 'Draft.Checks.Dependency.frontGraph' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.frontGraph
+
+/-- info: 'Draft.Checks.Dependency.middleGraph' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.middleGraph
+
+/-- info: 'Draft.Checks.Dependency.movedPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.movedPayload
+
+/-- info: 'Draft.Checks.Dependency.words' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.words
+
+/-- info: 'Draft.Checks.Dependency.frontFinished' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.frontFinished
 
 /-- info: 'Draft.Checks.Dependency.frontDone' does not depend on any axioms -/
 #guard_msgs in
