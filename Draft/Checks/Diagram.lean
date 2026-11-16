@@ -22,7 +22,9 @@ check of that derivation has closed inputs, and only the kernel reduces it.
 The third group has a test, a different sum in each case, and one exit case for the two
 paths. The continuation is one effectful step. The composite and the diagram with the
 continuation at each exit give the same values in each case of the test, and the composite has
-one step less. The composite equation of the control sum relates the two forms.
+one step less. The composite equation of the control sum relates the two forms. A second
+continuation has the same diagram at its one case, and the case equation gives a derivation of
+the two continuations from the derivation at that case.
 
 The fourth group has a composite in a composite. One path of the inner composite exits past
 the inner continuation, to the outer continuation. The outer composite and the diagram with
@@ -616,6 +618,37 @@ def copyDerivationRun (flag : Bool) (u v x y : Nat) :
           (f := provider flag u v) (fun _ => .refl)))
       ⟨x + 1 + y, Nat.lt_succ_self _⟩).val ≡ x + 1 + y := .refl
 
+/-- The continuation with a family that is another function of the case. -/
+def afterHand : Continuation sig (.one [()]) [.one [(), ()]] :=
+  .copair fun
+    | ⟨_, .here⟩ => .step ⟨.emit, .cons .here .nil⟩ (.one
+        (.exit ⟨_, .here, Boundary.only _, .cons (.there .here) (.cons .here .nil)⟩))
+
+/-- A map out of a sum is fixed by its cases. At the one case, the first exit equation gives
+one diagram for the two continuations, so the two continuations have a derivation. -/
+def afterCases : Continuation.Derivation (.control sig) after afterHand :=
+  .ofCases fun
+    | ⟨_, .here⟩ =>
+        .trans (.rule (Sum.inr (Sum.inl (.exit ⟨_, .here⟩ (PortMap.id _) _))))
+          (.symm (.rule (Sum.inr (Sum.inl (.exit ⟨_, .here⟩ (PortMap.id _) _)))))
+
+/-- The composite with the second continuation. -/
+def sharedHand : Diagram sig [(), ()] [.one [(), ()]] := .seq branches afterHand
+
+/-- The derivation of the two composites, by the congruence of a composite. -/
+def casesDerivation : Diagram.Derivation (.control sig) shared sharedHand :=
+  .seq (.agree (.refl branches)) afterCases
+
+set_option smartUnfolding false in
+/-- The identity of the two returned values, from the soundness of the derivation, is consumed
+through a dependent payload that has the response of the store. -/
+def casesRun (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).2)
+        ((casesDerivation.sound stop count (.control returns) (inputs (x + 1) y) .pure).run
+          (f := provider flag u v) (fun _ => .refl)))
+      ⟨u + (x + 1 + y), Nat.lt_succ_self _⟩).val ≡ u + (x + 1 + y) := .refl
+
 /-! A composite in a composite. -/
 
 /-- The exits of the inner composite: the boundary of the outer continuation, and the
@@ -833,7 +866,7 @@ def framedEach : Diagram sig [(), ()] [.one [(), ()]] :=
 /-- The frame equation of the control sum relates the two forms, by the congruence of a
 composite. -/
 def unshare : Diagram.Derivation (.control sig) framed framedEach :=
-  .seq (.agree (.refl tested)) (.rule (.frame keep enter call (.copair afterCall)))
+  .seq (.agree (.refl tested)) (.rule (Sum.inl (.frame keep enter call (.copair afterCall))))
 
 set_option smartUnfolding false in
 def framedEachZero (flag : Bool) (u v y : Nat) :
@@ -989,6 +1022,10 @@ end Draft.Checks.Diagram
 /-- info: 'Draft.Checks.Diagram.unshareRun' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Diagram.unshareRun
+
+/-- info: 'Draft.Checks.Diagram.casesRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.casesRun
 
 /-- info: 'Draft.Checks.Diagram.partFramedCallThird' does not depend on any axioms -/
 #guard_msgs in

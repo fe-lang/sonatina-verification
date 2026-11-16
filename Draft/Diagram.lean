@@ -861,14 +861,19 @@ def Continuation.substExitRun : {P : Boundary Ty} → {Qs Qs' : Exits Ty} →
 
 end
 
+/-- A case of a continuation, as a diagram in the context of the case: the exit to that case,
+and then the continuation. -/
+def Continuation.atCase {K : Boundary Ty} {Qs : Exits Ty} (next : Continuation S K Qs)
+    (c : K.Case) : Diagram S c.1 Qs :=
+  .seq (.exit (Exits.At.here ⟨c, PortMap.id c.1⟩)) next
+
 /-- The family of a continuation for the exits of the first diagram of a composite. A case of
 the boundary of the continuation has the exit to it and then the continuation, and each other
 case has its exit. -/
 def Continuation.exits {K : Boundary Ty} {Qs : Exits Ty} (next : Continuation S K Qs) :
     Diagram.Family S (K :: Qs) Qs :=
   fun _ i => Elem.consCases (motive := fun Q _ => (c : Q.Case) → Diagram S c.1 Qs) i
-    (fun c => .seq (.exit (Exits.At.here ⟨c, PortMap.id c.1⟩)) next)
-    (fun Q j c => .exit ⟨Q, j, c, PortMap.id c.1⟩)
+    next.atCase (fun Q j c => .exit ⟨Q, j, c, PortMap.id c.1⟩)
 
 /-- The diagram with the continuation at each exit to its boundary. A composite is the shared
 form of a continuation, and this diagram is the copied form. -/
@@ -1150,15 +1155,30 @@ inductive Continuation.FrameCopair : {P : Boundary Ty} → {Qs : Exits Ty} →
       Continuation.FrameCopair (.frame kept args shared next)
         (.copair (Continuation.frameAt kept args shared next))
 
+/-- The case equation of the control sum: a continuation is the copairing of its cases. -/
+inductive Continuation.CopairCases : {P : Boundary Ty} → {Qs : Exits Ty} →
+    Continuation S P Qs → Continuation S P Qs → Type where
+  | cases {K : Boundary Ty} {Qs : Exits Ty} (next : Continuation S K Qs) :
+      Continuation.CopairCases next (.copair next.atCase)
+
 /-- The interchange equation set. -/
 def Rules.interchange (S : Signature Ty) : Rules S := ⟨Diagram.Interchange, fun _ _ => Empty⟩
 
 /-- The interchange rule and the equations of the control sum: the two exit equations, the
-composite equation, and the frame equation. -/
+composite equation, the frame equation, and the case equation. -/
 def Rules.control (S : Signature Ty) : Rules S :=
   ⟨fun d e => Diagram.Interchange d e ⊕
       (Diagram.ExitCopair d e ⊕ (Diagram.ExitPast d e ⊕ Diagram.SeqExits d e)),
-    Continuation.FrameCopair⟩
+    fun k k' => Continuation.FrameCopair k k' ⊕ Continuation.CopairCases k k'⟩
+
+/-- A map out of a sum is fixed by its cases: two continuations that have a derivation at each
+case have a derivation. -/
+def Continuation.Derivation.ofCases {K : Boundary Ty} {Qs : Exits Ty}
+    {k k' : Continuation S K Qs}
+    (each : (c : K.Case) → Diagram.Derivation (Rules.control S) (k.atCase c) (k'.atCase c)) :
+    Continuation.Derivation (Rules.control S) k k' :=
+  .trans (.rule (Sum.inr (.cases k)))
+    (.trans (.copair each) (.symm (.rule (Sum.inr (.cases k')))))
 
 /-- A call at weakened ports is the call at the ports. -/
 def Diagram.callWeaken {β : Type} {Ξ Γ : List Ty} (o : S.Op) (ports : PortMap Γ (S.input o))
@@ -1258,6 +1278,18 @@ def Continuation.FrameCopair.sound {P : Boundary Ty} {Qs : Exits Ty} :
                 rest)).subst impl)
           (PortMap.selectId r.2).symm)
 
+/-- The case equation of the control sum holds in each implementation. The case has the values
+that the identity port map selects. -/
+def Continuation.CopairCases.sound {P : Boundary Ty} {Qs : Exits Ty} :
+    {k k' : Continuation S P Qs} → Continuation.CopairCases k k' → (r : P.At X) →
+    (rest : Qs.At X → Free (S.interface X) α) →
+    Free.Agreement ((k.run stop n r rest).subst impl) ((k'.run stop n r rest).subst impl)
+  | _, _, .cases next, r, rest =>
+      .ofIdentity
+        (Identity.cong
+          (fun (values : All X r.1.1) => (next.run stop n ⟨r.1, values⟩ rest).subst impl)
+          (PortMap.selectId r.2).symm)
+
 /-- The interchange equation set holds in each implementation in which each pure operation
 returns without a call. -/
 def Rules.Sound.interchange (pure : S.Returns impl) : (Rules.interchange S).Sound impl α :=
@@ -1269,6 +1301,8 @@ def Rules.Sound.control (pure : S.Returns impl) : (Rules.control S).Sound impl �
     | .inr (.inl x) => Diagram.ExitCopair.sound stop n x
     | .inr (.inr (.inl x)) => Diagram.ExitPast.sound stop n x
     | .inr (.inr (.inr x)) => Diagram.SeqExits.sound stop n x,
-    fun stop n => Continuation.FrameCopair.sound stop n⟩
+    fun stop n => fun r => match r with
+    | .inl x => Continuation.FrameCopair.sound stop n x
+    | .inr x => Continuation.CopairCases.sound stop n x⟩
 
 end Draft

@@ -331,11 +331,13 @@ in which each pure operation returns without a call. The two exit equations
 of the control sum are rules too. An exit to the boundary of a copairing, and
 then the copairing, is the diagram of the case of the exit, with renamed
 ports. An exit past a continuation, and then the continuation, is that exit.
-The control equation set has two more rules. A composite is the diagram that
-has the continuation at each exit to its boundary. A frame is the copairing
-that has the frame of each case alone: the frame has one copy of its diagram,
-and the copairing has one copy for each case. Each of the two holds in each
-implementation.
+The control equation set has three more rules. A composite is the diagram
+that has the continuation at each exit to its boundary. A frame is the
+copairing that has the frame of each case alone: the frame has one copy of
+its diagram, and the copairing has one copy for each case. A continuation is
+the copairing of its cases. Each of the three holds in each implementation.
+The last rule gives the uniqueness of a map out of a sum as a derivation: two
+continuations that have a derivation at each case have a derivation.
 [Prelude/Indexed.lean](Prelude/Indexed.lean) has the positions of a
 concatenation, the case analysis of a position of a nonempty list, and the
 selection of values at a list of positions, with their laws. [Prelude/Container/Free.lean](Prelude/Container/Free.lean) has the
@@ -371,7 +373,9 @@ arbitrary computation at the limit:
   The check consumes the identity that the agreement gives. The composite has
   4 steps, and the diagram with the continuation at each exit has 5. The
   composite equation relates the two forms as a derivation, and a check
-  consumes its soundness.
+  consumes its soundness. A second continuation has the same diagram at its
+  one case. The uniqueness of a map out of a sum gives the derivation of the
+  two continuations, and a check consumes its soundness.
 - A test, one effectful step for the two paths, and a different sum after
   that step on each path. A frame has the one copy of the step, and its
   bypass keeps the path and one input. After the substitution, the frame and
@@ -409,10 +413,9 @@ the loop apply to the run from the counter 2, and their round trips hold by
 computation. The loop has 3 steps, and the body and then the loop has 6.
 
 These parts of the stage are open: the identity law and the composition law
-of the action of a port map as structural agreements of diagrams, the
-uniqueness of a map out of a sum, and the rules of the cell (the equations of
-a read and a write) with their soundness on the machine. The stage continues
-with one row of its table at a time.
+of the action of a port map as structural agreements of diagrams, and the
+rules of the cell (the equations of a read and a write) with their soundness
+on the machine. The stage continues with one row of its table at a time.
 
 ## D6: generic definitions
 
