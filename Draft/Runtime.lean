@@ -1,4 +1,4 @@
-import Draft.Diagram
+import Draft.Verified
 
 /-! Diagrams with a runtime.
 
@@ -21,12 +21,23 @@ diagram of each response from the next runtime. The condition of a composite and
 of a frame have the runtime. The invariant of a loop has the runtime and the number of the
 unrollings that remain: the body goes from the invariant at one more unrolling to the
 invariant at the next entrance, and the invariant at no unrolling gives the condition at the
-limit. -/
+limit.
+
+A specification of a diagram with a runtime is a dependent polynomial on the interface of the
+diagram with a runtime. The lift of a diagram for it has the evidence at each context and each
+runtime with a witness of the precondition. The verified diagram is the implementation with a
+runtime, with that lift. Its composition with a verified lowering with a runtime is a verified
+implementation by the calls of the target with a runtime.
+
+A derivation in a rule set that holds in a lowering gives an agreement of the two computations
+with a runtime, after the lowering with a runtime. The two diagrams have one run on the machine
+of the lowering, for each machine of the target, and a verified implementation moves along the
+agreement. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
 
-universe w z p
+universe w z p w' u v
 
 open Prelude Container
 
@@ -201,5 +212,110 @@ def loop {a : K.At X} (Inv : Nat → K.At X → R → Type p) (body : Continuati
   fun stops limit _ done => unrolled stops limit Inv bodyDep atLimit done n a s start
 
 end Continuation.StateDep
+
+/-- The lift of a diagram for a specification of its interface with a runtime: the evidence at
+each context and each runtime with a witness of the precondition. The condition at an exit and
+the condition at a stop are the postcondition of that witness. `L` is the condition of the
+runtime at the limit of a loop. -/
+abbrev Diagram.StateLift (r : DepPoly.{0, 0, w, z} ((S.interface X).runtime R E)) (n : Nat)
+    {Γ : List Ty} {Qs : Exits Ty}
+    (q : DepPoly.{0, 0, w', p} ((Diagram.interface X Γ Qs).runtime R E))
+    (L : (a : All X Γ × R) → q.Pre a → R → Type p) (d : Diagram S Γ Qs) :
+    Type (max w z w' (p + 1)) :=
+  (env : All X Γ) → (s : R) → (pre : q.Pre (env, s)) →
+    d.StateDep r n (fun x s' => q.Post (env, s) pre (.inr (x, s')))
+      (fun e => q.Post (env, s) pre (.inl e)) (L (env, s) pre) env s
+
+/-- The lift of a continuation for a specification of its interface with a runtime. -/
+abbrev Continuation.StateLift (r : DepPoly.{0, 0, w, z} ((S.interface X).runtime R E)) (n : Nat)
+    {K : Boundary Ty} {Qs : Exits Ty}
+    (q : DepPoly.{0, 0, w', p} ((Continuation.interface X K Qs).runtime R E))
+    (L : (a : K.At X × R) → q.Pre a → R → Type p) (k : Continuation S K Qs) :
+    Type (max w z w' (p + 1)) :=
+  (a : K.At X) → (s : R) → (pre : q.Pre (a, s)) →
+    k.StateDep r n (fun x s' => q.Post (a, s) pre (.inr (x, s')))
+      (fun e => q.Post (a, s) pre (.inl e)) (L (a, s) pre) a s
+
+/-- A verified diagram with a runtime: the implementation with a runtime, with its lift, for a
+computation at the limit that has evidence of each postcondition. -/
+def Diagram.StateLift.impl {Γ : List Ty} {Qs : Exits Ty}
+    {q : DepPoly.{0, 0, w', p} ((Diagram.interface X Γ Qs).runtime R E)}
+    {L : (a : All X Γ × R) → q.Pre a → R → Type p} {d : Diagram S Γ Qs}
+    (lift : d.StateLift r n q L) {stop : Free (S.interface X) (Qs.At X)}
+    (limit : (env : All X Γ) → (s : R) → (pre : q.Pre (env, s)) → (s' : R) →
+      L (env, s) pre s' → FreeDep r (q.Post (env, s) pre) (stop.thread s')) :
+    ImplDep q r (d.impl stop n).thread :=
+  fun a pre => lift a.1 a.2 pre (fun _ z => z) (limit a.1 a.2 pre) fun _ _ post => .pure post
+
+/-- A verified continuation with a runtime. -/
+def Continuation.StateLift.impl {K : Boundary Ty} {Qs : Exits Ty}
+    {q : DepPoly.{0, 0, w', p} ((Continuation.interface X K Qs).runtime R E)}
+    {L : (a : K.At X × R) → q.Pre a → R → Type p} {k : Continuation S K Qs}
+    (lift : k.StateLift r n q L) {stop : Free (S.interface X) (Qs.At X)}
+    (limit : (a : K.At X) → (s : R) → (pre : q.Pre (a, s)) → (s' : R) →
+      L (a, s) pre s' → FreeDep r (q.Post (a, s) pre) (stop.thread s')) :
+    ImplDep q r (k.impl stop n).thread :=
+  fun a pre => lift a.1 a.2 pre (fun _ z => z) (limit a.1 a.2 pre) fun _ _ post => .pure post
+
+section Derivation
+
+variable {D : Container.{u, v}} {lower : Impl (S.interface X) D} {T : Rules S} {α : Type}
+  (stop : Free (S.interface X) α) (count : Nat) (ok : T.Sound lower α)
+
+/-- A derivation in a rule set that holds in a lowering gives computations with a runtime that
+agree, after the lowering with a runtime. -/
+def Diagram.Derivation.thread {Γ : List Ty} {Qs : Exits Ty} {d e : Diagram S Γ Qs}
+    (h : Diagram.Derivation T d e) (env : All X Γ) (rest : Qs.At X → Free (S.interface X) α)
+    (s : R) :
+    Free.Agreement (((d.run stop count env rest).thread (E := E) s).subst lower.thread)
+      (((e.run stop count env rest).thread s).subst lower.thread) :=
+  (Free.threadSubst lower (d.run stop count env rest) s).symm.trans
+    (((h.sound stop count ok env rest).thread s).trans
+      (Free.threadSubst lower (e.run stop count env rest) s))
+
+/-- The two continuations of a derivation, with a runtime. -/
+def Continuation.Derivation.thread {K : Boundary Ty} {Qs : Exits Ty} {k k' : Continuation S K Qs}
+    (h : Continuation.Derivation T k k') (a : K.At X) (rest : Qs.At X → Free (S.interface X) α)
+    (s : R) :
+    Free.Agreement (((k.run stop count a rest).thread (E := E) s).subst lower.thread)
+      (((k'.run stop count a rest).thread s).subst lower.thread) :=
+  (Free.threadSubst lower (k.run stop count a rest) s).symm.trans
+    (((h.sound stop count ok a rest).thread s).trans
+      (Free.threadSubst lower (k'.run stop count a rest) s))
+
+/-- The two diagrams of a derivation have one run on the machine of a lowering in which the
+rules hold, for each machine of the target, each context, and each runtime. -/
+def Diagram.Derivation.machineRun (m : Machine D R E) {Γ : List Ty} {Qs : Exits Ty}
+    {d e : Diagram S Γ Qs} (h : Diagram.Derivation T d e) (env : All X Γ)
+    (rest : Qs.At X → Free (S.interface X) α) (s : R) :
+    (m.impl lower).run (d.run stop count env rest) s ≡
+      (m.impl lower).run (e.run stop count env rest) s :=
+  (Machine.runSubst lower m (d.run stop count env rest) s).symm.trans
+    ((Machine.runCongr (h.sound stop count ok env rest) (Homotopy.refl m) s).trans
+      (Machine.runSubst lower m (e.run stop count env rest) s))
+
+/-- The two continuations of a derivation have one run on the machine of the lowering. -/
+def Continuation.Derivation.machineRun (m : Machine D R E) {K : Boundary Ty} {Qs : Exits Ty}
+    {k k' : Continuation S K Qs} (h : Continuation.Derivation T k k') (a : K.At X)
+    (rest : Qs.At X → Free (S.interface X) α) (s : R) :
+    (m.impl lower).run (k.run stop count a rest) s ≡
+      (m.impl lower).run (k'.run stop count a rest) s :=
+  (Machine.runSubst lower m (k.run stop count a rest) s).symm.trans
+    ((Machine.runCongr (h.sound stop count ok a rest) (Homotopy.refl m) s).trans
+      (Machine.runSubst lower m (k'.run stop count a rest) s))
+
+end Derivation
+
+/-- A derivation in a rule set that holds in a lowering gives a map of verified implementations
+with a runtime, of one specification. The agreement of the two computations with a runtime is
+its plain part, and the lift moves along it. -/
+def Diagram.Derivation.stateLift {D : Container.{0, 0}} {lower : Impl (S.interface X) D}
+    {T : Rules S} {Γ : List Ty} {Qs : Exits Ty} (ok : T.Sound lower (Qs.At X))
+    {d e : Diagram S Γ Qs} (h : Diagram.Derivation T d e)
+    {q : DepPoly.{0, 0, w', p} ((Diagram.interface X Γ Qs).runtime R E)}
+    {t : DepPoly.{0, 0, w, z} (D.runtime R E)} (stop : Free (S.interface X) (Qs.At X))
+    (count : Nat) (ff : ImplDep q t ((d.impl stop count).thread.trans lower.thread)) :
+    ImplDep q t ((e.impl stop count).thread.trans lower.thread) :=
+  ImplDep.reindex (fun a => h.thread stop count ok a.1 .pure a.2) ff
 
 end Draft

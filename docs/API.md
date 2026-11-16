@@ -37,7 +37,7 @@ The Prelude imports Lean's `Init` and supplies the following modules:
 | [`Prelude.Container.Section`](../Prelude/Container/Section.lean) | Closed providers, morphism interpretation, specifications, witness-dependent evidence, and computational reindexing laws |
 | [`Prelude.Container.Free`](../Prelude/Container/Free.lean) | `Free` computations with bind, interpretation, and structural agreement; implementations with substitution, composition, and copairing; the laws of the two |
 | [`Prelude.Container.Verified`](../Prelude/Container/Verified.lean) | `FreeDep` evidence that a computation satisfies a specification, with bind, substitution, interpretation, and transport along agreement; `ImplDep` lifts of implementations with composition and copairing; the laws of interpretation |
-| [`Prelude.Container.Runtime`](../Prelude/Container/Runtime.lean) | The interface with a runtime (`Container.runtime`), machines as its closed providers (`Machine`), the computation and the implementation with a runtime at each call (`Free.thread`, `Impl.thread`), the run on a machine and the machine of an implementation (`Machine.run`, `Machine.impl`), the graph of a machine with its evidence, and the specification with an invariant of the runtime with the move of evidence to it (`DepPoly.invariant`, `FreeDep.thread`) |
+| [`Prelude.Container.Runtime`](../Prelude/Container/Runtime.lean) | The interface with a runtime (`Container.runtime`), machines as its closed providers (`Machine`), the computation and the implementation with a runtime at each call (`Free.thread`, `Impl.thread`) with their laws for agreement, bind, and substitution, the run on a machine and the machine of an implementation (`Machine.run`, `Machine.impl`) with the laws of the run, and the specification with an invariant of the runtime with the move of evidence and of a verified implementation to it (`DepPoly.invariant`, `FreeDep.thread`, `ImplDep.thread`) |
 | [`Prelude.Container.Indexed`](../Prelude/Container/Indexed.lean) | Input/output indexed containers, typed extensions, index-preserving morphisms, and indexed composition |
 
 Ordinary data and effect interfaces are Lean's: `Empty`, `Unit`, `Bool`, `Nat`,
@@ -163,7 +163,9 @@ depends on the witness of the precondition. `DepPoly.sigma r` is the
 specification of `Container.sigma F` that has `r i` at each index.
 `Container.Evidence r provider` is the evidence that a closed provider satisfies
 `r`. `Evidence.reindex` transports response evidence while retaining the exact
-input and supplied precondition witness. `Container.zero` is the polynomial
+input and supplied precondition witness. `Section.graph f` is the graph of a
+closed provider: the specification that has the response of `f` at each shape.
+`Section.graphEvidence f` is the evidence of `f` for it. `Container.zero` is the polynomial
 with no shape. `Section.zero` is its closed provider, `DepPoly.zero` is a
 specification of it, and `Evidence.zero r` is the evidence of each of its
 specifications. An implementation into `Container.zero` makes no call.
@@ -285,6 +287,8 @@ postcondition for that witness. The universe levels of the specification and of
 | `ff.run e` | The evidence of the provider `f.run provider`, for `e : Evidence t provider` |
 | `ff.reindex agree` | The lift of `g` from the lift of `f` and `agree : Impl.Agreement f g` |
 | `ImplDep.ofEvidence e` | The lift of `Impl.ofSection f`, for `e : Evidence r f` |
+| `FreeDep.graph f x` | The evidence of `x` for the graph of the provider `f`: it returns the value of `x.run f` |
+| `ImplDep.graph g f` | The lift of `g` between the graph of `g.run f` and the graph of `f` |
 
 An implementation with its lift is a verified implementation. The lift is
 indexed by the implementation, so the lift of a composite is a lift of the
@@ -297,6 +301,47 @@ composite of the implementations. `ff.trans (ImplDep.copair gg)` is Aberlé's
 | `FreeDep.runReindex` | The run of moved evidence is the evidence of the first run, across the identity that `Agreement.run` gives |
 | `FreeDep.runSubst` | The run of substituted evidence is the run of the evidence with the provider of the implementation, across the identity `Free.runSubst` |
 | `ImplDep.runTrans` | The evidence of a composite is the evidence of its two stages, across the homotopy `Impl.runTrans` |
+
+### Interfaces with a runtime
+
+`C.runtime R E` is the interface with a runtime. A shape is a shape of `C` with
+a runtime `R`. A response has a position with the next runtime, or the call
+stops with a value of `E`. `Machine C R E` is a closed provider of that
+interface. The runtime, the stop, the shapes, and the positions have
+independent universe levels.
+
+| Definition | Meaning |
+| --- | --- |
+| `x.thread s` | The computation with the runtime at each call, from the runtime `s`. Its result is the returned value with the last runtime, or the value of a stop. |
+| `Free.resume f` | The rest of a computation with a runtime, from an earlier result: a stop ends, and a returned value gives its runtime to `f` |
+| `f.thread` | The implementation with the runtime at each call |
+| `m.run x s` | The run of `x` on the machine `m` from the runtime `s`: `(x.thread s).run m` |
+| `m.impl f` | The machine that an implementation `f` gives from a machine `m` for its calls: `f.thread.run m` |
+| `m.resume f` | The result of a run, from an earlier result: a stop stays, and a returned value gives its runtime to the run of `f` |
+| `Outcome Q T Z` | The condition at a result, from a condition at the returned value, an invariant of the runtime, and a condition at a stop |
+| `t.invariant T Z` | The specification of `C.runtime R E` from a specification `t` of `C`, an invariant of the runtime, and a condition at a stop |
+| `h.thread s inv` | The evidence of `x.thread s` for `t.invariant T Z`, from the evidence `h` of `x` and the invariant at `s` |
+| `ff.thread` | The lift of `f.thread` for the two specifications with the invariant, from the lift `ff` of `f` |
+| `h.threadBind k` | The evidence of `(x.bind f).thread s`, from the evidence of `x.thread s` and the evidence of the rest from each result |
+| `h.threadSubst gg` | The evidence of `(x.subst g).thread s`, from the evidence of `x.thread s` and a lift `gg` of `g.thread` |
+
+A specification of `C.runtime R E` relates the runtime before a call to the
+response and the runtime after it. The graph of a machine is such a
+specification, and `ImplDep.graph f.thread m` is the lift of `f.thread` between
+the graph of `m.impl f` and the graph of `m`. The run of a lift of `f.thread`
+with the evidence of a machine is the evidence of the machine `m.impl f`.
+
+| Law | Statement |
+| --- | --- |
+| `Free.threadRequest` | The computation with a runtime of a call has `Free.resume` of its continuation at each response; it holds by `.refl` |
+| `Free.Agreement.thread`, `Impl.Agreement.thread` | The computation and the implementation with a runtime respect agreement |
+| `Free.threadBind` | `(x.bind f).thread s` agrees with `(x.thread s).bind (Free.resume f)` |
+| `Free.threadSubst` | `(x.subst g).thread s` agrees with `(x.thread s).subst g.thread` |
+| `Impl.threadId`, `Impl.threadTrans` | The implementation with a runtime preserves the implementation with one call and composition |
+| `Machine.runCongr`, `Machine.implCongr` | Computations that agree have one run, and implementations that agree give one machine, on machines that agree |
+| `Machine.runBind` | `m.run (x.bind f) s` is `m.resume f (m.run x s)` |
+| `Machine.runSubst` | `m.run (x.subst g) s` is `(m.impl g).run x s` |
+| `Machine.implId`, `Machine.implTrans` | The machine of the implementation with one call is the machine; the machine of `f.trans g` is `(m.impl g).impl f` |
 
 `IndexedContainer I O` has `Shape : O → Type s`, positions at each shape,
 and `index : (s : Shape o) → Pos s → I`. Its extension is
@@ -343,7 +388,10 @@ state in `Type` and the result in `Type 1`.
 [`PreludeTests.Eq`](../PreludeTests/Eq.lean) and
 [`PreludeTests.Axiom`](../PreludeTests/Axiom.lean) check the separate modules.
 [`PreludeTests.Runtime`](../PreludeTests/Runtime.lean) checks machines: a state
-invariant, and a specification of two runtimes for one program.
+invariant, a specification of two runtimes for one program, the laws of the
+run for a bind, a substitution, and a composite, evidence that moves along the
+laws of a bind and of a substitution, and the two general lifts of an
+implementation with a runtime.
 [`PreludeTests.Container`](../PreludeTests/Container.lean) checks container
 universes, position selection and sharing, polynomial composition, the round
 trips of `sumIso` and `compIso`, the value witnesses of composed agreements, a

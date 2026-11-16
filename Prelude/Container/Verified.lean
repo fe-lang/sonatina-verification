@@ -65,6 +65,15 @@ def runBind {provider : Section C} (e : Evidence r provider) {f : α → Free C 
     (fun _ => .refl)
     (fun {a _} pre verified => runBind e k (verified (provider a) (e a pre)))
 
+/-- A computation has evidence for the graph of a provider: it returns the value of its run
+with that provider. -/
+def graph (f : Section C) : (x : Free C α) → FreeDep f.graph (fun b => x.run f ≡ b) x
+  | .pure _ => .pure .refl
+  | .request a k =>
+      .request ⟨⟩ fun _ same =>
+        Identity.ind (fun j _ => FreeDep f.graph (fun b => (k (f a)).run f ≡ b) (k j))
+          (graph f (k (f a))) same
+
 /-- The type of the evidence at a returned value. -/
 def ResultAt (Q : α → Type v) : Free C α → Type v
   | .pure a => Q a
@@ -166,6 +175,11 @@ def reindex {f g : Impl C D} (agree : Impl.Agreement f g) (ff : ImplDep r t f) :
 /-- A provider with evidence is a verified implementation without a call. -/
 def ofEvidence {f : Section C} (e : Evidence r f) : ImplDep r t (Impl.ofSection f) :=
   fun a pre => .pure (e a pre)
+
+/-- An implementation is a verified implementation of the graph of the provider that it
+gives, with the graph of the provider of its calls as the assumption. -/
+def graph (g : Impl C D) (f : Section D) : ImplDep (g.run f).graph f.graph g :=
+  fun a _ => FreeDep.graph f (g a)
 
 end ImplDep
 

@@ -12,7 +12,17 @@ runtime, and the run on the machine gives the invariant at the last runtime.
 The second group has a specification that relates two runtimes: the response is the runtime
 before, and the runtime after is its successor. An invariant of one runtime cannot say this.
 The program is a verified implementation of it, with the graph of the machine as the
-assumption on each call, and the machine of the program has evidence of it. -/
+assumption on each call, and the machine of the program has evidence of it.
+
+The third group has the laws of the run on a machine, for a computation that calls the program
+two times: the run of a bind, the run of a substitution, and the machine of a composite. Each
+check eliminates the identity of the law at an arbitrary runtime. The evidence of the
+computation is built with the law of a bind, and it moves along the law of a substitution to
+the calls of the state effect.
+
+The fourth group has the two general sources of a verified implementation with a runtime: the
+graph of the machine of an implementation, and a verified implementation with an invariant of
+the runtime. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -111,6 +121,114 @@ def tickEvidence : Evidence tickSpec (Machine.impl tick (stateMachine Nat)) :=
 /-- The evidence computes: it is the reflexivity at each runtime. -/
 def tickEvidenceRefl (s : Nat) : tickEvidence ((), s) () ≡ .refl := .refl
 
+/-! The laws of the run on a machine. -/
+
+/-- The rest after the first call: one more call, and the sum of the two responses. -/
+def second (a : Nat) : Free Tick Nat := (Free.call ()).bind fun b => .pure (a + b)
+
+/-- Two calls of the program, and the sum of the two responses. -/
+def twice : Free Tick Nat := (Free.call ()).bind second
+
+/-- The machine of the program. -/
+abbrev tickMachine : Machine Tick Nat Empty := Machine.impl tick (stateMachine Nat)
+
+/-- The last runtime of a result. -/
+def last : Empty ⊕ (Nat × Nat) → Nat
+  | .inr b => b.2
+
+/-- The run of the two calls, for an arbitrary runtime. -/
+def twiceRun (s : Nat) : tickMachine.run twice s ≡ .inr (s + (s + 1), s + 2) := .refl
+
+/-- The identity of the run of a bind is consumed through a dependent payload, for an arbitrary
+runtime. -/
+def twiceRunBind (s : Nat) :
+    (Identity.transport (fun out => Fin (last out + 1))
+      (Machine.runBind tickMachine second (Free.call ()) s) ⟨s + 2, Nat.lt_succ_self _⟩).val ≡
+      s + 2 := .refl
+
+/-- The identity of the run of a substitution: the run of the substituted computation on the
+machine of the state effect, and the run of the computation on the machine of the program. -/
+def twiceRunSubst (s : Nat) :
+    (Identity.transport (fun out => Fin (last out + 1))
+      (Machine.runSubst tick (stateMachine Nat) twice s) ⟨s + 2, Nat.lt_succ_self _⟩).val ≡
+      s + 2 := .refl
+
+/-- The interface of the computation: one call that returns a number. -/
+abbrev Pair : Container.{0, 0} := ⟨Unit, fun _ => Nat⟩
+
+/-- The computation as an implementation by calls of the program. -/
+def pair : Impl Pair Tick := fun _ => twice
+
+/-- The machine of the composite is the machine of the first implementation on the machine of
+the program. -/
+def pairTrans (s : Nat) :
+    (Identity.transport (fun out => Fin (last out + 1))
+      (Machine.implTrans pair tick (stateMachine Nat) ((), s)) ⟨s + 2, Nat.lt_succ_self _⟩).val ≡
+      s + 2 := .refl
+
+/-- The machine of the implementation with one call is the machine. -/
+def tickId (s : Nat) :
+    (Identity.transport (fun out => Fin (last out + 1)) (Machine.implId tickMachine ((), s))
+      ⟨s + 1, Nat.lt_succ_self _⟩).val ≡ s + 1 := .refl
+
+/-- The evidence of one call of the program, for the specification of two runtimes. -/
+def callDep (s : Nat) :
+    FreeDep tickSpec (fun out => out ≡ .inr (s, s + 1)) ((Free.call (C := Tick) ()).thread s) :=
+  .request () fun b post =>
+    match b, post with
+    | _, .refl => .pure .refl
+
+/-- The evidence of the two calls, by the law of a bind. The rest receives the response and
+the runtime of the first call. -/
+def twiceDep (s : Nat) :
+    FreeDep tickSpec (fun out => out ≡ .inr (s + (s + 1), s + 2)) (twice.thread s) :=
+  FreeDep.threadBind (callDep s) fun b post =>
+    match b, post with
+    | _, .refl =>
+        FreeDep.threadBind (f := fun b => .pure (s + b)) (callDep (s + 1)) fun b' post' =>
+          match b', post' with
+          | _, .refl => .pure .refl
+
+/-- The evidence moves along the law of a substitution, to the calls of the state effect. The
+run on the machine of the state effect gives the result of the two calls. -/
+def twiceEvidence (s : Nat) :
+    (stateMachine Nat).run (twice.subst tick) s ≡ .inr (s + (s + 1), s + 2) :=
+  FreeDep.run (stateMachine Nat).graphEvidence ((twiceDep s).threadSubst tickDep)
+
+/-- The evidence computes: it is the reflexivity at each runtime. -/
+def twiceEvidenceRefl (s : Nat) : twiceEvidence s ≡ .refl := .refl
+
+/-! The sources of a verified implementation with a runtime. -/
+
+/-- The program is a verified implementation between the graphs of the two machines. -/
+def tickGraph : ImplDep tickMachine.graph (stateMachine Nat).graph (Impl.thread tick) :=
+  ImplDep.graph (Impl.thread tick) (stateMachine Nat)
+
+/-- Its run with the machine of the state effect is the evidence of the graph of the machine
+of the program. -/
+def tickGraphRefl (s : Nat) :
+    tickGraph.run (stateMachine Nat).graphEvidence ((), s) ⟨⟩ ≡ .refl := .refl
+
+/-- The specification of the program for the state invariant: the response has the
+invariant. -/
+def tickBound (b : Nat) : DepPoly.{0, 0, 0, 0} Tick where
+  Pre _ := Unit
+  Post _ _ r := AtLeast b r
+
+/-- The program is a verified implementation for the state invariant. -/
+def tickBoundDep (b : Nat) : ImplDep (tickBound b) (Invariant Nat (AtLeast b)) tick :=
+  fun _ _ => tickInvariant b
+
+/-- The verified implementation with a runtime, on the machine of the state effect: the machine
+of the program has evidence of the specification with the invariant of the runtime. -/
+def tickBoundEvidence (b : Nat) :
+    Evidence ((tickBound b).invariant (AtLeast b) (fun _ : Empty => Empty)) tickMachine :=
+  (tickBoundDep b).thread.run (invariant Nat (AtLeast b))
+
+/-- The invariant at the next runtime, for an arbitrary bound and an arbitrary number. -/
+def tickBoundLast (b d : Nat) :
+    (tickBoundEvidence b ((), b + d) (⟨d, .refl⟩, ())).2.1 ≡ d + 1 := .refl
+
 end PreludeTests.Runtime
 
 /-- info: 'PreludeTests.Runtime.tickOutcomeLast' does not depend on any axioms -/
@@ -120,3 +238,31 @@ end PreludeTests.Runtime
 /-- info: 'PreludeTests.Runtime.tickEvidenceRefl' does not depend on any axioms -/
 #guard_msgs in
 #print axioms PreludeTests.Runtime.tickEvidenceRefl
+
+/-- info: 'PreludeTests.Runtime.twiceRunBind' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.twiceRunBind
+
+/-- info: 'PreludeTests.Runtime.twiceRunSubst' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.twiceRunSubst
+
+/-- info: 'PreludeTests.Runtime.pairTrans' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.pairTrans
+
+/-- info: 'PreludeTests.Runtime.tickId' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.tickId
+
+/-- info: 'PreludeTests.Runtime.twiceEvidenceRefl' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.twiceEvidenceRefl
+
+/-- info: 'PreludeTests.Runtime.tickGraphRefl' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.tickGraphRefl
+
+/-- info: 'PreludeTests.Runtime.tickBoundLast' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.tickBoundLast

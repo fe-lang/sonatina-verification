@@ -67,6 +67,15 @@ def DepPoly.sigma {ι : Type u} {F : ι → Container.{s, p}}
 def Evidence (r : DepPoly.{s, p, w, z} C) (provider : Section C) :=
   (a : C.Shape) → (pre : r.Pre a) → r.Post a pre (provider a)
 
+/-- The graph of a closed provider: the specification that has the response of the provider at
+each shape. -/
+def Section.graph (f : Section C) : DepPoly.{s, p, 0, p} C where
+  Pre _ := PUnit
+  Post a _ b := f a ≡ b
+
+/-- A closed provider has evidence of its graph. -/
+def Section.graphEvidence (f : Section C) : Evidence f.graph f := fun _ _ => .refl
+
 /-- The closed provider of the polynomial with no shape. -/
 def Section.zero : Section Container.zero.{s, p} := fun a => nomatch a
 

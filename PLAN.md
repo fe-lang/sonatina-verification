@@ -229,31 +229,58 @@ computation with the machine as the provider. A specification of the
 interface with a runtime relates the runtime before a call to the response
 and the runtime after it, and a relation of calls is such a specification.
 The graph of a machine is the specification that has its response at each
-call. A specification of an interface with an invariant of the runtime gives
-a specification of the interface with a runtime, and the evidence of a
-computation moves to it. [PreludeTests/Runtime.lean](PreludeTests/Runtime.lean)
-has her state invariant and a specification of two runtimes for one program.
+call, and each implementation is a verified implementation between the graph
+of its machine and the graph of the machine of its calls. A specification of
+an interface with an invariant of the runtime gives a specification of the
+interface with a runtime, and the evidence of a computation and a verified
+implementation move to it.
+
+The computation with a runtime has three laws, each as an agreement: it
+respects agreement, the computation of a bind is the first part and then the
+rest from its result, and the computation of a substitution is the
+substitution of the implementation with a runtime. The laws of the run on a
+machine are these laws at a provider: the run of a bind, the run of a
+substitution on the machine of the implementation, and the machine of a
+composite. The evidence of a bind and of a substitution moves along the two
+laws. [PreludeTests/Runtime.lean](PreludeTests/Runtime.lean) has her state
+invariant, a specification of two runtimes for one program, and the laws for
+a computation that calls the program two times.
 
 [Draft/Runtime.lean](Draft/Runtime.lean) has the evidence of a diagram for a
 specification of the interface with a runtime, by the constructors of the
 diagram. A condition has the runtime. The invariant of a loop has the runtime
 and the number of the unrollings that remain. A step for the graph of a
-machine has the response of the machine at its runtime.
+machine has the response of the machine at its runtime. A specification of a
+diagram with a runtime is a `DepPoly` on the interface of the diagram with a
+runtime. The lift of a diagram for it gives the verified implementation with
+a runtime, and its composition with a verified lowering with a runtime is
+`ImplDep.trans`.
+
+A derivation in a rule set that holds in a lowering gives an agreement of the
+two computations with a runtime, after the lowering with a runtime. Thus the
+two diagrams of the derivation have one run on the machine of the lowering,
+for each machine of the target, each context, and each runtime. The map of
+verified implementations with a runtime along the derivation has that
+agreement as its plain part.
+
 [Draft/Checks/State.lean](Draft/Checks/State.lean) has a cell with a read and
 a write: a read, a kept value, a write, and a second read, for an arbitrary
 cell, with the number of the reads; a write and a read in the two orders,
 which give different values; and the first diagram with a specification of
 two runtimes, whose evidence at the run on the machine a kernel check
-eliminates.
+eliminates. It has a lowering to the interface of the cell, in which the pure
+operation returns without a call, and the two orders of the pure step and a
+read. The interchange derivation gives the identity of the two runs on the
+machine of the lowering, and it moves the verified implementation of the
+first order to the second order. The specification has a lower bound of the
+number of the reads in the witness of its precondition, and two witnesses of
+one runtime give different payloads in each order.
 
-Three plain parts of the module are open:
+Two plain parts of the module are open:
 
 - An implementation that returns without a call is a verified implementation
   against the specification that admits no call. The two forms become one.
   [Probes/DepPoly.lean](Probes/DepPoly.lean) has the two maps.
-- The laws of the state runner: the run of a derivation on a machine, from
-  the laws of the computation with a runtime for a bind and for the
-  substitution of an implementation.
 - The form of the frame, which is a part of the work on the wiring.
   [Probes/Wiring.lean](Probes/Wiring.lean) has the wiring of a diagram as a
   map of `Int(Poly_*)` with a box for each step, and its runs.
@@ -372,11 +399,10 @@ computation. The loop has 3 steps, and the body and then the loop has 6.
 
 These parts of the stage are open: the identity law and the composition law
 of the action of a port map as structural agreements of diagrams, the
-agreement of each frame with the copairing of its copies as a rule, the laws
-of the state runner, the uniqueness of a map out of a sum, and the rules of
-the cell (the equations of a read and a write) with their soundness on the
-machine. The stage continues with one row
-of its table at a time.
+agreement of each frame with the copairing of its copies as a rule, the
+uniqueness of a map out of a sum, and the rules of the cell (the equations of
+a read and a write) with their soundness on the machine. The stage continues
+with one row of its table at a time.
 
 ## D6: generic definitions
 
