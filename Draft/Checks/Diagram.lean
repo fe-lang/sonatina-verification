@@ -377,6 +377,27 @@ def twiceRun (flag : Bool) (u v x y : Nat) :
       ⟨u + x, Nat.lt_succ_self _⟩).val ≡ u + x := .refl
 
 set_option smartUnfolding false in
+/-- The identity law of renaming as an agreement of diagrams. The identity of the returned
+values, from the computation of the agreement, is consumed through a dependent payload. -/
+def identityAgreementRun (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).1)
+        ((((Diagram.renameId emitOnly).run stop count (inputs x y) fun r =>
+            Free.Agreement.refl (.pure r)).subst
+          (Impl.Agreement.refl lower)).run (f := provider flag u v) (fun _ => .refl)))
+      ⟨u + x, Nat.lt_succ_self _⟩).val ≡ u + x := .refl
+
+set_option smartUnfolding false in
+/-- The composition law of renaming as an agreement of diagrams. -/
+def twiceAgreementRun (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).1)
+        ((((Diagram.renameRename swapInputs swapInputs emitOnly).run stop count (inputs x y)
+            fun r => Free.Agreement.refl (.pure r)).subst
+          (Impl.Agreement.refl lower)).run (f := provider flag u v) (fun _ => .refl)))
+      ⟨u + x, Nat.lt_succ_self _⟩).val ≡ u + x := .refl
+
+set_option smartUnfolding false in
 /-- After the substitution, the early order is one call of the store. -/
 def earlyCall (x y : Nat) :
     (early.meaning stop count (inputs x y)).subst lower ≡
@@ -1026,6 +1047,14 @@ end Draft.Checks.Diagram
 /-- info: 'Draft.Checks.Diagram.casesRun' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Diagram.casesRun
+
+/-- info: 'Draft.Checks.Diagram.identityAgreementRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.identityAgreementRun
+
+/-- info: 'Draft.Checks.Diagram.twiceAgreementRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Diagram.twiceAgreementRun
 
 /-- info: 'Draft.Checks.Diagram.partFramedCallThird' does not depend on any axioms -/
 #guard_msgs in

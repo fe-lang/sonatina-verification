@@ -95,8 +95,10 @@ positions, which can repeat a position and omit a position.
 values, and the case analysis of an environment of a nonempty list.
 `All.lookupLeft` and `All.lookupRight` give the value at a position of each
 part of a concatenation, and `All.lookupMap` gives the value of a map at a
-position. `All.mapCongr`, `All.mapMap`, and `All.mapAppend` are
-the laws of `All.map`. `All.selectAppend` gives the selection at a
+position. `All.mapCongr`, `All.mapId`, `All.mapMap`, and `All.mapAppend` are
+the laws of `All.map`. `All.mapTabulate` gives the map of a table, and
+`All.tabulateAppend` gives the table of a concatenation from the table of each
+part. `All.selectAppend` gives the selection at a
 concatenation of two lists of positions. `All.selectTabulate` gives the
 selection at a table of positions, from the value at each position of the
 table. `All.selectSelect` gives the selection at selected positions. The

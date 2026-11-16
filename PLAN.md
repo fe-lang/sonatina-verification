@@ -317,7 +317,10 @@ has the structural agreement of two diagrams: the same form, and agreement of
 the diagrams of each case. Two diagrams that agree have computations that
 agree. A port map acts on a diagram, and the computation of the result is the
 computation of the diagram at the selected values. The identity map and the
-composite of two maps have that law for the computation. A map of exits
+composite of two maps have that law for the computation. The identity law
+and the composition law of the action are structural agreements of diagrams
+too: the diagram with the ports of the identity map agrees with the diagram,
+and two renamings agree with the renaming by the composite map. A map of exits
 acts on the exits of a diagram, and a family with a diagram for each exit
 case gives the diagram with those diagrams at its exits. Each of the two has
 its law for the computation. The derivations of a
@@ -361,7 +364,8 @@ arbitrary computation at the limit:
   a composite uses the congruence of a composite and of a copairing. Each
   construction of a derivation has a check with arbitrary inputs: the two
   premises of the interchange rule, the symmetry, each congruence, and the
-  three laws of renaming for the computation.
+  three laws of renaming for the computation, and the identity law and the
+  composition law of renaming as agreements of diagrams.
 - A pure operation and two effectful operations. Two interchanges move the
   pure step after the two effectful steps: one at the first step, and one
   after the first effectful step, by the congruence of a step. The symmetry
@@ -412,10 +416,8 @@ with its round trip by computation. The unrolling law and the fixpoint law of
 the loop apply to the run from the counter 2, and their round trips hold by
 computation. The loop has 3 steps, and the body and then the loop has 6.
 
-These parts of the stage are open: the identity law and the composition law
-of the action of a port map as structural agreements of diagrams, and the
-rules of the cell (the equations of a read and a write) with their soundness
-on the machine. The stage continues with one row of its table at a time.
+One part of the stage is open: the rules of the cell (the equations of a
+read and a write) with their soundness on the machine.
 
 ## D6: generic definitions
 

@@ -169,6 +169,35 @@ def selectLift {Ξ Γ Δ : List Ty} (extra : All X Ξ) (env : All X Γ) (ports :
       (All.selectTabulate _ extra _ fun _ i => All.lookupLeft extra env i)
       (selectWeaken extra env ports))
 
+/-- The selection of a port map at the identity port map has the ports. -/
+def idSelect {Γ Δ : List Ty} (ports : PortMap Γ Δ) : (id Γ).select ports ≡ ports :=
+  (All.mapCongr (fun _ i => All.lookupTabulate (fun _ j => j) i) ports).trans (All.mapId ports)
+
+/-- The identity port map under more ports is the identity port map. -/
+def liftId (Ξ Γ : List Ty) : (id Γ).lift Ξ ≡ id (Ξ ++ Γ) :=
+  (Identity.cong
+      (All.append (All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left)))
+      (All.mapTabulate (fun (t : Ty) (i : Port Γ t) => (i.right Ξ : Port (Ξ ++ Γ) t)) Γ
+        (fun _ i => i))).trans
+    (All.tabulateAppend (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i)).symm
+
+/-- The selection at a weakened port map is the weakened selection. -/
+def weakenSelect (Ξ : List Ty) {Γ Δ Θ : List Ty} (first : PortMap Γ Δ) (second : PortMap Δ Θ) :
+    (first.weaken Ξ).select second ≡ weaken Ξ (first.select second) :=
+  (All.mapCongr
+      (fun _ i =>
+        All.lookupMap (fun (t : Ty) (j : Port Γ t) => (j.right Ξ : Port (Ξ ++ Γ) t)) first i)
+      second).trans
+    (All.mapMap _ _ second).symm
+
+/-- The composite of two port maps under more ports is the composite under more ports. -/
+def liftSelect (Ξ : List Ty) {Γ Δ Θ : List Ty} (first : PortMap Γ Δ) (second : PortMap Δ Θ) :
+    (first.lift Ξ).select (second.lift Ξ) ≡ lift Ξ (first.select second) :=
+  (selectLift (All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left)) (first.weaken Ξ)
+      second).trans
+    (Identity.cong (All.append (All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left)))
+      (weakenSelect Ξ first second))
+
 end PortMap
 
 /-- The exits of a diagram: a list of boundaries. The first boundary is the boundary of the
@@ -672,6 +701,73 @@ def Diagram.renameRun : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap 
               (PortMap.selectLift r.2 env ρ))))
   | _, _, _, ρ, .seq first next, env, rest =>
       Diagram.renameRun ρ first env (Exits.At.elim (fun k => next.run stop n k rest) rest)
+
+/-- Two exits with identical ports agree. -/
+def Diagram.Agreement.exitPorts {Γ : List Ty} {Qs : Exits Ty} (Q : Boundary Ty) (i : Elem Q Qs)
+    (c : Q.Case) {ports ports' : PortMap Γ c.1} (same : ports ≡ ports') :
+    Diagram.Agreement (S := S) (.exit ⟨Q, i, c, ports⟩) (.exit ⟨Q, i, c, ports'⟩) :=
+  Identity.ind
+    (fun ports' _ => Diagram.Agreement (S := S) (.exit ⟨Q, i, c, ports⟩) (.exit ⟨Q, i, c, ports'⟩))
+    (.exit ⟨Q, i, c, ports⟩) same
+
+/-- Two steps of one operation with identical ports agree when the diagrams of each case
+agree. -/
+def Diagram.Agreement.stepPorts {Γ : List Ty} {Qs : Exits Ty} (o : S.Op)
+    {ports ports' : PortMap Γ (S.input o)} (same : ports ≡ ports')
+    {rest rest' : (c : (S.output o).Case) → Diagram S (c.1 ++ Γ) Qs}
+    (each : (c : (S.output o).Case) → Diagram.Agreement (rest c) (rest' c)) :
+    Diagram.Agreement (.step ⟨o, ports⟩ rest) (.step ⟨o, ports'⟩ rest') :=
+  Identity.ind
+    (fun ports' _ => Diagram.Agreement (.step ⟨o, ports⟩ rest) (.step ⟨o, ports'⟩ rest'))
+    (.step ⟨o, ports⟩ each) same
+
+/-- A diagram with the ports of a map that is the identity map agrees with the diagram. -/
+def Diagram.renameAgree : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (ρ : PortMap Γ Γ) → ρ ≡ PortMap.id Γ → Diagram.Agreement (d.rename ρ) d
+  | _, _, .exit out, _, same =>
+      .exitPorts out.1 out.2.1 out.2.2.1
+        ((Identity.cong (fun σ => All.select σ out.2.2.2) same).trans
+          (PortMap.idSelect out.2.2.2))
+  | _, _, .step call rest, ρ, same =>
+      .stepPorts call.1
+        ((Identity.cong (fun σ => All.select σ call.2) same).trans (PortMap.idSelect call.2))
+        fun c =>
+          Diagram.renameAgree (rest c) (ρ.lift c.1)
+            ((Identity.cong (PortMap.lift c.1) same).trans (PortMap.liftId c.1 _))
+  | _, _, .seq first next, ρ, same =>
+      .seq (Diagram.renameAgree first ρ same) (Continuation.Agreement.refl next)
+
+/-- The identity law of the action of a port map: the diagram with the ports of the identity
+map agrees with the diagram. -/
+def Diagram.renameId {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) :
+    Diagram.Agreement (d.rename (.id Γ)) d :=
+  d.renameAgree (.id Γ) .refl
+
+/-- Two renamings agree with the renaming by a map that is the composite map. -/
+def Diagram.renameCompose : {Γ Δ Θ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Θ Qs) →
+    (first : PortMap Γ Δ) → (second : PortMap Δ Θ) → (ρ : PortMap Γ Θ) →
+    first.select second ≡ ρ → Diagram.Agreement ((d.rename second).rename first) (d.rename ρ)
+  | _, _, _, _, .exit out, first, second, _, same =>
+      .exitPorts out.1 out.2.1 out.2.2.1
+        ((All.selectSelect first second out.2.2.2).trans
+          (Identity.cong (fun σ => All.select σ out.2.2.2) same))
+  | _, _, _, _, .step call rest, first, second, ρ, same =>
+      .stepPorts call.1
+        ((All.selectSelect first second call.2).trans
+          (Identity.cong (fun σ => All.select σ call.2) same))
+        fun c =>
+          Diagram.renameCompose (rest c) (first.lift c.1) (second.lift c.1) (ρ.lift c.1)
+            ((PortMap.liftSelect c.1 first second).trans
+              (Identity.cong (PortMap.lift c.1) same))
+  | _, _, _, _, .seq d next, first, second, ρ, same =>
+      .seq (Diagram.renameCompose d first second ρ same) (Continuation.Agreement.refl next)
+
+/-- The composition law of the action of a port map: two renamings agree with the renaming by
+the composite map. -/
+def Diagram.renameRename {Γ Δ Θ : List Ty} {Qs : Exits Ty} (first : PortMap Γ Δ)
+    (second : PortMap Δ Θ) (d : Diagram S Θ Qs) :
+    Diagram.Agreement ((d.rename second).rename first) (d.rename (first.select second)) :=
+  d.renameCompose first second _ .refl
 
 /-- The diagram with the ports of the identity map has the computation of the diagram. -/
 def Diagram.renameIdRun {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (env : All X Γ)

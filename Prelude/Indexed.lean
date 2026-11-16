@@ -177,6 +177,25 @@ def mapMap (f : (a : α) → P a → Q a) (g : (a : α) → Q a → R a) {xs : L
   All.casesOn (motive := fun _ x => (x.map f).map g ≡ x.map (fun a p => g a (f a p))) x .refl
     (fun _ rest => Identity.cong (All.cons _) (mapMap f g rest))
 
+/-- The map by the function that returns each value. -/
+def mapId {xs : List α} (x : All P xs) : x.map (fun _ v => v) ≡ x :=
+  All.casesOn (motive := fun _ x => x.map (fun _ v => v) ≡ x) x .refl
+    (fun _ rest => Identity.cong (All.cons _) (mapId rest))
+
+/-- The map of a table. -/
+def mapTabulate (g : (a : α) → P a → Q a) :
+    (xs : List α) → (f : (a : α) → Elem a xs → P a) →
+      (tabulate xs f).map g ≡ tabulate xs (fun a i => g a (f a i))
+  | [], _ => .refl
+  | _ :: xs, f => Identity.cong (All.cons _) (mapTabulate g xs (fun b i => f b (.there i)))
+
+/-- The table of a concatenation has the table of each part. -/
+def tabulateAppend : (xs : List α) → {ys : List α} → (f : (a : α) → Elem a (xs ++ ys) → P a) →
+    tabulate (xs ++ ys) f ≡
+      (tabulate xs (fun a i => f a i.left)).append (tabulate ys (fun a i => f a (i.right xs)))
+  | [], _, _ => .refl
+  | _ :: xs, _, f => Identity.cong (All.cons _) (tabulateAppend xs (fun b i => f b (.there i)))
+
 def mapAppend (f : (a : α) → P a → Q a) {xs ys : List α} (x : All P xs) (y : All P ys) :
     (x.append y).map f ≡ (x.map f).append (y.map f) :=
   All.casesOn (motive := fun _ x => (x.append y).map f ≡ (x.map f).append (y.map f)) x .refl
