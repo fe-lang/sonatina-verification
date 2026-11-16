@@ -118,6 +118,11 @@ def append {xs ys : List α} (x : All P xs) (y : All P ys) : All P (xs ++ ys) :=
   All.casesOn (motive := fun xs _ => All P (xs ++ ys)) x y
     (fun v rest => .cons v (rest.append y))
 
+/-- The environment with a new value at one position. -/
+def set {a : α} {xs : List α} (env : All P xs) (i : Elem a xs) (x : P a) : All P xs :=
+  Elem.casesOn (motive := fun xs _ => All P xs → All P xs) i (fun env => .cons x env.tail)
+    (fun j env => .cons env.head (env.tail.set j x)) env
+
 def tabulate : (xs : List α) → ((a : α) → Elem a xs → P a) → All P xs
   | [], _ => .nil
   | a :: xs, f => .cons (f a .here) (tabulate xs (fun b i => f b (.there i)))

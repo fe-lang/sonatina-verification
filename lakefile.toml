@@ -1,12 +1,16 @@
 name = "Prelude"
 version = "0.1.0"
-defaultTargets = ["Prelude", "PreludeTests", "Draft"]
+defaultTargets = ["Prelude", "PreludeTests", "Draft", "Probes"]
 
 [[lean_lib]]
 name = "Prelude"
 
 [[lean_lib]]
 name = "Draft"
+
+[[lean_lib]]
+name = "Probes"
+roots = ["Probes.Wiring", "Probes.DepPoly", "Probes.Machine"]
 
 [[lean_lib]]
 name = "PreludeTests"

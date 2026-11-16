@@ -18,7 +18,8 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Draft.Implementation` | Compiler operation interfaces with their specifications, and their verified implementations |
 | `Draft.Diagram` | The one diagram syntax: signatures of pure and effectful operations, contexts and boundaries with their structural maps, diagrams with exits, steps, and composites, continuations with copairings, frames, and loops, the function meaning and the run family, the derivation rules of each equation set, bypasses, resolution, substitution, the laws of the loop, and structural cells and execution certificates |
 | `Draft.Verified` | The verification over the diagram syntax: the interface of a diagram, the evidence of a diagram by its constructors, the lift for a specification, the verified implementation, and the map of verified implementations along a derivation |
-| `Draft.Runtime` | The runner of that syntax: the interpretation of effects with the runtime, state equations, invariant evidence, and dependent rewrite maps |
+| `Draft.Runtime` | The runner of that syntax: a handler of the operations with a runtime, the run of a computation with a handler, the interpretation of effects with the runtime, state equations, invariant evidence, and dependent rewrite maps |
+| `Draft.Stele` | The example frontend: a typed fragment of Stele, the signature of its operations, and its translation to diagrams |
 | `Draft.Source` | Source diagrams as presentations of a VSDG, the relation between two presentations, the frontend interface, sharing, control, and feedback translation, and admissibility evidence |
 | `Draft.Sequentialization` | The selection of a realization by cost, certified realizations, coverage, and soundness |
 | `Draft.Lowering` | The backend interface, placement and storage obligations, the Stele and EVM adapters, and target refinement |
@@ -26,7 +27,8 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Observations` | Observational proofs of correctness for metatheoretical verification. They can use axioms, and no implementation module depends on them. |
 
 The Prelude identity, indexed, decision, relation, and container modules,
-`Draft.Diagram`, `Draft.Verified`, and `Draft.Checks` exist. The other module families are the
+`Draft.Diagram`, `Draft.Verified`, `Draft.Stele`, and `Draft.Checks` exist.
+`Draft.Runtime` has the handler and its run. The other module families are the
 planned locations for stages D2 to D7. The module families divide the work
 and not the system: the IR is the one diagram syntax of
 [CONCEPT.md](CONCEPT.md#design).
@@ -58,7 +60,7 @@ in AGENTS.
 | D4. Control and sharing | Source diagrams with the control sum: tests as steps with one diagram for each case, copairing for values and for the runtime, joins as two exits to one case, composites for shared continuations, and guarded operations. The relation between two presentations of one VSDG, for the order of two pure tests that no wire connects and for the case of an operation. Occurrence partitions. Figure 5.6 and the five arrangements of Figure 5.7, each as a whole diagram. Retained bypass cases are related to source control information. Tail sharing is justified with the control equation set. Reuse and speculation are justified with the copy and discard equation sets, the applicable effect equations, and dependent evidence maps. Position invariance holds for each operation that is named for discard naturality, and a guarded operation consumes the port of its case. The two sharing hypotheses of CONCEPT are tested. Soundness and coverage hold for the claimed fragment. Costs are compared under the register-machine model of the thesis, which gives the instruction counts of the source contracts. | Pending |
 | D5. Substitution and composition laws | Exact silent resolution with closed cycles. Substitution with multiplied bypasses, and substitution closure. Identity and associativity with reindexing. Adequacy of finite routing certificates. Interpretation, runtime, and dependent verification commute with nested substitution. | Pending |
 | D6. Feedback | Computations as Type-valued relations, with the graph of a function, composition, the control sum, and agreement as an equivalence of run families. The loop of a body as the inductive family of runs, with the initial property: the map to each relation that the body closes, and its uniqueness at each run. For a function body: the function on the inductive domain, the uniqueness of the domain evidence, the function with fuel with soundness and completeness against the runs, and domain evidence from a decreasing measure. The consequences of the initial property, each as an equivalence with its two round-trip identities: fixpoint, naturality, codiagonal, dinaturality, uniformity for pure maps, and preservation by whiskering. The transport of a postcondition that depends on the run across each law. The generic definitions extend `Prelude.Relation`. The loop of the syntax: the laws of the run family of a diagram from the laws of composition and of the control sum for computations, and the soundness and the completeness of the function meaning against the runs, for a function of the calls. The rules of the feedback equation set, with their soundness as equivalences of run families. The trace as a derived operation of the loop, with the trace laws as consequences. The compatibility of a bypass with the loop, the agreement of staged execution with all-at-once execution, and cell pasting from uniformity, for the declared observation. Source loop initialization, carried values and state, guards, and exits. Invariant-preserving iteration with the domain evidence as the precondition witness. Correspondence with traced wiring and execution certificates. Feedback compatibility for a changing runtime and a preserved bypass context. The derivation of each loop choice of thesis §5.4 that the stage covers, and a statement of the work that infinite control and infinite observations still need. | Pending |
-| D7. Example pipeline slice | The frontend and backend interfaces of CONCEPT, with Stele and the EVM as the instance. A source-to-target slice with compositional proof production, placement and storage accounting, and constructive Stele/EVM adapters. The declared value, effect, termination, and choice observations are preserved. The backend interpretation satisfies the named equation sets under its agreement relation. The direction from target runs to source runs gives the refinement relation of EquiVM at the boundary. The direction from source runs to target runs holds above a gas bound that exists for each source run. The lowering causes no stack underflow, no stack overflow, and no bad jump destination. The cost account uses the stack machine of EVMLean: gas for each instruction, code size, the reach of `DUP` and `SWAP`, the stack limit, and equal stack layouts at each merge. | Pending |
+| D7. Example pipeline slice | The frontend and backend interfaces of CONCEPT, with Stele and the EVM as the instance. A source-to-target slice with compositional proof production, placement and storage accounting, and constructive Stele/EVM adapters. The declared value, effect, termination, and choice observations are preserved. The backend interpretation satisfies the named equation sets under its agreement relation. The direction from target runs to source runs gives the refinement relation of EquiVM at the boundary. The direction from source runs to target runs holds above a gas bound that exists for each source run. The lowering causes no stack underflow, no stack overflow, and no bad jump destination. The cost account uses the stack machine of EVMLean: gas for each instruction, code size, the reach of `DUP` and `SWAP`, the stack limit, and equal stack layouts at each merge. | Pending. A frontend fragment exists. |
 
 The laws of D2 are the laws of the equation sets without feedback, and they
 hold for a diagram with a loop for each number of unrollings. The source
@@ -216,9 +218,19 @@ the identity of the value. Three plain parts of the module are open:
 
 - An implementation that returns without a call is a verified implementation
   against the specification that admits no call. The two forms become one.
+  [Probes/DepPoly.lean](Probes/DepPoly.lean) has the two maps.
 - The form of the calls with a runtime: a relation of calls, or a machine
-  that has the runtime as its state.
+  that has the runtime as its state. [Draft/Runtime.lean](Draft/Runtime.lean)
+  has a handler that is a function of the call and the runtime, and the
+  relation of calls that is its graph.
+  [Probes/Machine.lean](Probes/Machine.lean) has the machine with its
+  verification.
 - The form of the frame, which is a part of the work on the wiring.
+  [Probes/Wiring.lean](Probes/Wiring.lean) has the wiring of a diagram as a
+  map of `Int(Poly_*)` with a box for each step, and its runs.
+
+The modules of [Probes](Probes) are explorations on the Draft. They are not
+parts of the implementation, and no module of `Draft` imports them.
 
 The text below describes the plain part.
 
@@ -358,6 +370,47 @@ constructions of the stage. The laws of the loop of the syntax are the laws
 of the run family of a composite and of a copairing, the soundness and the
 completeness of the function meaning against the runs, and the rules of the
 feedback equation set.
+
+## D7: the frontend fragment
+
+[Draft/Stele.lean](Draft/Stele.lean) has a typed fragment of Stele. The types
+are integers with no bound, and booleans. An expression has a context of
+local variables, and a variable is a position of the context. The constructs
+are literals, variables, a read of a storage variable, the arithmetic,
+comparison, and logic operations, Euclidean division, a declaration, an
+assignment to a local variable or to a storage variable, `require`, `if`,
+`while`, and `return`. A storage variable is a slot number.
+
+The signature has one operation for each construct that computes. A read and
+a write of storage are effectful. `revert` is effectful and has no output
+case. Division is pure, and its output boundary has a case for a zero
+divisor. The translation is a recursion on the syntax. A table has the port
+of the present value of each local variable, and an assignment changes the
+table only. The two paths of an `if` exit to one case of the boundary of a
+continuation, with the present value of each variable at its ports. A `while`
+is a loop whose entrance has the variables.
+
+[Draft/Checks/Stele.lean](Draft/Checks/Stele.lean) has a handler of the
+operations with the storage as its runtime, and five compiled programs: a
+declaration with a write and a read of storage, for arbitrary arguments and an
+arbitrary storage; an `if` with an assignment in one path; a `while` with two
+assignments; a `while` that writes storage, for an arbitrary storage; and a
+`require` and a division that stop at a zero divisor.
+
+These parts are open:
+
+- The translation from the Stele syntax of EquiVM to the typed fragment: the
+  resolution of names to positions and to slots, and the check of types. It
+  imports EquiVM, so its module is outside `Draft`.
+- The correspondence between the semantics of Stele and the meaning of the
+  diagram, for the fragment.
+- The other constructs of Stele: the conditional expression, `for`, `break`,
+  `continue`, the bounded integer types and their casts, the other value
+  types, mappings and arrays, calls, and the environment.
+- The specification of a compiled program. A specification of a write and a
+  read relates two states, and the specification of an operation has no
+  state.
+- The backend.
 
 ## Research scope after the bounded milestones
 
