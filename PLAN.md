@@ -416,8 +416,10 @@ with its round trip by computation. The unrolling law and the fixpoint law of
 the loop apply to the run from the counter 2, and their round trips hold by
 computation. The loop has 3 steps, and the body and then the loop has 6.
 
-One part of the stage is open: the rules of the cell (the equations of a
-read and a write) with their soundness on the machine.
+These parts of the stage are open: the rules of the cell (the equations of a
+read and a write) with their soundness on the machine, and the check of two
+alternatives with a frame on a machine, with a shared invariant of the
+runtime.
 
 ## D6: generic definitions
 
