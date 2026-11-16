@@ -235,6 +235,19 @@ def liftSelect (Ξ : List Ty) {Γ Δ Θ : List Ty} (first : PortMap Γ Δ) (seco
 def weakenNil {Γ Δ : List Ty} (ports : PortMap Γ Δ) : ports.weaken [] ≡ ports :=
   All.mapId ports
 
+/-- The copy of the first part of a context: each port of the second copy of that part is the
+port of the first copy. -/
+def copy (Ξ Γ : List Ty) : PortMap (Ξ ++ Γ) (Ξ ++ (Ξ ++ Γ)) :=
+  (All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left)).append (id (Ξ ++ Γ))
+
+/-- The selection at the copy has the values of the first part two times. -/
+def selectCopy {Ξ Γ : List Ty} (x : All X Ξ) (env : All X Γ) :
+    (x.append env).select (copy Ξ Γ) ≡ x.append (x.append env) :=
+  (All.selectAppend _ _ _).trans
+    (Identity.cong₂ All.append
+      (All.selectTabulate _ x _ fun _ i => All.lookupLeft x env i)
+      (selectId (x.append env)))
+
 /-- The selection at ports that are transported along an identity of lists is the transported
 selection. -/
 def selectTransport {Γ Δ Δ' : List Ty} (e : Δ ≡ Δ') (ports : PortMap Γ Δ) (env : All X Γ) :
@@ -1276,6 +1289,17 @@ inductive Diagram.Interchange : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S
         (.step ⟨b, second⟩ fun cb => .step ⟨a, first.weaken _⟩ fun ca =>
           Diagram.rename (PortMap.exchange _ _ Γ) (rest ca cb))
 
+/-- Copy naturality for a pure operation: two calls of the operation at the same ports are one
+call, and the rest has the output ports of that call at the two places. -/
+inductive Diagram.Copy : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs → Diagram S Γ Qs →
+    Type where
+  | copy {Γ : List Ty} {Qs : Exits Ty} (f : S.Op) (pure : S.kind f ≡ .pure)
+      (args : PortMap Γ (S.input f))
+      (rest : (c c' : (S.output f).Case) → Diagram S (c'.1 ++ (c.1 ++ Γ)) Qs) :
+      Diagram.Copy
+        (.step ⟨f, args⟩ fun c => .step ⟨f, args.weaken _⟩ fun c' => rest c c')
+        (.step ⟨f, args⟩ fun c => Diagram.rename (PortMap.copy c.1 Γ) (rest c c))
+
 /-- The first exit equation of the control sum: an exit to the boundary of a copairing, and
 then the copairing, is the diagram of the case of the exit, with renamed ports. -/
 inductive Diagram.ExitCopair : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs →
@@ -1363,6 +1387,9 @@ inductive Continuation.FrameExit : {P : Boundary Ty} → {Qs : Exits Ty} →
 /-- The interchange equation set. -/
 def Rules.interchange (S : Signature Ty) : Rules S := ⟨Diagram.Interchange, fun _ _ => Empty⟩
 
+/-- The copy equation set: copy naturality for each pure operation. -/
+def Rules.copy (S : Signature Ty) : Rules S := ⟨Diagram.Copy, fun _ _ => Empty⟩
+
 /-- The interchange rule and the equations of the control sum: the two exit equations, the
 composite equation, the frame equation, the case equation, and the step equation and the exit
 equation of a frame. -/
@@ -1446,6 +1473,42 @@ def Diagram.Interchange.sound
             (Free.Agreement.bind (.refl (impl ⟨a, env.select first⟩)) fun ra =>
               Diagram.swapRest stop n (after ra.1 rb.1) ra.2 rb.2 env
                 rest))).symm)
+
+/-- The computation of a diagram with a copy of the first part of its context, at the values of
+that part two times. -/
+def Diagram.copyRest {Ξ Γ : List Ty} {Qs : Exits Ty} (d : Diagram S (Ξ ++ (Ξ ++ Γ)) Qs)
+    (x : All X Ξ) (env : All X Γ) (rest : Qs.At X → Free (S.interface X) α) :
+    Free.Agreement
+      (((Diagram.rename (PortMap.copy Ξ Γ) d).run stop n (x.append env) rest).subst impl)
+      ((d.run stop n (x.append (x.append env)) rest).subst impl) :=
+  ((Diagram.renameRun stop n (PortMap.copy Ξ Γ) d _ rest).subst
+      (Impl.Agreement.refl impl)).trans
+    (.ofIdentity (Identity.cong (fun vals => (d.run stop n vals rest).subst impl)
+      (PortMap.selectCopy x env)))
+
+/-- The copy rule holds after the substitution of each implementation in which each pure
+operation returns without a call. Each of the two calls gives the response of the operation to
+the rest, and the one call gives it at the two places. -/
+def Diagram.Copy.sound
+    (pure : ImplDep (S.pureSpec X) (DepPoly.noCall.{u, v, w', z'} D) impl)
+    {Γ : List Ty} {Qs : Exits Ty} :
+    {d e : Diagram S Γ Qs} → Diagram.Copy d e → (env : All X Γ) →
+    (rest : Qs.At X → Free (S.interface X) α) →
+    Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
+  | _, _, .copy f central args after, env, rest =>
+      let pf := pure ⟨f, env.select args⟩ central
+      let rf := pf.returned.1
+      (((pf.returnedBind fun r =>
+            (impl ⟨f, (r.2.append env).select (args.weaken _)⟩).bind fun r' =>
+              ((after r.1 r'.1).run stop n (r'.2.append (r.2.append env)) rest).subst impl).trans
+          (Diagram.callWeaken f args rf.2 env fun r' =>
+            ((after rf.1 r'.1).run stop n (r'.2.append (rf.2.append env)) rest).subst impl)).trans
+        (pf.returnedBind fun r' =>
+          ((after rf.1 r'.1).run stop n (r'.2.append (rf.2.append env)) rest).subst impl)).trans
+        ((pf.returnedBind fun r =>
+            ((Diagram.rename (PortMap.copy _ Γ) (after r.1 r.1)).run stop n (r.2.append env)
+              rest).subst impl).trans
+          (Diagram.copyRest stop n (after rf.1 rf.1) rf.2 env rest)).symm
 
 /-- The first exit equation of the control sum holds in each congruence. -/
 def Diagram.ExitCopair.sound {Γ : List Ty} {Qs : Exits Ty} : {d e : Diagram S Γ Qs} →
@@ -1567,6 +1630,13 @@ def Rules.Sound.interchange
     (pure : ImplDep (S.pureSpec X) (DepPoly.noCall.{u, v, w', z'} D) impl) :
     (Rules.interchange S).Sound (Free.Congruence.subst (α := α) impl) :=
   ⟨fun stop n => Diagram.Interchange.sound stop n pure, fun _ _ => fun r => nomatch r⟩
+
+/-- The copy equation set holds after the substitution of each implementation in which each
+pure operation returns without a call. -/
+def Rules.Sound.copy
+    (pure : ImplDep (S.pureSpec X) (DepPoly.noCall.{u, v, w', z'} D) impl) :
+    (Rules.copy S).Sound (Free.Congruence.subst (α := α) impl) :=
+  ⟨fun stop n => Diagram.Copy.sound stop n pure, fun _ _ => fun r => nomatch r⟩
 
 /-- The control equation set holds in each congruence in which the interchange rule holds. -/
 def Rules.Sound.withControl (inter : (Rules.interchange S).Sound eqv) :

@@ -60,7 +60,7 @@ in AGENTS.
 | D0. Foundation probe | Minimal polynomial maps and dependent reindexing. Composition and consumer congruence compute for a nontrivial dependent family. Identity and index transports are constructed and eliminated in the dependent consumer. | Complete |
 | D1. Aberlé core | `Free`/`FreeDep`, verified composition, erasure compatibility, fold/append/concat, and distinguishable witness examples. Repeated composition preserves and exposes the supplied evidence. | Complete |
 | D2. Whole diagrams with effects | Signatures of pure and effectful operations, with input ports and an output boundary for each operation. Contexts, boundaries as lists of contexts, and their structural maps: copy, discard, and exchange on ports, and the join on cases. Diagrams: exits, steps, and composites. Continuations: copairings, frames with a bypass, and loops. The static size of a diagram. The structural agreement of two diagrams whose families agree at each case, with its soundness. The request interface of a signature at a family of values, with the specification of each operation as a part of the signature. The function meaning of a diagram into `Free`, with the remaining computation as an argument, for a number of unrollings of each loop and a computation for the limit. The verification of a diagram over its function meaning, in `FreeDep`, by the constructors of the diagram: a step takes the witness of the precondition of its operation from the context, and its continuation receives the postcondition of the response. The run family of a diagram, for the calls with a runtime: a recursion into the relations of `Prelude.Relation`, with its two exit equations as equivalences. Each law of the stage is an agreement of function meanings for each number of unrollings, and the evidence of a verified diagram moves along it. The interchange rule for a pure step and a step that no wire connects to it, with its agreement for each lowering in which each pure operation makes no call, and with the map of verified diagrams along that agreement. The state runner, with whiskering and pure centrality. The control equation set for the state runner: the two case equations, the pointwise uniqueness of a map out of a sum, preservation by whiskering, the agreement of a composite with the diagram that has the continuation at each exit, and the agreement of a frame with the copairing that has a copy of its diagram for each case of the bypass. Branching read/write with a shared invariant, and the applicable global-state rewrite evidence. Each law is a pointwise statement, so that the graph of a function carries it to the relations of D6. The D2 checks below pass. | Complete |
-| D3. Dependency orders | Source diagrams for the fixed-occurrence fragment: one sequence of steps and one exit. The dependency graph of a diagram: its steps with their operand ports, and the order of its effectful steps. Each dependency-respecting order is a diagram of the same syntax with an interchange derivation from the source diagram, and its context at each step has the cut of live values. The evidence of each order is constructed from the evidence of the source along the derivation, with the condition on the specifications of the pure operations that the construction needs. Soundness for the interchange equation set: actual producer connections, exact call order, and returned-value preservation. Constructive coverage that returns a realization with its derivation for an arbitrary admissible order. The three interleavings and the shared, repeated, and discarded operand checks pass. | Current |
+| D3. Dependency orders | Source diagrams for the fixed-occurrence fragment: one sequence of steps and one exit. Each dependency-respecting order is a diagram of the same syntax with an interchange derivation from the source diagram, and its context at each step has the cut of live values. The evidence of each order is constructed from the evidence of the source along the derivation, with the condition on the specifications of the pure operations that the construction needs. Soundness for the interchange equation set: actual producer connections, exact call order, and returned-value preservation. The dependency graph of a diagram, with no names: a value is its history, and the graph has the occurrences of the steps at the histories of their operands, with the order of the effectful steps. Two calls of a pure operation with one history are one producer in the graph. The graph is thus for the interchange equation set with the copy equation set: copy naturality for each pure operation, with its soundness for each lowering in which each pure operation makes no call. The word of each order is an admissible order of the graph. Constructive coverage that returns a realization for an arbitrary admissible order of the graph, with its derivation in the two equation sets and with one run of each occurrence. The three interleavings and the shared, repeated, and discarded operand checks pass. | Current |
 | D4. Control and sharing | Source diagrams with the control sum: tests as steps with one diagram for each case, copairing for values and for the runtime, joins as two exits to one case, composites for shared continuations, and guarded operations. The relation between two presentations of one VSDG, for the order of two pure tests that no wire connects and for the case of an operation. Occurrence partitions. Figure 5.6 and the five arrangements of Figure 5.7, each as a whole diagram. Retained bypass cases are related to source control information. Tail sharing is justified with the control equation set. Reuse and speculation are justified with the copy and discard equation sets, the applicable effect equations, and dependent evidence maps. Position invariance holds for each operation that is named for discard naturality, and a guarded operation consumes the port of its case. The two sharing hypotheses of CONCEPT are tested. Soundness and coverage hold for the claimed fragment. Costs are compared under the register-machine model of the thesis, which gives the instruction counts of the source contracts. | Pending |
 | D5. Substitution and composition laws | Exact silent resolution with closed cycles. Substitution with multiplied bypasses, and substitution closure. Identity and associativity with reindexing. Adequacy of finite routing certificates. Interpretation, runtime, and dependent verification commute with nested substitution. | Pending |
 | D6. Feedback | Computations as Type-valued relations, with the graph of a function, composition, the control sum, and agreement as an equivalence of run families. The loop of a body as the inductive family of runs, with the initial property: the map to each relation that the body closes, and its uniqueness at each run. For a function body: the function on the inductive domain, the uniqueness of the domain evidence, the function with fuel with soundness and completeness against the runs, and domain evidence from a decreasing measure. The consequences of the initial property, each as an equivalence with its two round-trip identities: fixpoint, naturality, codiagonal, dinaturality, uniformity for pure maps, and preservation by whiskering. The transport of a postcondition that depends on the run across each law. The generic definitions extend `Prelude.Relation`. The loop of the syntax: the laws of the run family of a diagram from the laws of composition and of the control sum for computations, and the soundness and the completeness of the function meaning against the runs, for a function of the calls. The rules of the feedback equation set, with their soundness as equivalences of run families. The trace as a derived operation of the loop, with the trace laws as consequences. The compatibility of a bypass with the loop, the agreement of staged execution with all-at-once execution, and cell pasting from uniformity, for the declared observation. Source loop initialization, carried values and state, guards, and exits. Invariant-preserving iteration with the domain evidence as the precondition witness. Correspondence with traced wiring and execution certificates. Feedback compatibility for a changing runtime and a preserved bypass context. The derivation of each loop choice of thesis §5.4 that the stage covers, and a statement of the work that infinite control and infinite observations still need. | Pending |
@@ -588,6 +588,13 @@ It is an admissible order of the occurrences of the source diagram, for each
 order of each diagram of the fragment: the evidence follows the steps of the
 order, with the theorem of the move as the witness of each precondition.
 
+[Draft/Diagram.lean](Draft/Diagram.lean) has the copy rule: two calls of a
+pure operation at the same ports are one call, and the rest has the output
+ports of that call at the two places. The rule holds after the substitution of
+each implementation in which each pure operation returns without a call, which
+is the premise of the interchange rule. The copy equation set has this rule,
+and the sum of two rule sets joins it to the interchange equation set.
+
 [Draft/Checks/Dependency.lean](Draft/Checks/Dependency.lean) has the three
 required checks. The first source diagram has three steps. `A` and `B` are
 pure, and `B` uses the output of `A`. `C` is effectful and uses one input
@@ -625,25 +632,44 @@ has a discarded value: no step and no exit port has the response of the
 effectful `A`. The list of its orders has the two orders of `A` and the pure
 `B`, and each order is one call of the store after the lowering.
 
+The fourth source diagram has two equal calls: the pure `A` has two calls at
+the two inputs, and `D` has the outputs of the two calls. The copy rule
+relates it to the diagram with one call of `A`, in which `D` has the output of
+that call two times. The two diagrams give the same values, and a check
+consumes the soundness of the rule through a dependent payload. In the graph,
+the two calls are one occurrence two times, and the two operands of `D` have
+one history. The list of the orders has the two orders of the two calls. The
+word that runs one call of `A`, then `D`, and then the other call of `A` is an
+admissible order of the occurrences, and it is not the word of an order. Its
+evidence runs on the machine of the runs, and a check consumes the identity
+that no occurrence remains.
+
 These parts are open:
 
 - The completeness of the list of the orders: each order of a diagram of the
   fragment is in the list.
-- The other direction of the theorem of the dependency graph: an admissible
-  order of the occurrences of a diagram of the fragment is the word of an
-  order. Two equal calls have one history, so this direction needs the
-  condition that no two occurrences are equal, or the equation of a copy.
+- The other direction of the theorem of the dependency graph: each admissible
+  order of the occurrences of a diagram of the fragment has a diagram with a
+  derivation from the source diagram, in the interchange equation set with
+  the copy equation set. The occurrences of that diagram are the occurrences
+  of the source diagram in the order of the word. The parts are a theorem
+  that two ports with one history can replace each other, by a recursion on
+  the history, and the diagram of a graph and an admissible word.
 - The decision of the identity of two histories, which the decision of the
   precondition of a run needs.
 - The check that reads the receipt of the order `C A B` through its
   identity. Its derivation has two interchanges, and the check exceeds the
   default limit of the elaborator. The cause is open.
+- The check that consumes the soundness of the copy rule through a dependent
+  payload, for a diagram with two steps after the two calls. It exceeds the
+  default limit of the elaborator, and the check with one step after the two
+  calls passes. The cause is open.
 - The converse: each diagram that an interchange derivation gives from a
   diagram of the fragment is an order of it.
 - The cost of the elaborator in the check modules `Lift`, `State`, `Diagram`,
   and `Dependency`. Each of the four has most of its time in the elaborator
   and little in the kernel. The work on the causes is the last part of the
-  stage, and it includes the cause of the check that exceeds the limit.
+  stage, and it includes the causes of the two checks that exceed the limit.
 
 ## D6: generic definitions
 

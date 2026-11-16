@@ -40,7 +40,18 @@ and `C`. Each order has four steps, so `A` has one occurrence, and each gives th
 
 The third group has a discarded value. `A` is effectful, and no step and no exit port has its
 response. `B` is pure. The list of the orders has the two orders. After the lowering, each
-order is one call of the store. -/
+order is one call of the store.
+
+The fourth group has two equal calls. `A` is pure and has two calls at the two inputs, and `D`
+has the outputs of the two calls. The copy rule relates this diagram to the diagram with one
+call of `A`, in which `D` has the output of that call two times. The two diagrams give the same
+values, and a check consumes the soundness of the rule through a dependent payload. In the
+dependency graph, the two calls are one occurrence two times, and the two operands of `D` have
+one history. The list of the orders has the two orders of the two calls. The word that runs one
+call of `A`, then `D`, and then the other call of `A` is an admissible order of the occurrences,
+and it is not the word of an order: `D` runs when one of the two calls is done. The evidence
+runs on the machine of the runs, and a check consumes the identity that no occurrence
+remains. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -466,6 +477,115 @@ def discardedCalls (x y : Nat) :
         .request .one fun (_ : Nat) =>
           .pure ⟨_, .here, Boundary.only _, .cons (x + y) (.cons (x + y) .nil)⟩] := .refl
 
+/-! Two equal calls. -/
+
+/-- The operands of `A`: the two inputs. -/
+def addInputs : PortMap [(), ()] (sig.input Op.add) := .cons .here (.cons (.there .here) .nil)
+
+/-- The rest after two calls of `A`. `D` has the outputs of the two calls. The exit has the
+output of `D` and the output of the first call. -/
+def afterTwo : (c c' : (sig.output Op.add).Case) → Diagram sig (c'.1 ++ (c.1 ++ [(), ()])) Two
+  | ⟨_, .here⟩, ⟨_, .here⟩ =>
+      .step ⟨.add, .cons (.there .here) (.cons .here .nil)⟩ fun
+        | ⟨_, .here⟩ =>
+            .exit ⟨_, .here, Boundary.only _, .cons .here (.cons (.there (.there .here)) .nil)⟩
+
+/-- Two calls of `A` at the two inputs, and then the rest. -/
+def twice : Diagram sig [(), ()] Two :=
+  .step ⟨.add, addInputs⟩ fun c => .step ⟨.add, addInputs.weaken _⟩ fun c' => afterTwo c c'
+
+/-- One call of `A`, and then the rest with the output of that call at the two places. -/
+def once : Diagram sig [(), ()] Two :=
+  .step ⟨.add, addInputs⟩ fun c => Diagram.rename (PortMap.copy c.1 _) (afterTwo c c)
+
+/-- The copy rule relates the two diagrams. -/
+def copied : Diagram.Copy twice once :=
+  Diagram.Copy.copy (S := sig) Op.add .refl addInputs afterTwo
+
+set_option smartUnfolding false in
+/-- The two diagrams give the same two values, for arbitrary inputs. -/
+def twiceRun (flag : Bool) (u v x y : Nat) :
+    (observe stop count twice flag u v x y, observe stop count once flag u v x y) ≡
+      ((x + y + (x + y), x + y), (x + y + (x + y), x + y)) := .refl
+
+/-- The soundness of the copy rule: the two diagrams agree after the lowering. -/
+def copySound (x y : Nat) :
+    Free.Agreement ((twice.meaning stop count (inputs x y)).subst lower)
+      ((once.meaning stop count (inputs x y)).subst lower) :=
+  (Diagram.Derivation.rule (R := Rules.copy sig) copied).sound stop count (.copy returns)
+    (inputs x y) .pure
+
+set_option smartUnfolding false in
+/-- The identity of the returned values of the two diagrams is consumed through a dependent
+payload that has the output of `D`. -/
+def copyPayload (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).1)
+        ((copySound stop count x y).run (f := provider flag u v) (fun _ => .refl)))
+      ⟨x + y + (x + y), Nat.lt_succ_self _⟩).val ≡ x + y + (x + y) := .refl
+
+/-- The diagram with two calls is a diagram of the fragment. -/
+def twiceStraight : twice.Straight := ⟨center, only, center, only, center, only, ()⟩
+
+/-- The call of `A` at the histories of the two inputs. -/
+def callA : Call sig [(), ()] Op.add :=
+  .mk (.cons (.input .here) (.cons (.input (.there .here)) .nil)) none
+
+/-- The call of `D`: its two operands have one history. -/
+def callD : Call sig [(), ()] Op.add :=
+  .mk (.cons (.output callA center .here) (.cons (.output callA center .here) .nil)) none
+
+/-- The occurrence of each call of `A`. -/
+def occA : sig.Occurrence [(), ()] := ⟨Op.add, callA⟩
+
+/-- The occurrence of `D`. -/
+def occD : sig.Occurrence [(), ()] := ⟨Op.add, callD⟩
+
+/-- The occurrences of the diagram with two calls. -/
+def twiceOccurrences : List (sig.Occurrence [(), ()]) := [occA, occA, occD]
+
+set_option smartUnfolding false in
+/-- The two calls of `A` are one occurrence two times in the graph of the diagram. -/
+def twiceGraph : twice.graph twiceStraight ≡ twiceOccurrences := .refl
+
+set_option smartUnfolding false in
+/-- The list of the orders has the two orders of the two calls. -/
+def twiceWords :
+    ((Diagram.orders twice twiceStraight).map fun r =>
+        Diagram.Order.depths r.1 twice r.2 twiceStraight) ≡
+      [[0, 0, 0], [1, 0, 0]] := .refl
+
+/-- The first run is one call of `A`: its operands are inputs. -/
+def firstRun : (sig.admissible [(), ()]).Pre ((0 : Nat), ([occA, occA, occD], [])) :=
+  ⟨(occA, [occA, occD]), .refl, fun | _, .here => () | _, .there .here => (), ()⟩
+
+/-- The second run is `D`: each of its operands has the history of the call that is done. -/
+def secondRun : (sig.admissible [(), ()]).Pre ((1 : Nat), ([occA, occD], [occA])) :=
+  ⟨(occD, [occA]), .refl, fun | _, .here => .here | _, .there .here => .here, ()⟩
+
+/-- The third run is the other call of `A`. -/
+def thirdRun : (sig.admissible [(), ()]).Pre ((0 : Nat), ([occA], [occD, occA])) :=
+  ⟨(occA, []), .refl, fun | _, .here => () | _, .there .here => (), ()⟩
+
+/-- The word `[0, 1, 0]` runs one call of `A`, then `D`, and then the other call of `A`. It is
+an admissible order of the occurrences. -/
+def rewired :
+    FreeDep (sig.admissible [(), ()]) (sig.Finished [(), ()])
+      ((word [0, 1, 0]).thread (E := Empty) (twiceOccurrences, [])) :=
+  Signature.ran (rest := word [1, 0]) 0 (twiceOccurrences, []) firstRun
+    (Signature.ran (rest := word [0]) 1 ([occA, occD], [occA]) secondRun
+      (Signature.ran (rest := word []) 0 ([occA], [occD, occA]) thirdRun
+        (.pure (Identity.refl : ([] : List (sig.Occurrence [(), ()])) ≡ []))))
+
+set_option smartUnfolding false in
+/-- The run of that evidence on the machine gives the identity that no occurrence remains. The
+identity is consumed through a dependent payload. -/
+def rewiredFinished :
+    (Identity.transport (fun (l : List (sig.Occurrence [(), ()])) => Fin (l.length + 1))
+      (finished (machine.run (word [0, 1, 0]) (twiceOccurrences, []))
+        (FreeDep.run machineEvidence rewired))
+      ⟨0, Nat.zero_lt_succ _⟩).val ≡ 0 := .refl
+
 end Draft.Checks.Dependency
 
 /-- info: 'Draft.Checks.Dependency.orders' does not depend on any axioms -/
@@ -563,3 +683,23 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.frontDone' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.frontDone
+
+/-- info: 'Draft.Checks.Dependency.twiceRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.twiceRun
+
+/-- info: 'Draft.Checks.Dependency.copyPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.copyPayload
+
+/-- info: 'Draft.Checks.Dependency.twiceGraph' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.twiceGraph
+
+/-- info: 'Draft.Checks.Dependency.twiceWords' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.twiceWords
+
+/-- info: 'Draft.Checks.Dependency.rewiredFinished' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.rewiredFinished
