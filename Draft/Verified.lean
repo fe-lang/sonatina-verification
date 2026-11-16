@@ -200,11 +200,12 @@ def Continuation.Lift.impl {K : Boundary Ty} {Qs : Exits Ty}
     ImplDep t r (k.impl stop n) :=
   fun a pre => lift a pre (limit a pre) n fun _ post => .pure post
 
-/-- A derivation in a rule set that holds in a lowering gives a map of verified implementations
-of one specification. The agreement that the derivation gives is its plain part, and the lift
-moves along it. -/
+/-- A derivation in a rule set that holds after the substitution of a lowering gives a map of
+verified implementations of one specification. The agreement that the derivation gives is its
+plain part, and the lift moves along it. -/
 def Diagram.Derivation.lift {D : Container.{0, 0}} {lower : Impl (S.interface X) D}
-    {R : Rules S} {Γ : List Ty} {Qs : Exits Ty} (ok : R.Sound lower (Qs.At X))
+    {R : Rules S} {Γ : List Ty} {Qs : Exits Ty}
+    (ok : R.Sound (Free.Congruence.subst (α := Qs.At X) lower))
     {d e : Diagram S Γ Qs} (h : Diagram.Derivation R d e)
     {q : DepPoly.{0, 0, w', p} (Diagram.interface X Γ Qs)} {t : DepPoly.{0, 0, w, z} D}
     (stop : Free (S.interface X) (Qs.At X)) (n : Nat)

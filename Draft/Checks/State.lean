@@ -29,6 +29,11 @@ has a lower bound of the number of the reads. The lift of the first order is bui
 constructors. Its composition with the lowering is a verified implementation by the calls of
 the cell, and the interchange derivation moves it to the second order. The run on the machine
 of the cell gives the evidence at the result, and two witnesses of one runtime give different
+payloads.
+
+The fifth group has the evidence of the machine of a diagram. The interchange rule holds on the
+machine of the lowering. The run of the verified first order on that machine is the evidence of
+its machine, and the derivation moves it to the machine of the second order, with the same
 payloads. -/
 
 set_option autoImplicit false
@@ -256,7 +261,7 @@ def succFirstRun (n a c k : Nat) (stop : Free (sig.interface Value) (Nat × Nat)
 /-- The two orders have one run on the machine of the lowering: the run of the derivation. -/
 def movedRun (n a : Nat) (s : Cell) (stop : Free (sig.interface Value) (Nat × Nat)) :
     observed succFirst n stop a s ≡ observed getFirst n stop a s :=
-  moved.machineRun stop n (.interchange returns) cellMachine (.cons a .nil)
+  moved.sound stop n ((Rules.Sound.interchange returns).machine cellMachine) (.cons a .nil)
     (fun r => .pure (values r)) s
 
 /-- The number of the reads of a result. -/
@@ -352,6 +357,40 @@ dependent payload. -/
 def getCounter (a c b j : Nat) :
     counter (evidence (getLowered stop count) a (c, b + j) ⟨b, j, .refl⟩) ≡ b + j + 1 := .refl
 
+/-! The evidence of the machine of a diagram, along a derivation. -/
+
+/-- The interchange rule holds on the machine of the lowering. -/
+def onMachine :
+    (Rules.interchange sig).Sound (α := Exits.At Two Value) (cellMachine.impl lower).congruence :=
+  (Rules.Sound.interchange returns).machine cellMachine
+
+/-- The evidence of the machine of the first order: the run of the verified diagram on the
+machine of the lowering, which has evidence of its graph. -/
+def succMachine :
+    Evidence counted ((cellMachine.impl lower).impl (succFirst.impl stop count)) :=
+  ((succLift count).impl fun _ _ _ _ e => e.elim).run (cellMachine.impl lower).graphEvidence
+
+/-- The evidence of the machine of the second order, along the interchange derivation. -/
+def getMachine :
+    Evidence counted ((cellMachine.impl lower).impl (getFirst.impl stop count)) :=
+  moved.evidence onMachine stop count (succMachine stop count)
+
+set_option smartUnfolding false in
+/-- The moved evidence gives the payload of each witness, for an arbitrary input, an arbitrary
+cell, and an arbitrary bound. -/
+def machineWide (a c b j : Nat) :
+    difference (getMachine stop count (.cons a .nil, (c, b + j)) ⟨b, j, .refl⟩) ≡ j + 1 := .refl
+
+set_option smartUnfolding false in
+def machineTight (a c b j : Nat) :
+    difference (getMachine stop count (.cons a .nil, (c, b + j)) ⟨b + j, 0, .refl⟩) ≡ 1 := .refl
+
+set_option smartUnfolding false in
+/-- The identity of the number of the reads in the moved evidence is consumed through a
+dependent payload. -/
+def machineCounter (a c b j : Nat) :
+    counter (getMachine stop count (.cons a .nil, (c, b + j)) ⟨b, j, .refl⟩) ≡ b + j + 1 := .refl
+
 end Draft.Checks.State
 
 /-- info: 'Draft.Checks.State.readWriteRun' does not depend on any axioms -/
@@ -389,3 +428,15 @@ end Draft.Checks.State
 /-- info: 'Draft.Checks.State.getCounter' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.State.getCounter
+
+/-- info: 'Draft.Checks.State.machineWide' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.machineWide
+
+/-- info: 'Draft.Checks.State.machineTight' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.machineTight
+
+/-- info: 'Draft.Checks.State.machineCounter' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.State.machineCounter

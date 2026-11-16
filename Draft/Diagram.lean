@@ -25,9 +25,10 @@ family of the runs of its body. The static size of a diagram is the number of it
 A port map acts on the context of a diagram, and a map of exits acts on its exits. A
 family with a diagram for each exit case gives the diagram with those diagrams at its exits.
 The derivations of a rule set are the smallest relation on diagrams that has the rules and
-structural agreement, and that is an equivalence and a congruence for each form. An
-implementation in which each rule holds gives computations that agree for each derivation, for
-each number of unrollings. -/
+structural agreement, and that is an equivalence and a congruence for each form. A congruence
+of computations in which each rule holds relates the two computations of each derivation, for
+each number of unrollings. Agreement after the substitution of an implementation is such a
+congruence, and so is the identity of the runs on a machine. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -415,32 +416,47 @@ def Continuation.one {Δ : List Ty} {Qs : Exits Ty} (d : Diagram S Δ Qs) :
 
 mutual
 
-/-- The computation of a diagram respects agreement of the remaining computations. -/
-def Diagram.runCongr : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
-    (env : All X Γ) → {rest rest' : Qs.At X → Free (S.interface X) α} →
-    ((r : Qs.At X) → Free.Agreement (rest r) (rest' r)) →
-    Free.Agreement (d.run stop n env rest) (d.run stop n env rest')
+/-- The computation of a diagram respects a congruence of the remaining computations. -/
+def Diagram.runRel (eqv : Free.Congruence.{0, 0, 0, w} (S.interface X) α) : {Γ : List Ty} →
+    {Qs : Exits Ty} → (d : Diagram S Γ Qs) → (env : All X Γ) →
+    {rest rest' : Qs.At X → Free (S.interface X) α} →
+    ((r : Qs.At X) → eqv.Rel (rest r) (rest' r)) →
+    eqv.Rel (d.run stop n env rest) (d.run stop n env rest')
   | _, _, .exit _, _, _, _, same => same _
   | _, _, .step _ next, env, _, _, same =>
-      .request _ fun r => (next r.1).runCongr (r.2.append env) same
+      eqv.request _ fun r => Diagram.runRel eqv (next r.1) (r.2.append env) same
   | _, _, .seq first next, env, _, _, same =>
-      first.runCongr env
-        (Exits.At.elimRel (R := Free.Agreement) (fun k => next.runCongr k same) same)
+      Diagram.runRel eqv first env
+        (Exits.At.elimRel (R := eqv.Rel) (fun k => Continuation.runRel eqv next k same) same)
 
-def Continuation.runCongr : {P : Boundary Ty} → {Qs : Exits Ty} → (k : Continuation S P Qs) →
-    (r : P.At X) →
+def Continuation.runRel (eqv : Free.Congruence.{0, 0, 0, w} (S.interface X) α) :
+    {P : Boundary Ty} → {Qs : Exits Ty} → (k : Continuation S P Qs) → (r : P.At X) →
     {rest rest' : Qs.At X → Free (S.interface X) α} →
-    ((r : Qs.At X) → Free.Agreement (rest r) (rest' r)) →
-    Free.Agreement (k.run stop n r rest) (k.run stop n r rest')
-  | _, _, .copair each, r, _, _, same => (each r.1).runCongr r.2 same
+    ((r : Qs.At X) → eqv.Rel (rest r) (rest' r)) →
+    eqv.Rel (k.run stop n r rest) (k.run stop n r rest')
+  | _, _, .copair each, r, _, _, same => Diagram.runRel eqv (each r.1) r.2 same
   | _, _, .frame _ _ shared next, _, _, _, same =>
-      shared.runCongr _ (Exits.At.onlyRel (R := Free.Agreement) fun _ => next.runCongr _ same)
+      Diagram.runRel eqv shared _
+        (Exits.At.onlyRel (R := eqv.Rel) fun _ => Continuation.runRel eqv next _ same)
   | _, _, .loop body, k, _, _, same =>
-      Continuation.unrolledRel (R := Free.Agreement) (.refl stop)
+      Continuation.unrolledRel (R := eqv.Rel) (eqv.refl stop)
         (fun k {_ _} again =>
-          body.runCongr k (Exits.At.elimRel (R := Free.Agreement) again same)) n k
+          Continuation.runRel eqv body k (Exits.At.elimRel (R := eqv.Rel) again same)) n k
 
 end
+
+/-- The computation of a diagram respects agreement of the remaining computations. -/
+def Diagram.runCongr {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (env : All X Γ)
+    {rest rest' : Qs.At X → Free (S.interface X) α}
+    (same : (r : Qs.At X) → Free.Agreement (rest r) (rest' r)) :
+    Free.Agreement (d.run stop n env rest) (d.run stop n env rest') :=
+  d.runRel stop n (.agreement _ _) env same
+
+def Continuation.runCongr {P : Boundary Ty} {Qs : Exits Ty} (k : Continuation S P Qs)
+    (r : P.At X) {rest rest' : Qs.At X → Free (S.interface X) α}
+    (same : (r : Qs.At X) → Free.Agreement (rest r) (rest' r)) :
+    Free.Agreement (k.run stop n r rest) (k.run stop n r rest') :=
+  k.runRel stop n (.agreement _ _) r same
 
 mutual
 
@@ -1063,131 +1079,79 @@ inductive Continuation.Derivation (R : Rules S) : {P : Boundary Ty} → {Qs : Ex
 end
 
 variable {D : Container.{u, v}} {impl : Impl (S.interface X) D}
+  {eqv : Free.Congruence.{0, 0, 0, w} (S.interface X) α}
 
-mutual
-
-/-- The computation of a diagram after the substitution respects agreement of the remaining
-computations after the substitution. -/
-def Diagram.runSubstCongr : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
-    (env : All X Γ) → {rest rest' : Qs.At X → Free (S.interface X) α} →
-    ((r : Qs.At X) → Free.Agreement ((rest r).subst impl) ((rest' r).subst impl)) →
-    Free.Agreement ((d.run stop n env rest).subst impl) ((d.run stop n env rest').subst impl)
-  | _, _, .exit _, _, _, _, same => same _
-  | _, _, .step call next, env, _, _, same =>
-      Free.Agreement.bind (.refl (impl ⟨call.1, env.select call.2⟩)) fun r =>
-        Diagram.runSubstCongr (next r.1) (r.2.append env) same
-  | _, _, .seq first next, env, _, _, same =>
-      Diagram.runSubstCongr first env
-        (Exits.At.elimRel
-          (R := fun (a b : Free (S.interface X) α) =>
-            Free.Agreement (a.subst impl) (b.subst impl))
-          (fun k => Continuation.runSubstCongr next k same) same)
-
-def Continuation.runSubstCongr : {P : Boundary Ty} → {Qs : Exits Ty} →
-    (k : Continuation S P Qs) → (r : P.At X) →
-    {rest rest' : Qs.At X → Free (S.interface X) α} →
-    ((r : Qs.At X) → Free.Agreement ((rest r).subst impl) ((rest' r).subst impl)) →
-    Free.Agreement ((k.run stop n r rest).subst impl) ((k.run stop n r rest').subst impl)
-  | _, _, .copair each, r, _, _, same => Diagram.runSubstCongr (each r.1) r.2 same
-  | _, _, .frame _ _ shared next, _, _, _, same =>
-      Diagram.runSubstCongr shared _
-        (Exits.At.onlyRel
-          (R := fun (a b : Free (S.interface X) α) =>
-            Free.Agreement (a.subst impl) (b.subst impl))
-          fun _ => Continuation.runSubstCongr next _ same)
-  | _, _, .loop body, k, _, _, same =>
-      Continuation.unrolledRel
-        (R := fun (a b : Free (S.interface X) α) =>
-          Free.Agreement (a.subst impl) (b.subst impl))
-        (Free.Agreement.refl (stop.subst impl))
-        (fun k {_ _} again =>
-          Continuation.runSubstCongr body k
-            (Exits.At.elimRel
-              (R := fun (a b : Free (S.interface X) α) =>
-                Free.Agreement (a.subst impl) (b.subst impl))
-              again same))
-        n k
-
-end
-
-/-- Each rule of the set holds in the implementation, for each number of unrollings and each
+/-- Each rule of the set holds in the congruence, for each number of unrollings and each
 computation at the limit. -/
-structure Rules.Sound (R : Rules S) (impl : Impl (S.interface X) D) (α : Type) where
+structure Rules.Sound (R : Rules S) (eqv : Free.Congruence.{0, 0, 0, w} (S.interface X) α) where
   diagram : (stop : Free (S.interface X) α) → (n : Nat) → {Γ : List Ty} → {Qs : Exits Ty} →
     {d e : Diagram S Γ Qs} → R.diagram d e →
     (env : All X Γ) → (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
+    eqv.Rel (d.run stop n env rest) (e.run stop n env rest)
   continuation : (stop : Free (S.interface X) α) → (n : Nat) → {P : Boundary Ty} →
     {Qs : Exits Ty} → {k k' : Continuation S P Qs} → R.continuation k k' →
     (r : P.At X) → (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((k.run stop n r rest).subst impl) ((k'.run stop n r rest).subst impl)
+    eqv.Rel (k.run stop n r rest) (k'.run stop n r rest)
 
 variable {R : Rules S}
 
+/-- Rules that hold in a congruence hold in each congruence that has it. -/
+def Rules.Sound.map {eqv' : Free.Congruence.{0, 0, 0, v} (S.interface X) α}
+    (f : {x y : Free (S.interface X) α} → eqv.Rel x y → eqv'.Rel x y) (ok : R.Sound eqv) :
+    R.Sound eqv' :=
+  ⟨fun stop n _ _ _ _ r env rest => f (ok.diagram stop n r env rest),
+    fun stop n _ _ _ _ r a rest => f (ok.continuation stop n r a rest)⟩
+
 mutual
 
-/-- An implementation in which each rule holds gives computations that agree for each
-derivation. -/
-def Diagram.Derivation.sound (ok : R.Sound impl α) : {Γ : List Ty} → {Qs : Exits Ty} →
+/-- A congruence in which each rule holds relates the two computations of each derivation. -/
+def Diagram.Derivation.sound (ok : R.Sound eqv) : {Γ : List Ty} → {Qs : Exits Ty} →
     {d e : Diagram S Γ Qs} → Diagram.Derivation R d e → (env : All X Γ) →
     (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
-  | _, _, _, _, .agree a, env, rest =>
-      (a.run stop n env fun r => .refl (rest r)).subst (Impl.Agreement.refl impl)
+    eqv.Rel (d.run stop n env rest) (e.run stop n env rest)
+  | _, _, _, _, .agree a, env, rest => eqv.agree (a.run stop n env fun r => .refl (rest r))
   | _, _, _, _, .rule r, env, rest => ok.diagram stop n r env rest
-  | _, _, _, _, .symm h, env, rest => (Diagram.Derivation.sound ok h env rest).symm
+  | _, _, _, _, .symm h, env, rest => eqv.symm (Diagram.Derivation.sound ok h env rest)
   | _, _, _, _, .trans h k, env, rest =>
-      (Diagram.Derivation.sound ok h env rest).trans (Diagram.Derivation.sound ok k env rest)
+      eqv.trans (Diagram.Derivation.sound ok h env rest) (Diagram.Derivation.sound ok k env rest)
   | _, _, _, _, .step call each, env, rest =>
-      Free.Agreement.bind (.refl (impl ⟨call.1, env.select call.2⟩)) fun r =>
+      eqv.request ⟨call.1, env.select call.2⟩ fun r =>
         Diagram.Derivation.sound ok (each r.1) (r.2.append env) rest
   | _, _, _, _, .seq (first' := first') (next := next) head tail, env, rest =>
-      (Diagram.Derivation.sound ok head env
-          (Exits.At.elim (fun k => next.run stop n k rest) rest)).trans
-        (Diagram.runSubstCongr stop n first' env
-          (Exits.At.elimRel
-            (R := fun (a b : Free (S.interface X) α) =>
-              Free.Agreement (a.subst impl) (b.subst impl))
-            (fun k => Continuation.Derivation.sound ok tail k rest)
-            (fun q => .refl ((rest q).subst impl))))
+      eqv.trans
+        (Diagram.Derivation.sound ok head env
+          (Exits.At.elim (fun k => next.run stop n k rest) rest))
+        (first'.runRel stop n eqv env
+          (Exits.At.elimRel (R := eqv.Rel)
+            (fun k => Continuation.Derivation.sound ok tail k rest) (fun q => eqv.refl (rest q))))
 
-def Continuation.Derivation.sound (ok : R.Sound impl α) : {P : Boundary Ty} → {Qs : Exits Ty} →
+def Continuation.Derivation.sound (ok : R.Sound eqv) : {P : Boundary Ty} → {Qs : Exits Ty} →
     {k k' : Continuation S P Qs} → Continuation.Derivation R k k' → (r : P.At X) →
     (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((k.run stop n r rest).subst impl) ((k'.run stop n r rest).subst impl)
-  | _, _, _, _, .agree a, r, rest =>
-      (a.run stop n r fun q => .refl (rest q)).subst (Impl.Agreement.refl impl)
+    eqv.Rel (k.run stop n r rest) (k'.run stop n r rest)
+  | _, _, _, _, .agree a, r, rest => eqv.agree (a.run stop n r fun q => .refl (rest q))
   | _, _, _, _, .rule j, r, rest => ok.continuation stop n j r rest
-  | _, _, _, _, .symm h, r, rest => (Continuation.Derivation.sound ok h r rest).symm
+  | _, _, _, _, .symm h, r, rest => eqv.symm (Continuation.Derivation.sound ok h r rest)
   | _, _, _, _, .trans h j, r, rest =>
-      (Continuation.Derivation.sound ok h r rest).trans
+      eqv.trans (Continuation.Derivation.sound ok h r rest)
         (Continuation.Derivation.sound ok j r rest)
   | _, _, _, _, .copair cases, r, rest => Diagram.Derivation.sound ok (cases r.1) r.2 rest
   | _, _, _, _, .frame (shared' := shared') (next := next) kept args body tail, r, rest =>
-      (Diagram.Derivation.sound ok body (r.2.select (args r.1))
+      eqv.trans
+        (Diagram.Derivation.sound ok body (r.2.select (args r.1))
           (Exits.At.only fun out =>
             next.run stop n ⟨Boundary.pair (kept r.1).1 out.1,
-              out.2.append (r.2.select (kept r.1).2)⟩ rest)).trans
-        (Diagram.runSubstCongr stop n shared' (r.2.select (args r.1))
-          (Exits.At.onlyRel
-            (R := fun (a b : Free (S.interface X) α) =>
-              Free.Agreement (a.subst impl) (b.subst impl))
-            fun out =>
-              Continuation.Derivation.sound ok tail
-                ⟨Boundary.pair (kept r.1).1 out.1, out.2.append (r.2.select (kept r.1).2)⟩
-                rest))
+              out.2.append (r.2.select (kept r.1).2)⟩ rest))
+        (shared'.runRel stop n eqv (r.2.select (args r.1))
+          (Exits.At.onlyRel (R := eqv.Rel) fun out =>
+            Continuation.Derivation.sound ok tail
+              ⟨Boundary.pair (kept r.1).1 out.1, out.2.append (r.2.select (kept r.1).2)⟩ rest))
   | _, _, _, _, .loop (body' := body') same, r, rest =>
-      Continuation.unrolledRel
-        (R := fun (a b : Free (S.interface X) α) =>
-          Free.Agreement (a.subst impl) (b.subst impl))
-        (Free.Agreement.refl (stop.subst impl))
+      Continuation.unrolledRel (R := eqv.Rel) (eqv.refl stop)
         (fun k {again _} loops =>
-          (Continuation.Derivation.sound ok same k (Exits.At.elim again rest)).trans
-            (Continuation.runSubstCongr stop n body' k
-              (Exits.At.elimRel
-                (R := fun (a b : Free (S.interface X) α) =>
-                  Free.Agreement (a.subst impl) (b.subst impl))
-                loops (fun q => .refl ((rest q).subst impl)))))
+          eqv.trans (Continuation.Derivation.sound ok same k (Exits.At.elim again rest))
+            (body'.runRel stop n eqv k
+              (Exits.At.elimRel (R := eqv.Rel) loops (fun q => eqv.refl (rest q)))))
         n r
 
 end
@@ -1296,9 +1260,9 @@ def Diagram.swapRest {Ξ Θ Γ : List Ty} {Qs : Exits Ty} (d : Diagram S (Θ ++ 
     (.ofIdentity (Identity.cong (fun vals => (d.run stop n vals rest).subst impl)
       (PortMap.selectExchange x y env)))
 
-/-- The interchange rule holds in each implementation in which each pure operation returns
-without a call. The pure step gives its response to the rest in each order, and the two
-contexts of the rest have the same values. -/
+/-- The interchange rule holds after the substitution of each implementation in which each
+pure operation returns without a call. The pure step gives its response to the rest in each
+order, and the two contexts of the rest have the same values. -/
 def Diagram.Interchange.sound (pure : S.Returns impl) {Γ : List Ty} {Qs : Exits Ty} :
     {d e : Diagram S Γ Qs} → Diagram.Interchange d e → (env : All X Γ) →
     (rest : Qs.At X → Free (S.interface X) α) →
@@ -1337,68 +1301,77 @@ def Diagram.Interchange.sound (pure : S.Returns impl) {Γ : List Ty} {Qs : Exits
               Diagram.swapRest stop n (after ra.1 rb.response.1) ra.2 rb.response.2 env
                 rest))).symm)
 
-/-- The first exit equation of the control sum holds in each implementation. -/
+/-- The first exit equation of the control sum holds in each congruence. -/
 def Diagram.ExitCopair.sound {Γ : List Ty} {Qs : Exits Ty} : {d e : Diagram S Γ Qs} →
     Diagram.ExitCopair d e → (env : All X Γ) → (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
+    eqv.Rel (d.run stop n env rest) (e.run stop n env rest)
   | _, _, .exit c ρ each, env, rest =>
-      ((Diagram.renameRun stop n ρ (each c) env rest).subst (Impl.Agreement.refl impl)).symm
+      eqv.symm (eqv.agree (Diagram.renameRun stop n ρ (each c) env rest))
 
-/-- The second exit equation of the control sum holds in each implementation. The two
-computations are one computation. -/
+/-- The second exit equation of the control sum holds in each congruence. The two computations
+are one computation. -/
 def Diagram.ExitPast.sound {Γ : List Ty} {Qs : Exits Ty} : {d e : Diagram S Γ Qs} →
     Diagram.ExitPast d e → (env : All X Γ) → (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
-  | _, _, .exit out _, env, rest => .refl ((rest (out.select env)).subst impl)
+    eqv.Rel (d.run stop n env rest) (e.run stop n env rest)
+  | _, _, .exit out _, env, rest => eqv.refl (rest (out.select env))
 
-/-- The composite equation of the control sum holds in each implementation. -/
+/-- The composite equation of the control sum holds in each congruence. -/
 def Diagram.SeqExits.sound {Γ : List Ty} {Qs : Exits Ty} : {d e : Diagram S Γ Qs} →
     Diagram.SeqExits d e → (env : All X Γ) → (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((d.run stop n env rest).subst impl) ((e.run stop n env rest).subst impl)
-  | _, _, .seq first next, env, rest =>
-      (Diagram.seqAtExits stop n first next env rest).subst (Impl.Agreement.refl impl)
+    eqv.Rel (d.run stop n env rest) (e.run stop n env rest)
+  | _, _, .seq first next, env, rest => eqv.agree (Diagram.seqAtExits stop n first next env rest)
 
-/-- The frame equation of the control sum holds in each implementation. The frame of one case
-has the values that the identity port map selects. -/
+/-- The frame equation of the control sum holds in each congruence. The frame of one case has
+the values that the identity port map selects. -/
 def Continuation.FrameCopair.sound {P : Boundary Ty} {Qs : Exits Ty} :
     {k k' : Continuation S P Qs} → Continuation.FrameCopair k k' → (r : P.At X) →
     (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((k.run stop n r rest).subst impl) ((k'.run stop n r rest).subst impl)
+    eqv.Rel (k.run stop n r rest) (k'.run stop n r rest)
   | _, _, .frame kept args shared next, r, rest =>
-      .ofIdentity
-        (Identity.cong
-          (fun (values : All X r.1.1) =>
-            (shared.run stop n (values.select (args r.1)) (Exits.At.only fun out =>
-              next.run stop n
-                ⟨Boundary.pair (kept r.1).1 out.1, out.2.append (values.select (kept r.1).2)⟩
-                rest)).subst impl)
-          (PortMap.selectId r.2).symm)
+      eqv.agree
+        (.ofIdentity
+          (Identity.cong
+            (fun (values : All X r.1.1) =>
+              shared.run stop n (values.select (args r.1)) (Exits.At.only fun out =>
+                next.run stop n
+                  ⟨Boundary.pair (kept r.1).1 out.1, out.2.append (values.select (kept r.1).2)⟩
+                  rest))
+            (PortMap.selectId r.2).symm))
 
-/-- The case equation of the control sum holds in each implementation. The case has the values
+/-- The case equation of the control sum holds in each congruence. The case has the values
 that the identity port map selects. -/
 def Continuation.CopairCases.sound {P : Boundary Ty} {Qs : Exits Ty} :
     {k k' : Continuation S P Qs} → Continuation.CopairCases k k' → (r : P.At X) →
     (rest : Qs.At X → Free (S.interface X) α) →
-    Free.Agreement ((k.run stop n r rest).subst impl) ((k'.run stop n r rest).subst impl)
+    eqv.Rel (k.run stop n r rest) (k'.run stop n r rest)
   | _, _, .cases next, r, rest =>
-      .ofIdentity
-        (Identity.cong
-          (fun (values : All X r.1.1) => (next.run stop n ⟨r.1, values⟩ rest).subst impl)
-          (PortMap.selectId r.2).symm)
+      eqv.agree
+        (.ofIdentity
+          (Identity.cong (fun (values : All X r.1.1) => next.run stop n ⟨r.1, values⟩ rest)
+            (PortMap.selectId r.2).symm))
 
-/-- The interchange equation set holds in each implementation in which each pure operation
-returns without a call. -/
-def Rules.Sound.interchange (pure : S.Returns impl) : (Rules.interchange S).Sound impl α :=
+/-- The interchange equation set holds after the substitution of each implementation in which
+each pure operation returns without a call. -/
+def Rules.Sound.interchange (pure : S.Returns impl) :
+    (Rules.interchange S).Sound (Free.Congruence.subst (α := α) impl) :=
   ⟨fun stop n => Diagram.Interchange.sound stop n pure, fun _ _ => fun r => nomatch r⟩
 
-def Rules.Sound.control (pure : S.Returns impl) : (Rules.control S).Sound impl α :=
+/-- The control equation set holds in each congruence in which the interchange rule holds. -/
+def Rules.Sound.withControl (inter : (Rules.interchange S).Sound eqv) :
+    (Rules.control S).Sound eqv :=
   ⟨fun stop n => fun r => match r with
-    | .inl i => Diagram.Interchange.sound stop n pure i
+    | .inl i => inter.diagram stop n i
     | .inr (.inl x) => Diagram.ExitCopair.sound stop n x
     | .inr (.inr (.inl x)) => Diagram.ExitPast.sound stop n x
     | .inr (.inr (.inr x)) => Diagram.SeqExits.sound stop n x,
     fun stop n => fun r => match r with
     | .inl x => Continuation.FrameCopair.sound stop n x
     | .inr x => Continuation.CopairCases.sound stop n x⟩
+
+/-- The control equation set holds after the substitution of each implementation in which each
+pure operation returns without a call. -/
+def Rules.Sound.control (pure : S.Returns impl) :
+    (Rules.control S).Sound (Free.Congruence.subst (α := α) impl) :=
+  .withControl (.interchange pure)
 
 end Draft

@@ -205,7 +205,7 @@ over it, by the method of [CONCEPT.md](CONCEPT.md#design):
   interface of the diagram, and the verified implementation (`ImplDep`) that
   the lift gives. The composition with a verified lowering is `ImplDep.trans`.
 - The map of verified implementations along a derivation, for a rule set that
-  holds in the lowering.
+  holds after the substitution of the lowering.
 
 The specification of the operations is a `DepPoly` on the request interface
 of the signature. [Draft/Checks/Lift.lean](Draft/Checks/Lift.lean) has four
@@ -257,12 +257,19 @@ runtime. The lift of a diagram for it gives the verified implementation with
 a runtime, and its composition with a verified lowering with a runtime is
 `ImplDep.trans`.
 
-A derivation in a rule set that holds in a lowering gives an agreement of the
-two computations with a runtime, after the lowering with a runtime. Thus the
-two diagrams of the derivation have one run on the machine of the lowering,
-for each machine of the target, each context, and each runtime. The map of
-verified implementations with a runtime along the derivation has that
-agreement as its plain part.
+A derivation in a rule set that holds after the substitution of a lowering
+gives an agreement of the two computations with a runtime, after the lowering
+with a runtime. The map of verified implementations with a runtime along the
+derivation has that agreement as its plain part. Such a rule set holds on the
+machine of the lowering, for each machine of the target: the two diagrams of
+a derivation have one run from each context and each runtime.
+
+A rule set can hold on a machine and not after a substitution, because the
+two sides of a rule can have different calls and one run. A derivation in
+such a rule set gives the identity of the machines of its two diagrams at
+each call. The evidence of the machine of the first diagram moves along that
+identity to the machine of the second diagram, for each specification of the
+interface of the diagram with a runtime.
 
 [Draft/Checks/State.lean](Draft/Checks/State.lean) has a cell with a read and
 a write: a read, a kept value, a write, and a second read, for an arbitrary
@@ -275,7 +282,10 @@ read. The interchange derivation gives the identity of the two runs on the
 machine of the lowering, and it moves the verified implementation of the
 first order to the second order. The specification has a lower bound of the
 number of the reads in the witness of its precondition, and two witnesses of
-one runtime give different payloads in each order.
+one runtime give different payloads in each order. The run of the verified
+first order on the machine of the lowering is the evidence of its machine,
+and the derivation moves that evidence to the machine of the second order,
+with the same payloads.
 
 Two plain parts of the module are open:
 
@@ -327,11 +337,15 @@ its law for the computation. The derivations of a
 rule set are the smallest relation that has the rules and structural
 agreement, and that is an equivalence and a congruence for each form of a
 diagram and of a continuation. One theorem gives the soundness of each rule
-set: an implementation in which each rule holds gives computations that agree
-for each derivation. The interchange rule relates the two orders of two steps
-that no wire connects, of which one is pure. It holds in each implementation
-in which each pure operation returns without a call. The two exit equations
-of the control sum are rules too. An exit to the boundary of a copairing, and
+set: a congruence of computations in which each rule holds relates the two
+computations of each derivation. A congruence is a parameter of the theorem.
+Agreement after the substitution of an implementation is a congruence, and
+the identity of the runs on a machine from each runtime is a congruence that
+has it. The interchange rule relates the two orders of two steps
+that no wire connects, of which one is pure. It holds after the substitution
+of each implementation in which each pure operation returns without a call.
+The equations of the control sum hold in each congruence. The two exit
+equations of the control sum are rules too. An exit to the boundary of a copairing, and
 then the copairing, is the diagram of the case of the exit, with renamed
 ports. An exit past a continuation, and then the continuation, is that exit.
 The control equation set has three more rules. A composite is the diagram

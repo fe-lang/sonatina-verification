@@ -19,7 +19,9 @@ The run of a computation on a machine is the run of that computation with the ma
 provider (`run-mealy`). An implementation and a machine for its calls give a machine
 (`prog→mealy`). The laws of the run are the laws of the computation with a runtime at a
 provider: the run of a bind, the run of a substitution on the machine of the implementation,
-and the machine of a composite.
+and the machine of a composite. The identity of the two runs from each runtime is a congruence
+of computations. It has the agreement after the substitution of an implementation, at the
+machine of that implementation.
 
 A specification of the interface with a runtime relates the runtime before a call to the
 response and the runtime after it. Evidence of such a specification for a machine, and a
@@ -175,6 +177,23 @@ def runBind (m : Machine C R E) (f : α → Free C β) (x : Free C α) (s : R) :
 def runSubst (g : Impl C D) (m : Machine D R E) (x : Free C α) (s : R) :
     m.run (x.subst g) s ≡ (m.impl g).run x s :=
   ((Free.threadSubst g x s).run (Homotopy.refl m)).trans (Free.runSubst g.thread m (x.thread s))
+
+/-- The congruence of a machine: two computations have one run from each runtime. -/
+def congruence (m : Machine C R E) : Free.Congruence.{s, p, u, max r e u} C α where
+  Rel x y := (s : R) → m.run x s ≡ m.run y s
+  agree h s := runCongr h (Homotopy.refl m) s
+  symm h s := (h s).symm
+  trans h k s := (h s).trans (k s)
+  request a k k' next s :=
+    Sum.casesOn
+      (motive := fun b => (Free.resume (E := E) k b).run m ≡ (Free.resume k' b).run m)
+      (m (a, s)) (fun _ => .refl) (fun result => next result.1 result.2)
+
+/-- Computations that agree after the substitution of an implementation have one run on the
+machine of the implementation. -/
+def runOfSubst (g : Impl C D) (m : Machine D R E) {x y : Free C α}
+    (h : (Free.Congruence.subst g).Rel x y) : (m.impl g).congruence.Rel x y :=
+  fun s => (runSubst g m x s).symm.trans ((runCongr h (Homotopy.refl m) s).trans (runSubst g m y s))
 
 /-- Implementations that agree give one machine from machines that agree. -/
 def implCongr {f g : Impl C D} {m m' : Machine D R E} (h : Impl.Agreement f g)

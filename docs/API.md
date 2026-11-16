@@ -256,6 +256,13 @@ transitive. Transitivity eliminates its first agreement, and
 congruences: `Agreement.run` gives an identity of the returned values from
 agreeing providers. `Impl.Agreement f g` is agreement at each shape.
 
+`Free.Congruence C α` is a relation of computations with its laws: it has each
+agreement, it is symmetric and transitive, and it holds for two calls of one
+shape when it holds for their continuations at each response.
+`Congruence.agreement C α` is agreement, and `Congruence.subst g` is agreement
+after the substitution of the implementation `g`. A relation with these laws
+can relate two computations that have different calls.
+
 | Law | Statement |
 | --- | --- |
 | `pureBind`, `bindPure`, `bindAssoc` | The monad laws of `bind`; the first holds by `.refl` |
@@ -320,6 +327,7 @@ independent universe levels.
 | `m.run x s` | The run of `x` on the machine `m` from the runtime `s`: `(x.thread s).run m` |
 | `m.impl f` | The machine that an implementation `f` gives from a machine `m` for its calls: `f.thread.run m` |
 | `m.resume f` | The result of a run, from an earlier result: a stop stays, and a returned value gives its runtime to the run of `f` |
+| `m.congruence` | The congruence of the machine `m`: two computations have one run from each runtime |
 | `Outcome Q T Z` | The condition at a result, from a condition at the returned value, an invariant of the runtime, and a condition at a stop |
 | `t.invariant T Z` | The specification of `C.runtime R E` from a specification `t` of `C`, an invariant of the runtime, and a condition at a stop |
 | `h.thread s inv` | The evidence of `x.thread s` for `t.invariant T Z`, from the evidence `h` of `x` and the invariant at `s` |
@@ -344,6 +352,7 @@ with the evidence of a machine is the evidence of the machine `m.impl f`.
 | `Machine.runBind` | `m.run (x.bind f) s` is `m.resume f (m.run x s)` |
 | `Machine.runSubst` | `m.run (x.subst g) s` is `(m.impl g).run x s` |
 | `Machine.implId`, `Machine.implTrans` | The machine of the implementation with one call is the machine; the machine of `f.trans g` is `(m.impl g).impl f` |
+| `Machine.runOfSubst` | Computations that `Congruence.subst g` relates have one run on the machine `m.impl g` from each runtime |
 
 `IndexedContainer I O` has `Shape : O → Type s`, positions at each shape,
 and `index : (s : Shape o) → Pos s → I`. Its extension is

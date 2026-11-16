@@ -22,7 +22,11 @@ the calls of the state effect.
 
 The fourth group has the two general sources of a verified implementation with a runtime: the
 graph of the machine of an implementation, and a verified implementation with an invariant of
-the runtime. -/
+the runtime.
+
+The fifth group has the congruence of a machine. Two writes and then a read, and one write and
+then the value, have different calls and one run from each runtime. A read before each of them
+keeps the congruence, and a check eliminates the identity of the two runs. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -229,6 +233,38 @@ def tickBoundEvidence (b : Nat) :
 def tickBoundLast (b d : Nat) :
     (tickBoundEvidence b ((), b + d) (⟨d, .refl⟩, ())).2.1 ≡ d + 1 := .refl
 
+/-! The congruence of a machine. -/
+
+/-- Two writes, and then a read. -/
+def writeTwice (a b : Nat) : Free (State Nat) Nat :=
+  .request (.put a) fun _ => .request (.put b) fun _ => .request .get .pure
+
+/-- One write, and then the value. -/
+def writeOnce (b : Nat) : Free (State Nat) Nat := .request (.put b) fun _ => .pure b
+
+/-- The two computations have different calls, and one run from each runtime. -/
+def written (a b : Nat) :
+    (stateMachine Nat).congruence.Rel (writeTwice a b) (writeOnce b) := fun _ => .refl
+
+/-- A call keeps the congruence: a read, and then each of the two computations. -/
+def readFirst (b : Nat) :
+    (stateMachine Nat).congruence.Rel (.request .get fun s => writeTwice s b)
+      (.request .get fun _ => writeOnce b) :=
+  (stateMachine Nat).congruence.request .get fun s => written s b
+
+/-- The identity of the two runs is consumed through a dependent payload, for an arbitrary
+value and an arbitrary runtime. -/
+def readFirstLast (b s : Nat) :
+    (Identity.transport (fun out => Fin (last out + 1)) (readFirst b s)
+      ⟨b, Nat.lt_succ_self _⟩).val ≡ b := .refl
+
+/-- Agreement after the substitution of the program gives one run on the machine of the
+program. -/
+def twiceOfSubst (s : Nat) :
+    (Identity.transport (fun out => Fin (last out + 1))
+      (Machine.runOfSubst tick (stateMachine Nat) ((Free.Congruence.subst tick).refl twice) s)
+      ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := .refl
+
 end PreludeTests.Runtime
 
 /-- info: 'PreludeTests.Runtime.tickOutcomeLast' does not depend on any axioms -/
@@ -266,3 +302,11 @@ end PreludeTests.Runtime
 /-- info: 'PreludeTests.Runtime.tickBoundLast' does not depend on any axioms -/
 #guard_msgs in
 #print axioms PreludeTests.Runtime.tickBoundLast
+
+/-- info: 'PreludeTests.Runtime.readFirstLast' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.readFirstLast
+
+/-- info: 'PreludeTests.Runtime.twiceOfSubst' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.twiceOfSubst

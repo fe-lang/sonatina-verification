@@ -2,7 +2,9 @@ import Prelude.Container.Section
 
 /-! Computations that call a container interface, and implementations of one interface by
 calls to another. This is Aberlé's `Free` and `def:implementation`. A computation has
-functions as continuations, so its laws are structural agreements.
+functions as continuations, so its laws are structural agreements. A congruence is a relation
+of computations that has agreement and that each call keeps. Agreement is a congruence, and so
+is agreement after the substitution of an implementation.
 
 The functions on an agreement use `casesOn` with an explicit motive. A generated matcher on
 this family eliminates `Prop` equalities of the two computations, and the elaborator then
@@ -261,6 +263,45 @@ def runCongr {f g : Impl C D} {provider provider' : Section D} (h : Agreement f 
   fun a => (h a).run k
 
 end Impl
+
+namespace Free
+
+variable {C : Container.{s, p}} {D : Container.{s', p'}} {α : Type u}
+
+/-- A congruence of the computations of an interface: a relation that has each agreement, that
+is symmetric and transitive, and that holds for two calls of one shape when it holds for their
+continuations at each response. -/
+structure Congruence (C : Container.{s, p}) (α : Type u) where
+  Rel : Free C α → Free C α → Type w
+  agree : {x y : Free C α} → Agreement x y → Rel x y
+  symm : {x y : Free C α} → Rel x y → Rel y x
+  trans : {x y z : Free C α} → Rel x y → Rel y z → Rel x z
+  request : (a : C.Shape) → {k k' : C.Pos a → Free C α} →
+    ((i : C.Pos a) → Rel (k i) (k' i)) → Rel (.request a k) (.request a k')
+
+namespace Congruence
+
+def refl (c : Congruence.{s, p, u, w} C α) (x : Free C α) : c.Rel x x := c.agree (.refl x)
+
+/-- Agreement is a congruence, and each congruence has it. -/
+def agreement (C : Container.{s, p}) (α : Type u) : Congruence.{s, p, u, max s p u} C α where
+  Rel := Agreement
+  agree h := h
+  symm h := h.symm
+  trans h k := h.trans k
+  request a _ _ next := .request a next
+
+/-- Agreement after the substitution of an implementation is a congruence. -/
+def subst (g : Impl C D) : Congruence.{s, p, u, max s' p' u} C α where
+  Rel x y := Agreement (x.subst g) (y.subst g)
+  agree h := h.subst (Impl.Agreement.refl g)
+  symm h := h.symm
+  trans h k := h.trans k
+  request a _ _ next := Agreement.bind (.refl (g a)) next
+
+end Congruence
+
+end Free
 
 namespace Hom
 
