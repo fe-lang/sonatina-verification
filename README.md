@@ -67,7 +67,7 @@ gives the working design document.
 Lean 4.29.0 is pinned in `lean-toolchain`.
 
 ```sh
-lake build    # the Prelude, the Draft, the frontend, the probes, and their checks
+lake build    # the Prelude, the Draft, the frontend, and their checks
 ```
 
 ## LLM Disclosure

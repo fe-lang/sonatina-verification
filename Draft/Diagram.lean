@@ -18,9 +18,7 @@ A step is an operation with a port for each operand: an element of the extension
 signature polynomial at the ports of the context. A diagram has two meanings, and each is a
 recursion on the diagram. The function meaning goes into `Free` on the request interface of the
 signature, with the remaining computation as an argument. Each loop has a given number of
-unrollings, and a given computation at the limit. The run family goes into Type-valued
-relations, for a relation of calls with a runtime, and the runs of a loop are the inductive
-family of the runs of its body. The static size of a diagram is the number of its steps.
+unrollings, and a given computation at the limit. The static size of a diagram is the number of its steps.
 
 A port map acts on the context of a diagram, and a map of exits acts on its exits. A
 family with a diagram for each exit case gives the diagram with those diagrams at its exits.
@@ -61,6 +59,12 @@ def Case (Q : Boundary Ty) : Type := (Δ : List Ty) × Elem Δ Q
 def At (Q : Boundary Ty) (X : Ty → Type) : Type :=
   (c : Q.Case) × All X c.1
 
+instance [DecEq Ty] {Q : Boundary Ty} : DecEq Q.Case :=
+  inferInstanceAs (DecEq ((Δ : List Ty) × Elem Δ Q))
+
+instance [DecEq Ty] {Q : Boundary Ty} {X : Ty → Type} [∀ t, DecEq (X t)] : DecEq (Q.At X) :=
+  inferInstanceAs (DecEq ((c : Q.Case) × All X c.1))
+
 /-- The boundary with one case. -/
 def one (Γ : List Ty) : Boundary Ty := [Γ]
 
@@ -91,6 +95,31 @@ def pair {M K : Boundary Ty} (j : M.Case) (c : K.Case) : (product M K).Case :=
 /-- The value at a case, from a table with one value for each case of the boundary. -/
 def family {F : List Ty → Type} {Q : Boundary Ty} (table : All F Q) (c : Q.Case) : F c.1 :=
   table.lookup c.2
+
+/-- A boundary with exactly two cases. Their contexts may coincide. -/
+inductive Binary : Boundary Ty → Type where
+  | pair (left right : List Ty) : Binary [left, right]
+
+def Binary.left {K : Boundary Ty} : Binary K → K.Case
+  | .pair _ _ => ⟨_, .here⟩
+
+def Binary.right {K : Boundary Ty} : Binary K → K.Case
+  | .pair _ _ => ⟨_, .there .here⟩
+
+/-- Dependent case analysis on the two positions, including when they have equal contexts. -/
+def Binary.elim {K : Boundary Ty} (two : Binary K) {F : K.Case → Type u}
+    (l : F two.left) (r : F two.right) (c : K.Case) : F c :=
+  match (generalizing := true) K, two, c with
+  | _, .pair _ _, ⟨_, .here⟩ => l
+  | _, .pair _ _, ⟨_, .there .here⟩ => r
+
+/-- A property of the selected value follows from its two cases. -/
+def Binary.elimAt {K : Boundary Ty} (two : Binary K) {F : K.Case → Type u}
+    {l : F two.left} {r : F two.right} (P : (c : K.Case) → F c → Type v)
+    (hl : P two.left l) (hr : P two.right r) (c : K.Case) : P c (two.elim l r c) :=
+  match (generalizing := true) K, two, c with
+  | _, .pair _ _, ⟨_, .here⟩ => hl
+  | _, .pair _ _, ⟨_, .there .here⟩ => hr
 
 end Boundary
 
@@ -330,6 +359,9 @@ namespace Exits
 /-- An exit with an `X` at each of its ports: a boundary of the exits, and a case of that
 boundary with its values. -/
 def At (Qs : Exits Ty) (X : Ty → Type) : Type := (Q : Boundary Ty) × Elem Q Qs × Q.At X
+
+instance [DecEq Ty] {Qs : Exits Ty} {X : Ty → Type} [∀ t, DecEq (X t)] : DecEq (Qs.At X) :=
+  inferInstanceAs (DecEq ((Q : Boundary Ty) × Elem Q Qs × Q.At X))
 
 /-- A map of exits: a position in `Qs'` for each boundary of `Qs`. -/
 abbrev Map (Qs Qs' : Exits Ty) : Type := (Q : Boundary Ty) → Elem Q Qs → Elem Q Qs'
@@ -750,97 +782,6 @@ def Continuation.loopRun {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation 
     (Continuation.loop body).run stop n k rest ≡
       Continuation.unrolled stop (body.run stop n) n k rest :=
   .refl
-
-/-- A relation of calls with a runtime: the runs of a request from a runtime to a response and
-a runtime. -/
-abbrev Signature.Calls (S : Signature Ty) (X : Ty → Type) (R : Type u) : Type (max u (v + 1)) :=
-  (a : (S.interface X).Shape) → R → (S.interface X).Pos a → R → Type v
-
-/-- The result of a run of a loop body: an exit of the loop with a runtime, or the next
-entrance with a runtime. -/
-def Exits.At.result {K : Boundary Ty} {Qs : Exits Ty} {R : Type u} (r : Exits.At (K :: Qs) X)
-    (s : R) : (Qs.At X × R) ⊕ (K.At X × R) :=
-  Exits.At.elim (fun k => .inr (k, s)) (fun q => .inl (q, s)) r
-
-mutual
-
-/-- The run family of a diagram, for a relation of calls: the runs from the values of the
-context and a runtime to an exit and a runtime. An exit is the graph of its function. A run of
-a step has a response with a runtime, a run of the call, and a run of the diagram of the
-response. A composite is the composition of its first diagram and the relation that has the
-runs of the continuation at an exit to its boundary, and the identity at each other exit. -/
-def Diagram.Runs {R : Type u} (T : Signature.Calls.{u, v} S X R) : {Γ : List Ty} →
-    {Qs : Exits Ty} → Diagram S Γ Qs → Rel.{u, u, max u v} (All X Γ × R) (Qs.At X × R)
-  | _, _, .exit out => Rel.lift.{u, u, u, v} (Rel.graph fun a => (out.select a.1, a.2))
-  | _, _, .step call next => fun a b =>
-      (x : (S.output call.1).At X × R) ×
-        (T ⟨call.1, a.1.select call.2⟩ a.2 x.1 x.2 ×
-          (next x.1.1).Runs T (x.1.2.append a.1, x.2) b)
-  | _, _, .seq first next =>
-      Rel.seq (first.Runs T) fun m b =>
-        Exits.At.elim (fun k => next.Runs T (k, m.2) b) (fun q => ULift.{v} ((q, m.2) ≡ b)) m.1
-
-/-- The run family of a continuation, from a case with its values and a runtime. A run of a
-frame has a run of its diagram to an exit, and a run of its continuation from the case of the
-bypass, the kept values, and that exit. The runs of a loop are the loop of the body and then
-the graph of the result. -/
-def Continuation.Runs {R : Type u} (T : Signature.Calls.{u, v} S X R) : {P : Boundary Ty} →
-    {Qs : Exits Ty} → Continuation S P Qs → Rel.{u, u, max u v} (P.At X × R) (Qs.At X × R)
-  | _, _, .copair each => fun a b => (each a.1.1).Runs T (a.1.2, a.2) b
-  | _, _, .frame (K := K) kept args shared next => fun a b =>
-      (m : Exits.At [K] X × R) ×
-        (shared.Runs T (a.1.2.select (args a.1.1), a.2) m ×
-          Exits.At.only (fun out =>
-            next.Runs T
-              (⟨Boundary.pair (kept a.1.1).1 out.1,
-                out.2.append (a.1.2.select (kept a.1.1).2)⟩, m.2) b) m.1)
-  | _, Qs, .loop (K := K) body =>
-      Loop (A := K.At X × R) (B := Qs.At X × R)
-        (Rel.seq (body.Runs T) (Rel.graph fun m => m.1.result m.2))
-
-end
-
-/-- One iteration of a loop: the body, and then the graph of the result. -/
-abbrev Continuation.Iteration {R : Type u} (T : Signature.Calls.{u, v} S X R) {K : Boundary Ty}
-    {Qs : Exits Ty} (body : Continuation S K (K :: Qs)) :
-    Rel.{u, u, max u v} (K.At X × R) ((Qs.At X × R) ⊕ (K.At X × R)) :=
-  Rel.seq (body.Runs T) (Rel.graph fun m => m.1.result m.2)
-
-section
-
-variable {R : Type u} (T : Signature.Calls.{u, v} S X R)
-
-/-- The first exit equation of the run family: an exit to the boundary of a continuation, and
-then the continuation, has the runs of the continuation at the case of the exit. The
-equivalence is the law of the graph of a function and then a computation. -/
-def Diagram.exitSeqRuns {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (out : K.At (Port Γ))
-    (next : Continuation S K Qs) (a : All X Γ × R) (b : Qs.At X × R) :
-    Iso ((Diagram.seq (.exit (Exits.At.here out)) next).Runs T a b)
-      (next.Runs T (⟨out.1, a.1.select out.2⟩, a.2) b) :=
-  Rel.graphSeq (fun a : All X Γ × R => ((Exits.At.here out).select a.1, a.2))
-    (fun m b =>
-      Exits.At.elim (fun k => next.Runs T (k, m.2) b) (fun q => ULift.{v} ((q, m.2) ≡ b)) m.1)
-    a b
-
-/-- The second exit equation of the run family: an exit past a continuation, and then the
-continuation, has the runs of that exit. -/
-def Diagram.exitPastRuns {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (out : Qs.At (Port Γ))
-    (next : Continuation S K Qs) (a : All X Γ × R) (b : Qs.At X × R) :
-    Iso ((Diagram.seq (.exit (out.there K)) next).Runs T a b)
-      ((Diagram.exit (S := S) out).Runs T a b) :=
-  Rel.graphSeq (fun a : All X Γ × R => ((out.there K).select a.1, a.2))
-    (fun m b =>
-      Exits.At.elim (fun k => next.Runs T (k, m.2) b) (fun q => ULift.{v} ((q, m.2) ≡ b)) m.1)
-    a b
-
-/-- The runs of a loop are the runs of the loop of its iterations. The identity holds by
-computation. -/
-def Continuation.loopRuns {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation S K (K :: Qs))
-    (a : K.At X × R) (b : Qs.At X × R) :
-    (Continuation.loop body).Runs T a b ≡ Loop (body.Iteration T) a b :=
-  .refl
-
-end
 
 /-- The action of a port map on a diagram. The result has the context of the map, and each
 use of a port is the port that the map gives. A continuation has the ports of its cases only,

@@ -256,53 +256,53 @@ set_option smartUnfolding false in
 condition at the entry of the frame. The shared read takes the invariant from that entry, and
 the continuation of each alternative receives the invariant at the runtime after the read. The
 exit has the invariant at the last runtime. -/
-def framedLift (n : Nat) : framed.StateLift callSpec n framedSpec (fun _ _ _ => Empty) :=
-  fun env _ pre =>
-    Diagram.StateDep.seq (S := sig)
-      (fun a s => Entered (env.lookup .here) (env.lookup (.there .here)) a × Reads s) tested
-      (.frame (M := bypass) keep enter read (.copair afterRead))
-      (Diagram.StateDep.step (S := sig) ⟨Op.isZero, .cons .here .nil⟩ _ (pre.1, ())
-        (fun e _ => e.elim)
-        fun
-          | ⟨⟨_, .here⟩, .nil⟩, _, post => Diagram.StateDep.exit _ ((post.1, .refl), post.2)
-          | ⟨⟨_, .there .here⟩, .nil⟩, _, post => Diagram.StateDep.exit _ (post.1, post.2))
+def framedLift (n : Nat) (env : All Value [(), ()]) (s : Cell) (pre : framedSpec.Pre (env, s)) :
+    framed.Holds callSpec (fun _ => Empty) n (framedSpec.Post (env, s) pre) (env, s) :=
+  Diagram.Holds.seq (S := sig)
+    (fun y => Entered (env.lookup .here) (env.lookup (.there .here)) y.1 × Reads y.2) tested
+    (.frame (M := bypass) keep enter read (.copair afterRead))
+    (Diagram.Holds.step (S := sig) ⟨Op.isZero, .cons .here .nil⟩ _ (pre.1, ())
+      (fun e _ => e.elim)
       fun
-        | ⟨⟨_, .here⟩, .cons _ (.cons kept .nil)⟩, _, entered =>
-            Continuation.StateDep.frame (S := sig) (M := bypass) (fun _ s => Reads s) keep enter
-              read (.copair afterRead)
-              (Diagram.StateDep.step (S := sig) ⟨Op.get, .nil⟩ _ (entered.2, ())
-                (fun e _ => e.elim)
-                fun
-                  | ⟨⟨_, .here⟩, .cons _ .nil⟩, _, post => Diagram.StateDep.exit _ post.2)
+        | (⟨⟨_, .here⟩, .nil⟩, _), post => Diagram.Holds.exit _ ((post.1, .refl), post.2)
+        | (⟨⟨_, .there .here⟩, .nil⟩, _), post => Diagram.Holds.exit _ (post.1, post.2))
+    fun
+      | (⟨⟨_, .here⟩, .cons _ (.cons kept .nil)⟩, _), entered =>
+          Continuation.Holds.frame (S := sig) (M := bypass) (fun y => Reads y.2) keep enter
+            read (.copair afterRead)
+            (Diagram.Holds.step (S := sig) ⟨Op.get, .nil⟩ _ (entered.2, ())
+              (fun e _ => e.elim)
               fun
-                | ⟨⟨_, .here⟩, .cons first .nil⟩, _, inv =>
-                    Continuation.StateDep.copair _
-                      (Diagram.StateDep.step (S := sig) ⟨Op.put, .cons (.there .here) .nil⟩ _
-                        (inv, ()) (fun e _ => e.elim)
-                        fun
-                          | ⟨⟨_, .here⟩, .nil⟩, _, post =>
-                              Diagram.StateDep.exit _
-                                (Identity.transport
-                                  (fun x => Kept x (env.lookup (.there .here)) (first, kept))
-                                  entered.1.1.symm entered.1.2, post.2))
-        | ⟨⟨_, .there .here⟩, .cons _ (.cons _ .nil)⟩, _, entered =>
-            Continuation.StateDep.frame (S := sig) (M := bypass) (fun _ s => Reads s) keep enter
-              read (.copair afterRead)
-              (Diagram.StateDep.step (S := sig) ⟨Op.get, .nil⟩ _ (entered.2, ())
-                (fun e _ => e.elim)
-                fun
-                  | ⟨⟨_, .here⟩, .cons _ .nil⟩, _, post => Diagram.StateDep.exit _ post.2)
+                | (⟨⟨_, .here⟩, .cons _ .nil⟩, _), post => Diagram.Holds.exit _ post.2)
+            fun
+              | (⟨⟨_, .here⟩, .cons first .nil⟩, _), inv =>
+                  Continuation.Holds.copair _
+                    (Diagram.Holds.step (S := sig) ⟨Op.put, .cons (.there .here) .nil⟩ _
+                      (inv, ()) (fun e _ => e.elim)
+                      fun
+                        | (⟨⟨_, .here⟩, .nil⟩, _), post =>
+                            Diagram.Holds.exit _
+                              (Identity.transport
+                                (fun x => Kept x (env.lookup (.there .here)) (first, kept))
+                                entered.1.1.symm entered.1.2, post.2))
+      | (⟨⟨_, .there .here⟩, .cons _ (.cons _ .nil)⟩, _), entered =>
+          Continuation.Holds.frame (S := sig) (M := bypass) (fun y => Reads y.2) keep enter
+            read (.copair afterRead)
+            (Diagram.Holds.step (S := sig) ⟨Op.get, .nil⟩ _ (entered.2, ())
+              (fun e _ => e.elim)
               fun
-                | ⟨⟨_, .here⟩, .cons first .nil⟩, _, inv =>
-                    Continuation.StateDep.copair _
-                      (Diagram.StateDep.step (S := sig) ⟨Op.get, .nil⟩ _ (inv, ())
-                        (fun e _ => e.elim)
-                        fun
-                          | ⟨⟨_, .here⟩, .cons second .nil⟩, _, post =>
-                              Diagram.StateDep.exit _
-                                (Identity.transport
-                                  (fun x => Kept x (env.lookup (.there .here)) (first, second))
-                                  entered.1.2.symm (), post.2))
+                | (⟨⟨_, .here⟩, .cons _ .nil⟩, _), post => Diagram.Holds.exit _ post.2)
+            fun
+              | (⟨⟨_, .here⟩, .cons first .nil⟩, _), inv =>
+                  Continuation.Holds.copair _
+                    (Diagram.Holds.step (S := sig) ⟨Op.get, .nil⟩ _ (inv, ())
+                      (fun e _ => e.elim)
+                      fun
+                        | (⟨⟨_, .here⟩, .cons second .nil⟩, _), post =>
+                            Diagram.Holds.exit _
+                              (Identity.transport
+                                (fun x => Kept x (env.lookup (.there .here)) (first, second))
+                                entered.1.2.symm (), post.2))
 
 variable (stop : Free (sig.interface Value) (Exits.At Two Value)) (count : Nat)
 
@@ -310,7 +310,8 @@ variable (stop : Free (sig.interface Value) (Exits.At Two Value)) (count : Nat)
 verified implementation by the calls of the cell, for the invariant. -/
 def framedLowered :
     ImplDep framedSpec cellInvariant ((framed.impl stop count).thread.trans lower.thread) :=
-  ((framedLift count).impl fun _ _ _ _ e => e.elim).trans lowerDep.thread
+  (Diagram.Holds.impl (fun x pre => framedLift count x.1 x.2 pre) fun _ _ _ e => e.elim).trans
+    lowerDep.thread
 
 /-- The frame equation as a map of verified implementations with a runtime: the verified form
 with the frame of each alternative alone. -/

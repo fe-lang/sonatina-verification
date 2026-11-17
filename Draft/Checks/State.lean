@@ -1,4 +1,5 @@
 import Draft.Runtime
+import Draft.Specification.Verified
 
 /-! Diagrams that read and write one cell, on a machine.
 
@@ -168,13 +169,12 @@ set_option smartUnfolding false in
 /-- The evidence of the diagram for the graph of the machine, by the constructors of the
 diagram. Each step has the response of the machine at its runtime. -/
 def readWriteDep (n c k : Nat) :
-    readWrite.StateDep machine.graph n (fun r s => Result c k (.inr (r, s)))
-      (fun _ => Empty) (fun _ => Empty) .nil (c, k) :=
-  Diagram.StateDep.stepResponse (S := sig) machine ⟨Op.get, .nil⟩ _ .refl
-    (Diagram.StateDep.stepResponse (S := sig) machine ⟨Op.succ, .cons .here .nil⟩ _ .refl
-      (Diagram.StateDep.stepResponse (S := sig) machine ⟨Op.put, .cons .here .nil⟩ _ .refl
-        (Diagram.StateDep.stepResponse (S := sig) machine ⟨Op.get, .nil⟩ _ .refl
-          (Diagram.StateDep.exit _ (.refl, .refl)))))
+    readWrite.Holds machine.graph (fun _ => Empty) n (Result c k) (.nil, (c, k)) :=
+  Diagram.Holds.stepResponse (S := sig) machine ⟨Op.get, .nil⟩ _ .refl
+    (Diagram.Holds.stepResponse (S := sig) machine ⟨Op.succ, .cons .here .nil⟩ _ .refl
+      (Diagram.Holds.stepResponse (S := sig) machine ⟨Op.put, .cons .here .nil⟩ _ .refl
+        (Diagram.Holds.stepResponse (S := sig) machine ⟨Op.get, .nil⟩ _ .refl
+          (Diagram.Holds.exit _ (.refl, .refl)))))
 
 set_option smartUnfolding false in
 /-- The evidence at the result of the run on the machine. The machine has evidence of its
@@ -182,8 +182,7 @@ graph. -/
 def readWriteEvidence (n c k : Nat) (stop : Free (sig.interface Value) (Exits.At Two Value)) :
     Result c k (machine.run (readWrite.run stop n .nil .pure) (c, k)) :=
   FreeDep.run machine.graphEvidence
-    (readWriteDep n c k (F := Result c k) (stop := stop) (fun e => e.elim) (fun _ e => e.elim)
-      (fun _ _ post => .pure post))
+    (Diagram.Holds.evidence (readWriteDep n c k) (stop := stop) fun _ e => e.elim)
 
 set_option smartUnfolding false in
 /-- The identity of the last runtime is consumed through a dependent payload, for an arbitrary
@@ -286,14 +285,14 @@ set_option smartUnfolding false in
 /-- The lift of the first order, by the constructors of the diagram. The specification of the
 calls is the graph of the machine of the lowering. The exit has the difference of the witness
 with one more read. -/
-def succLift (n : Nat) :
-    succFirst.StateLift (cellMachine.impl lower).graph n counted (fun _ _ _ => Empty) :=
-  fun _ _ pre =>
-    Diagram.StateDep.stepResponse (S := sig) (cellMachine.impl lower) ⟨Op.succ, succArgs⟩ _ .refl
-      (Diagram.StateDep.stepResponse (S := sig) (cellMachine.impl lower)
-        ⟨Op.get, getArgs.weaken _⟩ _ .refl
-        (Diagram.StateDep.exit _
-          (.refl, ⟨pre.2.1 + 1, Identity.cong (fun k => k + 1) pre.2.2⟩)))
+def succLift (n : Nat) (env : All Value [()]) (s : Cell) (pre : counted.Pre (env, s)) :
+    succFirst.Holds (cellMachine.impl lower).graph (fun _ => Empty) n
+      (counted.Post (env, s) pre) (env, s) :=
+  Diagram.Holds.stepResponse (S := sig) (cellMachine.impl lower) ⟨Op.succ, succArgs⟩ _ .refl
+    (Diagram.Holds.stepResponse (S := sig) (cellMachine.impl lower)
+      ⟨Op.get, getArgs.weaken _⟩ _ .refl
+      (Diagram.Holds.exit _
+        (.refl, ⟨pre.2.1 + 1, Identity.cong (fun k => k + 1) pre.2.2⟩)))
 
 variable (stop : Free (sig.interface Value) (Exits.At Two Value)) (count : Nat)
 
@@ -302,7 +301,8 @@ the calls of the cell. The lowering is a verified implementation between the gra
 machines. -/
 def succLowered :
     ImplDep counted cellMachine.graph ((succFirst.impl stop count).thread.trans lower.thread) :=
-  ((succLift count).impl fun _ _ _ _ e => e.elim).trans (ImplDep.graph lower.thread cellMachine)
+  (Diagram.Holds.impl (fun x pre => succLift count x.1 x.2 pre) fun _ _ _ e => e.elim).trans
+    (ImplDep.graph lower.thread cellMachine)
 
 /-- The interchange as a map of verified implementations with a runtime. -/
 def getLowered :
@@ -365,7 +365,8 @@ def onMachine :
 machine of the lowering, which has evidence of its graph. -/
 def succMachine :
     Evidence counted ((cellMachine.impl lower).impl (succFirst.impl stop count)) :=
-  ((succLift count).impl fun _ _ _ _ e => e.elim).run (cellMachine.impl lower).graphEvidence
+  (Diagram.Holds.impl (fun x pre => succLift count x.1 x.2 pre) fun _ _ _ e => e.elim).run
+    (cellMachine.impl lower).graphEvidence
 
 /-- The evidence of the machine of the second order, along the interchange derivation. -/
 def getMachine :

@@ -81,7 +81,8 @@ bases. `Iso.sigma` has the two. The inverse map of `Iso.sigmaBase` moves an
 element of the fibre along `e.toInv`. Its first round trip uses
 `Iso.coherence`: the map of the round trip `Iso.invToOf` is `e.toInv` at the
 value of the map. `Identity.contract` is the isomorphism of a family on the
-identities from one element with its value at the reflexivity.
+identities from one element with its value at the reflexivity. The identities
+have a lift to a higher universe level.
 `Identity.inlFiber` and `Identity.inrFiber` show that two identities from one
 element of a sum to values of one constructor are one identity.
 

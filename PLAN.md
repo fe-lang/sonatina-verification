@@ -17,9 +17,10 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Prelude.Container.Section`, `Prelude.Container.Verified` | Shared `DepPoly`, `FreeDep`, verified implementations and composition |
 | `Prelude.Container.Runtime` | The interface with a runtime, machines, the computation with a runtime at each call, the graph of a machine, the specification with an invariant of the runtime, the machine of a part of the runtime along a lens, and the interface and the machine of a cell with the equations of global state |
 | `Draft.Implementation` | Compiler operation interfaces with their specifications, and their verified implementations |
-| `Draft.Diagram` | The one diagram syntax: signatures of pure and effectful operations, contexts and boundaries with their structural maps, diagrams with exits, steps, and composites, continuations with copairings, frames, and loops, the function meaning and the run family, the derivation rules of each equation set, bypasses, resolution, substitution, the laws of the loop, and structural cells and execution certificates |
-| `Draft.Verified` | The verification over the diagram syntax: the interface of a diagram, the evidence of a diagram by its constructors, the lift for a specification, the verified implementation, and the map of verified implementations along a derivation |
-| `Draft.Runtime` | The runner of that syntax: the machines of a signature with their relation of calls, the evidence of a diagram for a specification of the interface with a runtime, the interpretation of effects with the runtime, state equations, invariant evidence, and dependent rewrite maps |
+| `Draft.Diagram` | The one diagram syntax: signatures of pure and effectful operations, contexts and boundaries with their structural maps, diagrams with exits, steps, and composites, continuations with copairings, frames, and loops, the function meaning, the derivation rules of each equation set, bypasses, resolution, substitution, the laws of the loop, and structural cells and execution certificates |
+| `Draft.Verified` | The interface of a diagram, the diagram as an implementation of that interface, and the map of verified implementations along a derivation |
+| `Draft.Specification` | The verification over the diagram syntax: the specification of a diagram from a specification of its calls with a runtime, with the exit equations and the loop law, the evidence of each approximant and its completeness against the runs, the bound, the verified diagram, the evidence of a diagram by its constructors, the graph of a machine, the cartesian maps of a derivation, and the peel of a loop |
+| `Draft.Runtime` | The runner of that syntax: the machines of a signature, the interpretation of effects with the runtime, state equations, invariant evidence, and dependent rewrite maps |
 | `Draft.Stele` | The example frontend: a typed fragment of Stele, the signature of its operations, and its translation to diagrams |
 | `Draft.Source` | Source diagrams as presentations of a VSDG, the relation between two presentations, the frontend interface, sharing, control, and feedback translation, and admissibility evidence |
 | `Draft.Sequentialization` | The selection of a realization by cost, certified realizations, coverage, and soundness |
@@ -29,9 +30,9 @@ The implementation namespace is `Draft.*`. Foundations are in `Prelude`.
 | `Observations` | Observational proofs of correctness for metatheoretical verification. They can use axioms, and no implementation module depends on them. |
 
 The Prelude identity, indexed, decision, relation, and container modules,
-`Draft.Diagram`, `Draft.Verified`, `Draft.Stele`, and `Draft.Checks` exist.
-`Draft.Runtime` has the machines, the evidence of a diagram with a runtime,
-and the cell of a signature with the equations of global state.
+`Draft.Diagram`, `Draft.Verified`, `Draft.Specification`, `Draft.Stele`, and
+`Draft.Checks` exist. `Draft.Runtime` has the machines and the cell of a
+signature with the equations of global state.
 `Draft.Sequentialization` has the orders of the steps of a diagram.
 The other module families are the planned locations for stages D3 to D7. The module families divide the work
 and not the system: the IR is the one diagram syntax of
@@ -59,11 +60,11 @@ in AGENTS.
 | --- | --- | --- |
 | D0. Foundation probe | Minimal polynomial maps and dependent reindexing. Composition and consumer congruence compute for a nontrivial dependent family. Identity and index transports are constructed and eliminated in the dependent consumer. | Complete |
 | D1. Aberlé core | `Free`/`FreeDep`, verified composition, erasure compatibility, fold/append/concat, and distinguishable witness examples. Repeated composition preserves and exposes the supplied evidence. | Complete |
-| D2. Whole diagrams with effects | Signatures of pure and effectful operations, with input ports and an output boundary for each operation. Contexts, boundaries as lists of contexts, and their structural maps: copy, discard, and exchange on ports, and the join on cases. Diagrams: exits, steps, and composites. Continuations: copairings, frames with a bypass, and loops. The static size of a diagram. The structural agreement of two diagrams whose families agree at each case, with its soundness. The request interface of a signature at a family of values, with the specification of each operation as a part of the signature. The function meaning of a diagram into `Free`, with the remaining computation as an argument, for a number of unrollings of each loop and a computation for the limit. The verification of a diagram over its function meaning, in `FreeDep`, by the constructors of the diagram: a step takes the witness of the precondition of its operation from the context, and its continuation receives the postcondition of the response. The run family of a diagram, for the calls with a runtime: a recursion into the relations of `Prelude.Relation`, with its two exit equations as equivalences. Each law of the stage is an agreement of function meanings for each number of unrollings, and the evidence of a verified diagram moves along it. The interchange rule for a pure step and a step that no wire connects to it, with its agreement for each lowering in which each pure operation makes no call, and with the map of verified diagrams along that agreement. The state runner, with whiskering and pure centrality. The control equation set for the state runner: the two case equations, the pointwise uniqueness of a map out of a sum, preservation by whiskering, the agreement of a composite with the diagram that has the continuation at each exit, and the agreement of a frame with the copairing that has a copy of its diagram for each case of the bypass. Branching read/write with a shared invariant, and the applicable global-state rewrite evidence. Each law is a pointwise statement, so that the graph of a function carries it to the relations of D6. The D2 checks below pass. | Complete |
+| D2. Whole diagrams with effects | Signatures of pure and effectful operations, with input ports and an output boundary for each operation. Contexts, boundaries as lists of contexts, and their structural maps: copy, discard, and exchange on ports, and the join on cases. Diagrams: exits, steps, and composites. Continuations: copairings, frames with a bypass, and loops. The static size of a diagram. The structural agreement of two diagrams whose families agree at each case, with its soundness. The request interface of a signature at a family of values, with the specification of each operation as a part of the signature. The function meaning of a diagram into `Free`, with the remaining computation as an argument, for a number of unrollings of each loop and a computation for the limit. The verification of a diagram over its function meaning, in `FreeDep`, by the constructors of the diagram: a step takes the witness of the precondition of its operation from the context, and its continuation receives the postcondition of the response. The specification of a diagram, from a specification of its calls with a runtime: a witness of the precondition of each call that a run can make, and the runs over that witness, with its two exit equations as equivalences. Each law of the stage is an agreement of function meanings for each number of unrollings, and the evidence of a verified diagram moves along it. The interchange rule for a pure step and a step that no wire connects to it, with its agreement for each lowering in which each pure operation makes no call, and with the map of verified diagrams along that agreement. The state runner, with whiskering and pure centrality. The control equation set for the state runner: the two case equations, the pointwise uniqueness of a map out of a sum, preservation by whiskering, the agreement of a composite with the diagram that has the continuation at each exit, and the agreement of a frame with the copairing that has a copy of its diagram for each case of the bypass. Branching read/write with a shared invariant, and the applicable global-state rewrite evidence. Each law is a pointwise statement, so that the graph of a function carries it to the relations of D6. The D2 checks below pass. | Complete |
 | D3. Dependency orders | Source diagrams for the fixed-occurrence fragment: one sequence of steps and one exit. Each dependency-respecting order is a diagram of the same syntax with an interchange derivation from the source diagram, and its context at each step has the cut of live values. The evidence of each order is constructed from the evidence of the source along the derivation, with the condition on the specifications of the pure operations that the construction needs. Soundness for the interchange equation set: actual producer connections, exact call order, and returned-value preservation. The dependency graph of a diagram, with no names: a value is its history, and the graph has the occurrences of the steps at the histories of their operands, with the order of the effectful steps. Two calls of a pure operation with one history are one producer in the graph. The graph is thus for the interchange equation set with the copy equation set: copy naturality for each pure operation, with its soundness for each lowering in which each pure operation makes no call. The word of each order is an admissible order of the graph. The merged diagram of a diagram has one call for the equal calls of a pure operation, with a derivation from the diagram in the two equation sets, and it has no two equal occurrences. Constructive coverage for each diagram with no two equal occurrences: an arbitrary admissible order of its graph is the word of an order, with an interchange derivation and one run of each occurrence. A derivation of the interchange equation set keeps the occurrences, each the same number of times. The orders of a diagram of the fragment are a list, and each order agrees with an order of the list. The three interleavings and the shared, repeated, and discarded operand checks pass. | Current |
-| D4. Control and sharing | Source diagrams with the control sum: tests as steps with one diagram for each case, copairing for values and for the runtime, joins as two exits to one case, composites for shared continuations, and guarded operations. The dependency graph of a diagram with the control sum, in which the occurrences after a test depend on its case. The decision of the identity of two histories. The relation between two presentations of one VSDG, for the order of two pure tests that no wire connects and for the case of an operation. Occurrence partitions. Figure 5.6 and the five arrangements of Figure 5.7, each as a whole diagram. Retained bypass cases are related to source control information. Tail sharing is justified with the control equation set. Reuse and speculation are justified with the copy and discard equation sets, the applicable effect equations, and dependent evidence maps. Position invariance holds for each operation that is named for discard naturality, and a guarded operation consumes the port of its case. The two sharing hypotheses of CONCEPT are tested. Soundness and coverage hold for the claimed fragment. Costs are compared under the register-machine model of the thesis, which gives the instruction counts of the source contracts. | Pending |
+| D4. Control and sharing | Source diagrams with the control sum: tests as steps with one diagram for each case, copairing for values and for the runtime, joins as two exits to one case, composites for shared continuations, and guarded operations. The dependency graph of a diagram with the control sum, in which the occurrences after a test depend on its case. The decision of the identity of two histories. The relation between two presentations of one VSDG, for the order of two pure tests that no wire connects and for the case of an operation. Occurrence partitions. Figure 5.6 and the five arrangements of Figure 5.7, each as a whole diagram. Retained bypass cases are related to source control information. Tail sharing is justified with the control equation set. Reuse and speculation are justified with the copy and discard equation sets, the applicable effect equations, and dependent evidence maps. Position invariance holds for each operation that is named for discard naturality, and a guarded operation consumes the port of its case. The two sharing hypotheses of CONCEPT are tested. Soundness and coverage hold for the claimed fragment. Costs are compared under the register-machine model of the thesis, which gives the instruction counts of the source contracts. | Partial. Binary readiness and Figure 5.6 are implemented. |
 | D5. Substitution and composition laws | Exact silent resolution with closed cycles. Substitution with multiplied bypasses, and substitution closure. Identity and associativity with reindexing. Adequacy of finite routing certificates. Interpretation, runtime, and dependent verification commute with nested substitution. | Pending |
-| D6. Feedback | Computations as Type-valued relations, with the graph of a function, composition, the control sum, and agreement as an equivalence of run families. The loop of a body as the inductive family of runs, with the initial property: the map to each relation that the body closes, and its uniqueness at each run. For a function body: the function on the inductive domain, the uniqueness of the domain evidence, the function with fuel with soundness and completeness against the runs, and domain evidence from a decreasing measure. The consequences of the initial property, each as an equivalence with its two round-trip identities: fixpoint, naturality, codiagonal, dinaturality, uniformity for pure maps, and preservation by whiskering. The transport of a postcondition that depends on the run across each law. The generic definitions extend `Prelude.Relation`. The loop of the syntax: the laws of the run family of a diagram from the laws of composition and of the control sum for computations, and the soundness and the completeness of the function meaning against the runs, for a function of the calls. The rules of the feedback equation set, with their soundness as equivalences of run families. The trace as a derived operation of the loop, with the trace laws as consequences. The compatibility of a bypass with the loop, the agreement of staged execution with all-at-once execution, and cell pasting from uniformity, for the declared observation. Source loop initialization, carried values and state, guards, and exits. Invariant-preserving iteration with the domain evidence as the precondition witness. Correspondence with traced wiring and execution certificates. Feedback compatibility for a changing runtime and a preserved bypass context. The derivation of each loop choice of thesis §5.4 that the stage covers, and a statement of the work that infinite control and infinite observations still need. | Pending |
+| D6. Feedback | Computations as Type-valued relations, with the graph of a function, composition, the control sum, and agreement as an equivalence of run families. The loop of a body as the inductive family of runs, with the initial property: the map to each relation that the body closes, and its uniqueness at each run. For a function body: the function on the inductive domain, the uniqueness of the domain evidence, the function with fuel with soundness and completeness against the runs, and domain evidence from a decreasing measure. The consequences of the initial property, each as an equivalence with its two round-trip identities: fixpoint, naturality, codiagonal, dinaturality, uniformity for pure maps, and preservation by whiskering. The transport of a postcondition that depends on the run across each law. The generic definitions extend `Prelude.Relation`. The loop of the syntax: the laws of the specification of a diagram, and the soundness and the completeness of the function meaning against the runs of the specification. The rules of the feedback equation set, with their soundness as cartesian maps of specifications. The trace as a derived operation of the loop, with the trace laws as consequences. The compatibility of a bypass with the loop, the agreement of staged execution with all-at-once execution, and cell pasting from uniformity, for the declared observation. Source loop initialization, carried values and state, guards, and exits. Invariant-preserving iteration with the domain evidence as the precondition witness. Correspondence with traced wiring and execution certificates. Feedback compatibility for a changing runtime and a preserved bypass context. The derivation of each loop choice of thesis §5.4 that the stage covers, and a statement of the work that infinite control and infinite observations still need. | Pending |
 | D7. Example pipeline slice | The frontend and backend interfaces of CONCEPT, with Stele and the EVM as the instance. A source-to-target slice with compositional proof production, placement and storage accounting, and constructive Stele/EVM adapters. The declared value, effect, termination, and choice observations are preserved. The backend interpretation satisfies the named equation sets under its agreement relation. The direction from target runs to source runs gives the refinement relation of EquiVM at the boundary. The direction from source runs to target runs holds above a gas bound that exists for each source run. The lowering causes no stack underflow, no stack overflow, and no bad jump destination. The cost account uses the stack machine of EVMLean: gas for each instruction, code size, the reach of `DUP` and `SWAP`, the stack limit, and equal stack layouts at each merge. | Pending. A frontend fragment exists. |
 
 The laws of D2 are the laws of the equation sets without feedback, and they
@@ -204,23 +205,25 @@ binds its earlier part.
 ## D2: complete
 
 [Draft/Diagram.lean](Draft/Diagram.lean) has the plain part of each
-construction. [Draft/Verified.lean](Draft/Verified.lean) has the verification
-over it, by the method of [CONCEPT.md](CONCEPT.md#design):
+construction. The verification over it is by the method of
+[CONCEPT.md](CONCEPT.md#design):
 
-- The interface of a diagram, and the diagram as an implementation of that
-  interface by calls of the interface of its signature.
-- The evidence of a diagram at the values of its context, for a postcondition
-  at each exit. It is the dependent form of the function meaning: it has the
-  evidence of the remaining computation as an argument, and the evidence of
-  the computation at the limit of a loop. Each constructor of a diagram and
-  of a continuation has its evidence. A step takes a witness of the
-  precondition of its operation, and the diagram of each response receives
-  the postcondition. A composite has a condition at the boundary of its
-  continuation, a frame has a condition at the exit of its diagram, and a loop
-  has an invariant.
-- The lift of a diagram for a specification, which is a `DepPoly` on the
-  interface of the diagram, and the verified implementation (`ImplDep`) that
-  the lift gives. The composition with a verified lowering is `ImplDep.trans`.
+- [Draft/Verified.lean](Draft/Verified.lean) has the interface of a diagram,
+  and the diagram as an implementation of that interface by calls of the
+  interface of its signature.
+- [Draft/Specification/Verified.lean](Draft/Specification/Verified.lean) has
+  the evidence of a diagram at an input, for a condition at each result of a
+  run. It is the evidence of one call of the specification of the diagram
+  with a bound. Each constructor of a diagram and of a continuation has its
+  evidence. A step takes a witness of the precondition of its operation, and
+  the diagram of each response receives the postcondition. A composite has a
+  condition at the boundary of its continuation, a frame has a condition at
+  the exit of its diagram, and a loop has an invariant or a family with a
+  count.
+- The evidence at each input with a witness of a specification, which is a
+  `DepPoly` on the interface of the diagram, gives the verified
+  implementation (`ImplDep`) of each approximant. The composition with a
+  verified lowering is `ImplDep.trans`.
 - The map of verified implementations along a derivation, for a rule set that
   holds after the substitution of the lowering.
 
@@ -233,8 +236,13 @@ along the interchange derivation; one continuation of two control paths,
 with a condition on the sum that each path establishes from the postcondition
 of the test; one effectful step of two control paths in a frame, with the lift of the
 frame moved along the frame equation to the copairing that has the frame of
-each path alone; and the loop that counts down, with an invariant that has
-the receipts of the calls and the identity of the value.
+each path alone; and the loop that counts down, with a family that has the
+receipts of the calls, the identity of the value, and a count. Each lift has
+the empty condition at the limit, so each verified implementation has an
+arbitrary computation at the limit and needs no evidence for it. A witness of
+the precondition of the loop shows that the counter is less than the number
+of unrollings. A derivation with the second exit equation under the loop
+moves the verified loop to a second loop.
 
 The calls with a runtime have one form.
 [Prelude/Container/Runtime.lean](Prelude/Container/Runtime.lean) has the
@@ -292,15 +300,15 @@ a cell of pairs, in a continuation that reads the cell again. It has the
 evidence of the program with the unit runtime, and the first evidence again
 from it.
 
-[Draft/Runtime.lean](Draft/Runtime.lean) has the evidence of a diagram for a
-specification of the interface with a runtime, by the constructors of the
-diagram. A condition has the runtime. The invariant of a loop has the runtime
-and the number of the unrollings that remain. A step for the graph of a
-machine has the response of the machine at its runtime. A specification of a
-diagram with a runtime is a `DepPoly` on the interface of the diagram with a
-runtime. The lift of a diagram for it gives the verified implementation with
-a runtime, and its composition with a verified lowering with a runtime is
-`ImplDep.trans`.
+The evidence of a diagram has the runtime. A specification of the calls is a
+`DepPoly` on the interface with a runtime, and a condition has the runtime. A
+step for the graph of a machine has the response of the machine at its
+runtime. A specification of a diagram with a runtime is a `DepPoly` on the
+interface of the diagram with a runtime. The evidence of a diagram for it
+gives the verified implementation with a runtime, and its composition with a
+verified lowering with a runtime is `ImplDep.trans`. A specification with no
+runtime is the case of the unit runtime, and its constructors have no
+runtime.
 
 A derivation in a rule set that holds after the substitution of a lowering
 gives an agreement of the two computations with a runtime, after the lowering
@@ -375,7 +383,7 @@ arbitrary runtime. The frame equation relates the frame to the copairing that
 has the frame of each alternative alone, and the two forms have one run on
 the machine. The specification has an invariant of the runtime: a lower bound
 of the number of the reads. The machine of the cell has evidence of the
-invariant, and the lift of the diagram is built by its constructors. The
+invariant, and the evidence of the diagram is built by its constructors. The
 shared read takes the invariant from the entry of the frame, and the exit of
 each alternative has the invariant at the last runtime. Two witnesses of one
 runtime give different payloads, and the payload has the number of the reads
@@ -384,36 +392,18 @@ the second value with the kept input, from the fact of the test. The frame
 equation moves the verified implementation to the other form, with the same
 payloads. The frame has 4 steps, and the other form has 7.
 
-[Probes/Specification.lean](Probes/Specification.lean) is an exploration on
-the Draft. It is not a part of the implementation, and no module of `Draft`
-imports it. It has the specification
-of a diagram from a specification of its calls with a runtime, the
-specification of an implementation, the evidence of the computation of a
-diagram with each number of unrollings from a witness of the precondition, the
-completeness of that evidence against the runs, the verified diagram as a map
-into the specification of the diagram, the bound of a verified diagram, the
-cartesian maps of specifications that a derivation gives, the unit runtime,
-and the
-constructors of the evidence of a diagram in the form of the Prelude.
-
 The text below describes the plain part.
 
 [Draft/Diagram.lean](Draft/Diagram.lean) has the signatures, the boundaries
 as lists of contexts with their product, the port maps, the diagrams, the
-continuations with the loop, the static size, the function meaning into
-`Free`, and the run family.
+continuations with the loop, the static size, and the function meaning
+into `Free`.
 The function meaning has a number of unrollings and a computation at the limit
 of a loop. A loop with no unrolling is that computation, and a loop with one
 more unrolling is its body with the loop at each exit to the entrance, by
 computation. Each law of the module is a law for each number and each
 computation at the limit, and its case for the loop is an induction on the
-number. The run family is a recursion into the relations of
-[Prelude/Relation.lean](Prelude/Relation.lean), for a relation of calls with a
-runtime. An exit is the graph of its function, a composite is the composition
-of relations, and the runs of a loop are the loop of that module for the
-iterations of its body. Its two exit equations are equivalences with their
-two round trips: each is the law of that module for the graph of a function
-and then a computation.
+number.
 The exits of a diagram are a list of boundaries, and the boundary of the
 continuation of a composite is the first boundary of the exits of its first
 diagram. The two exit equations of the control sum hold by computation, for
@@ -771,6 +761,21 @@ These parts are open:
   for copy naturality in these three places. An operation that is central
   only is not in the copy equation set.
 
+## D4: binary branches with straight-line arms
+
+[The scheduler](Draft/Sequentialization.lean) lists the test and every move
+admitted by `Ready.past` across a binary test whose arms are straight-line.
+It matches ready occurrences by operation and ordered incoming ports. For
+each admissible move, `Ready.pastListed` gives a list position and structural
+agreement of the residual diagrams at each output case.
+
+[The Figure 5.6 checks](Draft/Checks/BinaryBranch.lean) use the listed move
+to bring `h(x)` before the test. Both exits supply their result to the shared
+continuation `f` by the control equation. The checks cover static size, the
+calls on each path, and transport of a witness-dependent specification through
+the derivation. Discovery of shared tails, coverage of sharing partitions,
+and the Figure 5.7 cost comparison remain open.
+
 ## D6: generic definitions
 
 [Prelude/Relation.lean](Prelude/Relation.lean) has the generic definitions of
@@ -786,21 +791,18 @@ transport of evidence that depends on a run across an agreement. Strength has
 its two maps and one round trip. Naturality, uniformity for a function, and
 the codiagonal have their two maps and no round trip. The two D6 checks for a
 loop pass on these definitions. [Draft/Diagram.lean](Draft/Diagram.lean) has
-the loop of the syntax with its two meanings. These parts are open: the
+the loop of the syntax with its function meaning. These parts are open: the
 missing round trips, dinaturality, the laws of composition and of the control
-sum for computations, the laws of the loop of the syntax, and the source
-constructions of the stage. The laws of the loop of the syntax are the laws
-of the run family of a composite and of a copairing, the soundness and the
-completeness of the function meaning against the runs, and the rules of the
-feedback equation set.
+sum for computations, the rules of the feedback equation set, and the source
+constructions of the stage.
 
-These results are pending, and they take the place of the run family of a
-diagram and of the present definition of a verified diagram. They are the
-next work on the library, before the open parts of D3. The library form has
-three universe levels: two for the specification of the calls, and one for
-the invariant of a loop. The runtime and the stop are at level 0.
-[Probes/Specification.lean](Probes/Specification.lean) has them with their
-checks. A specification of the calls with a runtime gives a specification of
+[Draft/Specification.lean](Draft/Specification.lean) and the modules under
+[Draft/Specification](Draft/Specification) have the specification of a
+diagram and the constructions on it, and
+[Draft/Checks/Specification.lean](Draft/Checks/Specification.lean) has their
+checks. The specification has two universe levels, which the specification of
+the calls gives: the invariant of a loop has the level of the runs. The
+runtime and the stop are at level 0. A specification of the calls with a runtime gives a specification of
 a diagram. A response of a call is a response with the next runtime, or a
 stop, and a result of a run is an exit with a runtime, or a stop. A witness of
 the precondition of a diagram has a witness of the precondition of each call
@@ -838,19 +840,16 @@ continuation, are the runs of that exit, as an equivalence with its two round
 trips. Each equivalence is one application of a law of
 [Prelude/Identity.lean](Prelude/Identity.lean): a family on the identities
 from one element is its value at the reflexivity. The runs of a loop over a
-witness are the loop of its iterations, by computation. The checks of the run
-family on the countdown loop pass on the specification: the first exit
-equation at the run of the whole diagram, with its round trip, and the
-unrolling law and the fixpoint law at the run from the counter 2, with their
-round trips. These laws and checks take the place of the laws and the checks
-of the run family in one change.
+witness are the loop of its iterations, by computation. The checks on the
+countdown loop have the first exit equation at the run of the whole diagram,
+with its round trip, and the unrolling law and the fixpoint law at the run
+from the counter 2, with their round trips.
 
 The function meaning and the specification of a diagram are two recursions on
 the diagram, and their connection has two halves. A witness of the
 precondition of a diagram gives the evidence of the computation of the diagram
 with each number of unrollings, for evidence of the rest at each result of a
-run. The evidence of a diagram with a runtime is this evidence with the
-condition at an exit and the condition at a stop as one family. The second
+run. The second
 half is the completeness: a run of the diagram, and then a run of the rest, is
 a run of the computation along its evidence, from a threshold of the number of
 unrollings.
@@ -858,18 +857,26 @@ unrollings.
 A verified diagram, for a specification of its interface with a runtime, is a
 map into the specification of the diagram: a witness of the precondition of
 the diagram, and the postcondition at the result of each run over that
-witness. It has the lift of a diagram with a runtime for each number of
-unrollings. A bound is second evidence: each run over the witness reaches the
-limit of a loop only at a runtime with a given condition. With the empty
-condition, the lift needs no evidence for the computation at the limit.
+witness. A bound is second evidence: each run over the witness reaches the
+limit of a loop only at a runtime with a given condition. A witness with its
+bound gives the evidence of the approximant, for a computation at the limit
+that has evidence at each runtime with the condition. With the empty
+condition, it needs no evidence for the computation at the limit, and this
+real bound is the route to a verified implementation of an approximant. With
+a condition that each runtime has, the computation at the limit needs
+evidence of the postcondition from each runtime. For a postcondition that
+fixes the last runtime, such as the postcondition of the countdown, no
+computation has that evidence, because the runtime of the machine only
+grows.
 
 A specification of the calls with no runtime is the case of the unit runtime
 with no stop: the specification with that runtime has the precondition of the
 call, and the postcondition of the call at each response. The two keep their
 universe levels. The evidence of a computation and the evidence of the
-computation with the unit runtime give each other. A verified diagram at the
-unit runtime gives the verified implementation of each approximant with no
-runtime.
+computation with the unit runtime give each other. The evidence of a diagram
+at the unit runtime gives the verified implementation of each approximant
+with no runtime. Its condition at the limit is one type, and its constructor
+of a loop has the family with a count.
 
 A cartesian map of specifications gives a witness of the second precondition
 from a witness of the first, and an equivalence of the runs over the second
@@ -895,31 +902,76 @@ under a step, a copairing, and a loop, between two different loops: a loop
 whose exit is an exit past a continuation, and then that continuation, and
 the countdown loop. It has the two maps and the two round trips at a run.
 
-In the form of the Prelude, a verified diagram is the verified implementation
-with one call, from a specification of the interface of the diagram to the
-specification of the diagram. The evidence of a diagram at an input, for a
-condition at each result, is the evidence of that one call: a witness of the
-precondition of the diagram, and the condition at the result of each run over
-that witness. The constructors of this evidence have the forms of a diagram.
-An exit has its condition. A step has a witness of the precondition of its
-call, the condition at each stop, and the evidence of the diagram of each
-response. A loop has an invariant at its entrance, which the body establishes
-at each exit to the entrance.
+The specification of a diagram with a bound has the witness of the diagram
+with its bound as the witness of its precondition, and the runs of the
+diagram. The evidence of a diagram at an input, for a condition at each result
+of a run, is the evidence of one call of that specification, in the form of
+the Prelude. The evidence at each input with a witness of a specification of
+the interface gives the verified implementation of the approximant. The
+constructors of this evidence have the forms of a diagram. An exit has its
+condition. A step has a witness of the precondition of its call, the
+condition at each stop, and the evidence of the diagram of each response. A
+composite and a frame have a condition at the boundary of the later part. A
+loop has an invariant at its entrance, which the body establishes at each
+exit to the entrance, and which gives the condition at the limit.
+
+A second constructor of a loop has a family on the entrances with a count:
+the number of the unrollings that are sufficient. The body goes from the
+family at one more to the family at the next entrance, no entrance has the
+family at zero, and the entrance has the family at the number of unrollings.
+The invariant is the family with its count, and the count at the next
+entrance is one less by computation. With the empty condition at the limit,
+this evidence gives the verified implementation of the approximant with no
+evidence for the computation at the limit. The checks have the countdown for
+each counter that is less than the number of unrollings, and a loop in a
+loop, where one number of unrollings is for the two loops.
+
+The map that forgets the bound gives the verified diagram, which moves along
+a derivation. For a condition at the limit that each runtime has, each
+witness of the precondition of a diagram has the bound, so evidence that
+moved is again a part under a constructor. A check moves the evidence of a
+loop with no count along a derivation with the second exit equation under the
+loop, and it consumes the moved evidence at a run of the second diagram over
+the moved witness.
+
+The verified implementation of an approximant moves along a derivation in a
+rule set that holds in a congruence. The approximants of the two diagrams
+agree at each number of unrollings, and the verified implementation moves
+along that agreement with its specification. Thus the result of a real bound
+moves along a derivation, and no constructor gives the evidence of the second
+diagram. The second exit equation holds in each congruence. Two checks move
+the verified countdown with a count to the loop whose exit is an exit past a
+continuation, with the same number of unrollings: one moves the evidence of
+the machine of the diagram, and one moves the verified implementation with no
+runtime, after the lowering. The witness with its bound does not move in this
+manner. The verified implementation of the whole diagram moves in its place,
+because a derivation of a part gives a derivation of the whole.
+
+The peel of a loop is a map of specifications from the loop to one copy of
+the body, and then the loop. A witness of the loop gives a witness of the
+second continuation, and a run of the second continuation gives a run of the
+loop, whose first iteration is the run of the copy. It is a map in one
+direction, and the evidence of a loop moves along it: a check consumes it at
+a run of the peeled diagram. At one number of
+unrollings, the approximants of the loop and of the peeled diagram are
+different computations, so the peel is not an agreement of the approximants.
+With a real bound, the constructors give the evidence of the peeled diagram,
+and one unrolling less is sufficient.
 
 These parts are open:
 
-- The specification and each construction on it at the three universe
-  levels. The probe has them at level 0.
-- The constructors of the evidence of a composite and of a frame, and the
-  constructors at the unit runtime, which have no unit component and no case
-  for a stop.
-- The constructors of the bound. The constructors of the evidence build the
-  map into the specification, and they do not build the bound. The present
-  loop constructor with a runtime has an invariant with the number of the
-  unrollings that remain, and a check uses that number to show that a run
-  does not reach the limit of the loop. The constructor of the evidence of a
-  loop has no such number. The probe has the bound of one loop, with one part
-  for each form of its body.
+- A loop with a count whose limit a run reaches. The loop constructor with a
+  count has no entrance at the count zero: a witness of the precondition of a
+  loop has a witness for the body at each entrance that a run reaches.
+- A real bound along the peel, and along each map that is not an agreement of
+  the approximants at one number of unrollings. The constructors give the
+  evidence of the peeled diagram again. The evidence with no bound moves
+  along the peel, and for the countdown it gives no verified implementation
+  of an approximant.
+- The peel as a rule of a derivation, with a cartesian map in each direction.
+  The direction from the peeled continuation to the loop needs one invariant
+  from the invariants after each run of the copy, and an equivalence of loops
+  over different families of entrances.
 - The cartesian maps for each rule set of D2 and D3, with the condition on
   the specification of the calls. The obligation of a rule is an equivalence
   of the runs, so the condition is stronger than the condition for a map in
@@ -933,7 +985,6 @@ These parts are open:
   it again at each iteration, and the composite of two equivalences gives it
   a run that is not in normal form. The check passes for a derivation with
   one loop form.
-- The bound of a verified diagram along a derivation.
 - The least threshold of a run.
 - The two round trips of the connection for each diagram.
 

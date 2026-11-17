@@ -281,35 +281,31 @@ def sourceSpec : DepPoly.{0, 0, 0, 0} (Diagram.interface Value [(), ()] Two) whe
 
 /-- The lift of the source diagram, by the constructors of the diagram. The exit has the
 postconditions of `A` and `B`, and the receipt of `C`. -/
-def sourceLift : source.Lift opSpec sourceSpec := fun env pre =>
-  Diagram.RunDep.step (S := sig) ⟨Op.add, .cons .here (.cons (.there .here) .nil)⟩ _ () fun
+def sourceLift (n : Nat) (env : All Value [(), ()]) (pre : sourceSpec.Pre env) :
+    source.HoldsStill opSpec Empty n (sourceSpec.Post env pre) env :=
+  Diagram.HoldsStill.step (S := sig) ⟨Op.add, .cons .here (.cons (.there .here) .nil)⟩ _ () fun
     | ⟨⟨_, .here⟩, .cons _ .nil⟩, sumA =>
-        Diagram.RunDep.step (S := sig)
+        Diagram.HoldsStill.step (S := sig)
           ⟨Op.add, .cons .here (.cons (.there (.there .here)) .nil)⟩ _ () fun
           | ⟨⟨_, .here⟩, .cons _ .nil⟩, sumB =>
-              Diagram.RunDep.step (S := sig) ⟨Op.emit, .cons (.there (.there .here)) .nil⟩ _
+              Diagram.HoldsStill.step (S := sig) ⟨Op.emit, .cons (.there (.there .here)) .nil⟩ _
                 pre fun
                 | ⟨⟨_, .here⟩, .cons _ .nil⟩, receipt =>
-                    Diagram.RunDep.exit _
+                    Diagram.HoldsStill.exit _
                       ⟨sumB.trans
                           (Identity.cong (fun k => k + env.lookup (.there .here)) sumA),
                         receipt⟩
 
-section
-
-variable (limit : (env : All Value [(), ()]) → (pre : Admission) →
-  FreeDep opSpec (sourceSpec.Post env pre) stop)
-
 /-- The verified source diagram and then the verified lowering. -/
 def loweredSource : ImplDep sourceSpec Verified.spec ((source.impl stop count).trans lower) :=
-  (sourceLift.impl limit count).trans lowerDep
+  (Diagram.HoldsStill.impl (sourceLift count) fun _ _ e => e.elim).trans lowerDep
 
 /-- The verified implementation of an order: the map of verified implementations along the
 derivation of the order. -/
 def lowered (e : Diagram sig [(), ()] Two) (o : Diagram.Order e source) :
     ImplDep sourceSpec Verified.spec ((e.impl stop count).trans lower) :=
   (Diagram.Order.derivation (Rules.Map.id _) e source o).lift (.interchange returns) stop count
-    (loweredSource stop count limit)
+    (loweredSource stop count)
 
 /-- The receipt at the exit, from a run with a provider that has evidence. -/
 def receipt {f : Impl (Diagram.interface Value [(), ()] Two) store}
@@ -322,29 +318,27 @@ set_option smartUnfolding false in
 admission, arbitrary inputs, and arbitrary responses. The payload is a function of the
 constructor of the admission. -/
 def sourceReceipt (flag : Bool) (u v x y : Nat) (pre : Admission) :
-    receipt (loweredSource stop count limit) flag u v x y pre ≡ expected pre u := .refl
+    receipt (loweredSource stop count) flag u v x y pre ≡ expected pre u := .refl
 
 set_option smartUnfolding false in
 /-- The evidence of the order `A C B` gives the same payload. -/
 def middleReceipt (flag : Bool) (u v x y : Nat) (pre : Admission) :
-    receipt (lowered stop count limit middle middleOrder) flag u v x y pre ≡ expected pre u := .refl
+    receipt (lowered stop count middle middleOrder) flag u v x y pre ≡ expected pre u := .refl
 
 set_option smartUnfolding false in
 /-- The evidence of the order `C A B`, whose derivation has two interchanges, gives the same
 payload. -/
 def frontReceipt (flag : Bool) (u v x y : Nat) (pre : Admission) :
-    receipt (lowered stop count limit front frontOrder) flag u v x y pre ≡ expected pre u := .refl
+    receipt (lowered stop count front frontOrder) flag u v x y pre ≡ expected pre u := .refl
 
 set_option smartUnfolding false in
 /-- The postcondition of `B` in the evidence of the order `C A B` is consumed through a
 dependent payload. -/
 def frontSum (flag : Bool) (u v x y : Nat) (pre : Admission) :
     (Identity.transport (fun k => Fin (k + 1))
-      (((lowered stop count limit front frontOrder).run (Verified.verify flag u v))
+      (((lowered stop count front frontOrder).run (Verified.verify flag u v))
         (inputs x y) pre).1
       ⟨x + y + y, Nat.lt_succ_self _⟩).val ≡ x + y + y := .refl
-
-end
 
 /-! The dependency graph. -/
 

@@ -192,12 +192,17 @@ def Diagram.Order.straight : {Γ : List Ty} → {Qs : Exits Ty} → (e d : Diagr
           (o.2.2 (o.2.1.single h).1) (o.2.1.straight h (o.2.1.single h).1)⟩
   | _, _, .seq _ _, _, o, _ => nomatch o
 
+/-- The residual diagrams and readiness witness at a specified call. -/
+abbrev Diagram.ReadyFor {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (call : (S.interface (Port Γ)).Shape) : Type :=
+  (after : (cb : (S.output call.1).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
+    Diagram.Ready call.1 d call.2 after
+
 /-- A ready step of a diagram: its operation, its operands, the diagram after it, and the
 evidence. -/
 abbrev Diagram.Choice {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) : Type :=
   (b : S.Op) × ((args : PortMap Γ (S.input b)) ×
-    ((after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
-      Diagram.Ready b d args after))
+    d.ReadyFor ⟨b, args⟩)
 
 /-- The ready step of the diagram from a ready step of the rest of the first step, for a value
 of the decision of the kinds and a value of the decision of the operands. -/
@@ -236,6 +241,53 @@ def Diagram.choices : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Q
       ⟨a, first, rest, .here first rest⟩ ::
         (Diagram.choices (rest h.1) h.2.2).filterMap (Diagram.Choice.past a first rest h.1 h.2.1)
   | _, _, .seq _ _, _ => []
+
+/-- Keep a listed choice when its operation and each ordered operand match the call. -/
+def Diagram.Choice.atCall [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    (k : d.Choice) (call : (S.interface (Port Γ)).Shape) : Option (d.ReadyFor call) :=
+  Dec.transport? d.ReadyFor k.2.2 (Dec.sigma (P := fun b => PortMap Γ (S.input b)) decideEq
+    (fun _ => All.decide (fun _ => Elem.decide)) ⟨k.1, k.2.1⟩ call)
+
+section Binary
+
+variable {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap Γ (S.input a))
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs)
+    (two : (S.output a).Binary)
+
+/-- The common call moves before the test. Its residual uses the selected arm's residual
+with the output ports exchanged by interchange. -/
+def Diagram.Ready.pastBinary {b : S.Op} (central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure))
+    (args : PortMap Γ (S.input b))
+    (l : (rest two.left).ReadyFor ⟨b, args.weaken two.left.1⟩)
+    (r : (rest two.right).ReadyFor ⟨b, args.weaken two.right.1⟩) :
+    (Diagram.step ⟨a, first⟩ rest).ReadyFor ⟨b, args⟩ :=
+  let each := two.elim (F := fun c => (rest c).ReadyFor ⟨b, args.weaken c.1⟩) l r
+  ⟨_, .past a central first args fun c => (each c).2⟩
+
+variable [DecEq S.Op]
+
+/-- Match one left occurrence with every matching right occurrence. The left operands must
+come from before the test. Their weakening on the right is the call to look for there. -/
+private def Diagram.Choice.matchRight (l : (rest two.left).Choice)
+    (rights : List (rest two.right).Choice)
+    (central : Option ((S.kind a ≡ .pure) ⊕ (S.kind l.1 ≡ .pure)))
+    (outer : Option ((args : PortMap Γ (S.input l.1)) × (l.2.1 ≡ args.weaken two.left.1))) :
+    List (Diagram.step ⟨a, first⟩ rest).Choice :=
+  central.elim [] fun ok => outer.elim [] fun inputs =>
+    let left := Identity.transport (fun ps => (rest two.left).ReadyFor ⟨l.1, ps⟩) inputs.2 l.2.2
+    rights.filterMap fun r => (r.atCall ⟨l.1, inputs.1.weaken two.right.1⟩).map fun right =>
+      ⟨l.1, inputs.1, Diagram.Ready.pastBinary a first rest two ok inputs.1 left right⟩
+
+/-- The test itself and all the calls ready in both of its straight-line arms. Each entry
+contains its readiness derivation. Repeated matching occurrences retain their own residuals. -/
+def Diagram.binaryChoices (arms : (c : (S.output a).Case) → (rest c).Straight) :
+    List (Diagram.step ⟨a, first⟩ rest).Choice :=
+  let rights := (rest two.right).choices (arms two.right)
+  ⟨a, first, rest, .here first rest⟩ :: ((rest two.left).choices (arms two.left)).flatMap fun l =>
+    Diagram.Choice.matchRight a first rest two l rights (Kind.central (S.kind a) (S.kind l.1))
+      (PortMap.strengthen two.left.1 l.2.1)
+
+end Binary
 
 /-- The order with a ready step first, from an order of the diagram after that step at the
 center of the output cases of the step. The order at the center gives the order at each
@@ -829,16 +881,19 @@ def Diagram.Choice.pastSome {Γ : List Ty} {Qs : Exits Ty} (a b : S.Op)
     (Diagram.Choice.pastOf a first rest center only b (second.weaken center.1) r₁)
     (Kind.centralOf central).2 (PortMap.strengthenWeaken center.1 second)
 
-/-- A ready step of a diagram that agrees with a diagram of the fragment: a ready step of the
-list of that diagram with the same operation and operands, and a diagram after it that agrees
-at each case. -/
-abbrev Diagram.Ready.Listed (b : S.Op) {Γ : List Ty} {Qs : Exits Ty} (d' : Diagram S Γ Qs)
+/-- A position of the requested operation and operands, with agreement of the residual in
+every output case. -/
+abbrev Diagram.Ready.ListedIn (b : S.Op) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
     (args : PortMap Γ (S.input b)) (after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs)
-    (h' : d'.Straight) : Type :=
+    (choices : List d.Choice) : Type :=
   (after' : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
-    ((r' : Diagram.Ready b d' args after') ×
-      (Elem (⟨b, args, after', r'⟩ : d'.Choice) (d'.choices h') ×
+    ((r' : Diagram.Ready b d args after') ×
+      (Elem (⟨b, args, after', r'⟩ : d.Choice) choices ×
         ((cb : (S.output b).Case) → Diagram.Agreement (after cb) (after' cb))))
+
+abbrev Diagram.Ready.Listed (b : S.Op) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (args : PortMap Γ (S.input b)) (after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs)
+    (h : d.Straight) : Type := Diagram.Ready.ListedIn b d args after (d.choices h)
 
 /-- Each ready step is in the list of the ready steps, for each diagram of the fragment that
 agrees with the diagram. -/
@@ -874,6 +929,52 @@ def Diagram.Ready.listed {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} → {d 
                         p ⟨ih.1, ih.2.1⟩).1 cb))
                   (fun cb => ih.2.2.2 cb) (h'.2.1 ca) cb)⟩)
         h'
+
+/-- Matching a choice against its own call returns its residual and readiness evidence. -/
+private def Diagram.Choice.atSelf [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    (k : d.Choice) : k.atCall ⟨k.1, k.2.1⟩ ≡ some k.2.2 :=
+  let call : (S.interface (Port Γ)).Shape := ⟨k.1, k.2.1⟩
+  Identity.cong (Dec.transport? d.ReadyFor k.2.2)
+    (Dec.yesRefl (Dec.sigma (P := fun b => PortMap Γ (S.input b)) decideEq
+      (fun _ => All.decide (fun _ => Elem.decide))) call)
+
+/-- Every move admitted by `Ready.past` across a binary test with straight-line arms has
+a position in the search. Its residual agrees in every output case, even when several
+occurrences in one arm have the same operation and operands. -/
+def Diagram.Ready.pastListed [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (a b : S.Op)
+    (central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure))
+    (first : PortMap Γ (S.input a)) (args : PortMap Γ (S.input b))
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs)
+    (two : (S.output a).Binary) (arms : (c : (S.output a).Case) → (rest c).Straight)
+    {after : (ca : (S.output a).Case) → (cb : (S.output b).Case) →
+      Diagram S (cb.1 ++ (ca.1 ++ Γ)) Qs}
+    (inner : (ca : (S.output a).Case) → Diagram.Ready b (rest ca) (args.weaken ca.1) (after ca)) :
+    Diagram.Ready.ListedIn b (.step ⟨a, first⟩ rest) args
+      (fun cb => .step ⟨a, first.weaken cb.1⟩ fun ca =>
+        Diagram.rename (PortMap.exchange ca.1 cb.1 Γ) (after ca cb))
+      (Diagram.binaryChoices a first rest two arms) :=
+  let listed (c : (S.output a).Case) := (inner c).listed (rest c) (.refl _) (arms c)
+  let arm (c : (S.output a).Case) : (rest c).ReadyFor ⟨b, args.weaken c.1⟩ :=
+    ⟨(listed c).1, (listed c).2.1⟩
+  let choice (c : (S.output a).Case) : (rest c).Choice := ⟨b, args.weaken c.1, arm c⟩
+  let ok := Kind.centralOf central
+  let pair := Diagram.Ready.pastBinary a first rest two ok.1 args (arm two.left) (arm two.right)
+  let found : (Diagram.step ⟨a, first⟩ rest).Choice := ⟨b, args, pair⟩
+  let matchLeft := Diagram.Choice.matchRight a first rest two (choice two.left)
+    ((rest two.right).choices (arms two.right))
+  let mem : Elem found (matchLeft (some ok.1) (some ⟨args, .refl⟩)) :=
+    Elem.ofFilterMap (listed two.right).2.2.1
+      (Identity.cong (Option.map fun right =>
+        (⟨b, args, Diagram.Ready.pastBinary a first rest two ok.1 args (arm two.left) right⟩ :
+          (Diagram.step ⟨a, first⟩ rest).Choice)) (Diagram.Choice.atSelf (choice two.right)))
+  ⟨pair.1, pair.2,
+    .there (Elem.ofFlatMap (listed two.left).2.2.1
+      (Identity.transport (Elem found)
+        (Identity.cong₂ matchLeft ok.2 (PortMap.strengthenWeaken two.left.1 args)).symm mem)),
+    fun cb => .step _ fun ca => Diagram.Agreement.rename (PortMap.exchange ca.1 cb.1 Γ)
+      (two.elimAt (F := fun c => (rest c).ReadyFor ⟨b, args.weaken c.1⟩)
+        (fun c residual => Diagram.Agreement (after c cb) (residual.1 cb))
+        ((listed two.left).2.2.2 cb) ((listed two.right).2.2.2 cb) ca)⟩
 
 /-- The diagram after a ready step of a diagram of the fragment has one step less. -/
 def Diagram.Ready.opsAfter {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} →

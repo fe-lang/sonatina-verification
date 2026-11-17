@@ -218,6 +218,8 @@ def decide : {xs : List α} → (i j : Elem a xs) → Dec (i ≡ j)
       (decide i j).map (Identity.cong Elem.there)
         (fun p => Identity.someInject (Identity.cong back p))
 
+instance {xs : List α} : DecEq (Elem a xs) := ⟨decide⟩
+
 /-- Two positions of one element with one number are one position. -/
 def sameNumber : {xs : List α} → (i j : Elem a xs) → i.toFin.val ≡ j.toFin.val → i ≡ j
   | _, .here, .here, _ => .refl
@@ -467,6 +469,9 @@ def decide (dec : (a : α) → (x y : P a) → Dec (x ≡ y)) :
       ((dec _ x y).product (decide dec xs ys)).map
         (fun p => Identity.cong₂ All.cons p.1 p.2)
         (fun p => (Identity.cong head p, Identity.cong tail p))
+
+instance {xs : List α} [∀ a, DecEq (P a)] : DecEq (All P xs) :=
+  ⟨decide fun _ => decideEq⟩
 
 end All
 

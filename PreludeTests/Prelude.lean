@@ -384,17 +384,17 @@ def stampsFiberRound (n payload : Nat) (b : Bool) :
     stampsFiber.invTo ⟨(n, b), .mark n payload⟩ ≡ .refl := .refl
 
 /-- The stamps on the identities from a number are the stamps at that number. -/
-def based (n : Nat) : Iso ((m : Nat) × (_ : n ≡ m) × Stamp m) (Stamp n) :=
+def based (n : Nat) : Iso ((m : Nat) × (_ : ULift.{1} (n ≡ m)) × Stamp m) (Stamp n) :=
   Identity.contract fun m _ => Stamp m
 
-def basedValue (n payload : Nat) : read ((based n).to ⟨n, .refl, .mark n payload⟩) ≡ payload :=
-  .refl
-def basedRound (n payload : Nat) : (based n).invTo ⟨n, .refl, .mark n payload⟩ ≡ .refl := .refl
+def basedValue (n payload : Nat) :
+    read ((based n).to ⟨n, ⟨.refl⟩, .mark n payload⟩) ≡ payload := .refl
+def basedRound (n payload : Nat) : (based n).invTo ⟨n, ⟨.refl⟩, .mark n payload⟩ ≡ .refl := .refl
 
 -- The value at an arbitrary identity keeps the payload, by the round trip.
 def basedAt {n m : Nat} (h : n ≡ m) (payload : Nat) :
-    (based n).inv ((based n).to ⟨m, h, .mark m payload⟩) ≡ ⟨m, h, .mark m payload⟩ :=
-  (based n).invTo ⟨m, h, .mark m payload⟩
+    (based n).inv ((based n).to ⟨m, ⟨h⟩, .mark m payload⟩) ≡ ⟨m, ⟨h⟩, .mark m payload⟩ :=
+  (based n).invTo ⟨m, ⟨h⟩, .mark m payload⟩
 
 /-- info: 'Prelude.Iso.coherence' does not depend on any axioms -/
 #guard_msgs in

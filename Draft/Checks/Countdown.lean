@@ -13,16 +13,10 @@ implementations is two calls of the store, for an arbitrary value and an arbitra
 at the limit. With two unrollings, the computation is the two calls and then the computation
 at the limit. The body and then the loop is the same computation with one unrolling less.
 
-The second group has the run family, for a function of the calls with a runtime. A run of the
-body continues or exits, and a run of the loop exists from each counter, for an arbitrary
-value and an arbitrary runtime. The run of the whole diagram from the counter 2 has the value
-and the runtime, and the first exit equation gives its run of the loop. The unrolling law and
-the fixpoint law of `Prelude.Loop` apply to the run from the counter 2, and their round trips
-hold by computation.
+The second group has a function of the calls with a runtime, and the values of the entrance
+and of the exit, for the checks on this loop in other modules.
 
-Each check and each run of the body sets `smartUnfolding false`. A run of the body has the
-context of each step in its type, and with the default the elaborator normalizes that context
-again at each step. The definitions of the diagrams keep the default. -/
+Each check sets `smartUnfolding false`. The definitions of the diagrams keep the default. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -134,7 +128,7 @@ def countdownSize : countdown.size ≡ 3 := .refl
 
 def unpeeledSize : unpeeled.size ≡ 6 := .refl
 
-/-! The run family. -/
+/-! A function of the calls with a runtime. -/
 
 /-- A function of the calls with a runtime. The runtime is the number of the calls of `emit`,
 and `emit` returns the runtime plus its operand. -/
@@ -146,15 +140,6 @@ def handle : (a : (sig.interface Value).Shape) → Nat → (sig.interface Value)
   | ⟨.pred, args⟩, s => (⟨Boundary.only _, .cons (args.lookup .here).pred .nil⟩, s)
   | ⟨.emit, args⟩, s => (⟨Boundary.only _, .cons (s + args.lookup .here) .nil⟩, s + 1)
 
-/-- The relation of calls: the graph of the function. -/
-def calls : Signature.Calls.{0, 0} sig Value Nat := fun a s r s' => handle a s ≡ (r, s')
-
-/-- One iteration of the loop, as a relation between an entrance with a runtime and its
-result. -/
-abbrev Step : Rel.{0, 0, 0} (Entry.At Value × Nat)
-    ((Exits.At [Out] Value × Nat) ⊕ (Entry.At Value × Nat)) :=
-  Continuation.Iteration.{0, 0} calls body
-
 def entry (c a : Nat) : Entry.At Value := ⟨Boundary.only _, inputs c a⟩
 
 def out (a : Nat) : Exits.At [Out] Value := ⟨_, .here, Boundary.only _, .cons a .nil⟩
@@ -162,67 +147,6 @@ def out (a : Nat) : Exits.At [Out] Value := ⟨_, .here, Boundary.only _, .cons 
 /-- The response with one value. -/
 def value (a : Nat) : (Boundary.one [()]).At Value := ⟨Boundary.only _, .cons a .nil⟩
 
-set_option smartUnfolding false in
-/-- A run of the body that continues: the test, the predecessor, and the effectful step, to
-the exit to the entrance. -/
-def continues (c a s : Nat) : Step (entry (c + 1) a, s) (.inr (entry c (s + a), s + 1)) :=
-  ⟨(Exits.At.here (entry c (s + a)), s + 1),
-    ⟨(⟨⟨_, .there .here⟩, .nil⟩, s), .refl, (value c, s), .refl, (value (s + a), s + 1), .refl,
-      ⟨.refl⟩⟩,
-    .refl⟩
-
-set_option smartUnfolding false in
-/-- A run of the body that exits: the test, to the exit of the loop. -/
-def exits (a s : Nat) : Step (entry 0 a, s) (.inl (out a, s)) :=
-  ⟨((out a).there Entry, s), ⟨(⟨⟨_, .here⟩, .nil⟩, s), .refl, ⟨.refl⟩⟩, .refl⟩
-
-/-- A run of the loop from each counter, for an arbitrary value and an arbitrary runtime. -/
-def runs : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) × Loop Step (entry c a, s) r
-  | 0, a, s => ⟨(out a, s), .exit (exits a s)⟩
-  | c + 1, a, s =>
-      ⟨(runs c (s + a) (s + 1)).1, .next (continues c a s) (runs c (s + a) (s + 1)).2⟩
-
-/-- The run of the whole diagram from the counter 2, to the value and the runtime: the exit to
-the entrance, and the run of the loop. -/
-def fromTwo (a s : Nat) :
-    countdown.Runs calls (inputs 2 a, s) (out ((s + 1) + (s + a)), s + 2) :=
-  ⟨(Exits.At.here (entry 2 a), s), ⟨.refl⟩, (runs 2 a s).2⟩
-
-set_option smartUnfolding false in
-/-- The first exit equation gives the run of the loop from the run of the whole diagram. -/
-def loopOfWhole (a s : Nat) :
-    (Diagram.exitSeqRuns calls ⟨Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩ loop
-      (inputs 2 a, s) _).to (fromTwo a s) ≡ (runs 2 a s).2 :=
-  .refl
-
-set_option smartUnfolding false in
-/-- The round trip of the first exit equation at that run is the reflexivity. -/
-def loopOfWholeBack (a s : Nat) :
-    (Diagram.exitSeqRuns calls ⟨Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩ loop
-      (inputs 2 a, s) _).invTo (fromTwo a s) ≡ .refl :=
-  .refl
-
-set_option smartUnfolding false in
-/-- The run from the counter 2 has three runs of the body. -/
-def runsLength (a s : Nat) : (runs 2 a s).2.length ≡ 3 := .refl
-
-set_option smartUnfolding false in
-/-- The unrolling law gives two runs of the body run twice. -/
-def unrolledLength (a s : Nat) :
-    ((Loop.unrolling Step _ _).to (runs 2 a s).2).length ≡ 2 := .refl
-
-set_option smartUnfolding false in
-/-- The inverse of the unrolling gives the first run. -/
-def unrolledBack (a s : Nat) :
-    (Loop.unrolling Step _ _).inv ((Loop.unrolling Step _ _).to (runs 2 a s).2) ≡
-      (runs 2 a s).2 :=
-  .refl
-
-set_option smartUnfolding false in
-/-- The round trip of the fixpoint law at the run is the reflexivity. -/
-def fixpointBack (a s : Nat) : (Loop.fixpoint Step _ _).invTo (runs 2 a s).2 ≡ .refl := .refl
-
--- Compiled observations supplement the kernel checks above.
 #guard ((countdown.run (.pure 0) 5 (inputs 2 10) fun r => .pure (result r)).subst lower).run
   (provider true 3 4) == 16
 #guard ((countdown.run (.pure 0) 2 (inputs 2 10) fun r => .pure (result r)).subst lower).run
@@ -236,15 +160,3 @@ end Draft.Checks.Countdown
 /-- info: 'Draft.Checks.Countdown.threeUnrollings' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Countdown.threeUnrollings
-
-/-- info: 'Draft.Checks.Countdown.loopOfWholeBack' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Draft.Checks.Countdown.loopOfWholeBack
-
-/-- info: 'Draft.Checks.Countdown.unrolledBack' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Draft.Checks.Countdown.unrolledBack
-
-/-- info: 'Draft.Checks.Countdown.fixpointBack' does not depend on any axioms -/
-#guard_msgs in
-#print axioms Draft.Checks.Countdown.fixpointBack

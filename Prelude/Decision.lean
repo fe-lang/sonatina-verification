@@ -83,6 +83,28 @@ def unique (dec : (x y : α) → Dec (x ≡ y)) {a b : α} (p q : a ≡ b) : p �
         (pathSame (dec a b) p q)).trans
       (pathSplit dec q).symm)
 
+/-- At equal endpoints a decision of identity returns reflexivity. -/
+def yesRefl (dec : (x y : α) → Dec (x ≡ y)) (x : α) : dec x x ≡ .yes .refl :=
+  let self : (d : Dec (x ≡ x)) → d ≡ .yes .refl
+    | .yes p => Identity.cong Dec.yes (unique dec p .refl)
+    | .no refute => (refute .refl).elim
+  self (dec x x)
+
+/-- Reindex data when the decision identifies its index with the requested index. -/
+def transport? {a b : α} (P : α → Type v) (x : P a) : Dec (a ≡ b) → Option (P b)
+  | .yes p => some (Identity.transport P p x)
+  | .no _ => none
+
+/-- Decide identity of dependent pairs by comparing the indices and then their fibers. -/
+def sigma {P : α → Type v} (base : (a b : α) → Dec (a ≡ b))
+    (fiber : (a : α) → (x y : P a) → Dec (x ≡ y)) (x y : Sigma P) : Dec (x ≡ y) :=
+  match base x.1 y.1 with
+  | .no refute => .no fun p => refute (Identity.cong Sigma.fst p)
+  | .yes p =>
+      (fiber y.1 (Identity.transport P p x.2) y.2).map (Identity.sigma p) fun q =>
+        (Identity.cong (fun path => Identity.transport P path x.2)
+          (unique base p (Identity.cong Sigma.fst q))).trans (Identity.sigmaSnd q)
+
 end Dec
 
 /-- Decidable internal identity. -/
@@ -160,6 +182,9 @@ def list [DecEq α] : (xs ys : List α) → Dec (xs ≡ ys)
       (fun p => (Identity.cong (fun l => l.headD x) p, Identity.cong List.tail p))
 
 instance [DecEq α] : DecEq (List α) := ⟨list⟩
+
+instance {P : α → Type v} [DecEq α] [∀ a, DecEq (P a)] : DecEq (Sigma P) :=
+  ⟨Dec.sigma decideEq (fun _ => decideEq)⟩
 
 end DecEq
 

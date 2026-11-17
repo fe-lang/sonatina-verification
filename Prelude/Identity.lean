@@ -338,17 +338,19 @@ def sigma {B' : Type u} {B : Type v} {C' : B' → Type w} {C : B → Type z} (e 
 
 end Iso
 
-/-- A family on the identities from one element is its value at the reflexivity. -/
-def Identity.contract {α : Type u} {x₀ : α} (H : (m : α) → x₀ ≡ m → Type w) :
-    Iso ((m : α) × (e : x₀ ≡ m) × H m e) (H x₀ .refl) where
-  to t := Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) t.2.1 t.2.2
-  inv h := ⟨x₀, .refl, h⟩
+/-- A family on the identities from one element is its value at the reflexivity. The
+identities have a lift to a higher universe level, so the family can have the level of a
+family of runs. -/
+def Identity.contract {α : Type u} {x₀ : α} (H : (m : α) → ULift.{v} (x₀ ≡ m) → Type w) :
+    Iso ((m : α) × (e : ULift.{v} (x₀ ≡ m)) × H m e) (H x₀ ⟨.refl⟩) where
+  to t := Identity.ind (fun m e => H m ⟨e⟩ → H x₀ ⟨.refl⟩) (fun h => h) t.2.1.down t.2.2
+  inv h := ⟨x₀, ⟨.refl⟩, h⟩
   invTo t :=
     Identity.ind
-      (fun m e => (h : H m e) →
-        (⟨x₀, .refl, Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) e h⟩ :
-          (m : α) × (e : x₀ ≡ m) × H m e) ≡ ⟨m, e, h⟩)
-      (fun _ => .refl) t.2.1 t.2.2
+      (fun m e => (h : H m ⟨e⟩) →
+        (⟨x₀, ⟨.refl⟩, Identity.ind (fun m e => H m ⟨e⟩ → H x₀ ⟨.refl⟩) (fun h => h) e h⟩ :
+          (m : α) × (e : ULift.{v} (x₀ ≡ m)) × H m e) ≡ ⟨m, ⟨e⟩, h⟩)
+      (fun _ => .refl) t.2.1.down t.2.2
   toInv _ := .refl
 
 /-- Pointwise identity of dependent functions. -/
