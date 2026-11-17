@@ -413,7 +413,7 @@ independent universe levels.
 | `m.resume f` | The result of a run, from an earlier result: a stop stays, and a returned value gives its runtime to the run of `f` |
 | `m.congruence` | The congruence of the machine `m`: two computations have one run from each runtime |
 | `Outcome Q T Z` | The condition at a result, from a condition at the returned value, an invariant of the runtime, and a condition at a stop |
-| `t.invariant T Z` | The specification of `C.runtime R E` from a specification `t` of `C`, an invariant of the runtime, and a condition at a stop |
+| `t.invariant T Z` | The specification of `C.runtime R E` from a specification `t` of `C`, an invariant of the runtime, and a condition at a stop. The precondition and the postcondition of `t` have independent universe levels, and `T` and `Z` have the level of the postcondition. |
 | `h.thread s inv` | The evidence of `x.thread s` for `t.invariant T Z`, from the evidence `h` of `x` and the invariant at `s` |
 | `ff.thread` | The lift of `f.thread` for the two specifications with the invariant, from the lift `ff` of `f` |
 | `h.threadBind k` | The evidence of `(x.bind f).thread s`, from the evidence of `x.thread s` and the evidence of the rest from each result |

@@ -23,7 +23,8 @@ the calls of the state effect.
 
 The fourth group has the two general sources of a verified implementation with a runtime: the
 graph of the machine of an implementation, and a verified implementation with an invariant of
-the runtime.
+the runtime. The invariant of the runtime applies also to a specification whose precondition is
+one level above its postcondition: a witness of the precondition has a family of types.
 
 The fifth group has the congruence of a machine. Two writes and then a read, and one write and
 then the value, have different calls and one run from each runtime. A read before each of them
@@ -226,6 +227,33 @@ def tickBoundEvidence (b : Nat) :
 def tickBoundLast (b d : Nat) :
     (tickBoundEvidence b ((), b + d) (⟨d, .refl⟩, ())).2.1 ≡ d + 1 := .refl
 
+/-- A specification of the program whose precondition is one level above its postcondition. A
+witness of the precondition is a family of types on the numbers, with an element at each
+number that has the invariant. The postcondition is the family at the response. -/
+def tickFamily (b : Nat) : DepPoly.{0, 0, 1, 0} Tick where
+  Pre _ := (P : Nat → Type) × ((r : Nat) → AtLeast b r → P r)
+  Post _ pre r := pre.1 r
+
+/-- The program is a verified implementation of it for the state invariant: the element at the
+value of the read, from the invariant at that value. -/
+def tickFamilyDep (b : Nat) : ImplDep (tickFamily b) (Invariant Nat (AtLeast b)) tick :=
+  fun _ pre =>
+    .request () fun r t =>
+      .request ⟨t.1 + 1, Identity.cong (fun k => k + 1) t.2⟩ fun _ _ => .pure (pre.2 r t)
+
+/-- The verified implementation with a runtime. The specification with the invariant of the
+runtime has its precondition at the level of the family, and its postcondition at the level of
+the invariant. -/
+def tickFamilyEvidence (b : Nat) :
+    Evidence ((tickFamily b).invariant (AtLeast b) (fun _ : Empty => Empty)) tickMachine :=
+  (tickFamilyDep b).thread.run (invariant Nat (AtLeast b))
+
+/-- The element of the family of the witness at the response has the number of the invariant
+at the read, for an arbitrary bound and an arbitrary number. -/
+def tickFamilyValue (b d : Nat) :
+    (tickFamilyEvidence b ((), b + d)
+      (⟨d, .refl⟩, ⟨fun _ => Nat × Nat, fun r t => (t.1, r)⟩)).1 ≡ (d, b + d) := .refl
+
 /-! The congruence of a machine. -/
 
 /-- Two writes, and then a read. -/
@@ -392,6 +420,10 @@ end PreludeTests.Runtime
 /-- info: 'PreludeTests.Runtime.tickBoundLast' does not depend on any axioms -/
 #guard_msgs in
 #print axioms PreludeTests.Runtime.tickBoundLast
+
+/-- info: 'PreludeTests.Runtime.tickFamilyValue' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.tickFamilyValue
 
 /-- info: 'PreludeTests.Runtime.readFirstLast' does not depend on any axioms -/
 #guard_msgs in

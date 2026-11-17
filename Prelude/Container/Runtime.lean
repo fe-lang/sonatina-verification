@@ -252,17 +252,19 @@ def Outcome (Q : α → Type w) (T : R → Type w) (Z : E → Type w) : E ⊕ (�
 
 /-- The specification of the interface with a runtime, from a specification of the interface,
 an invariant of the runtime, and a condition at a stop. A call has the invariant at its
-runtime, and a response has the invariant at the next runtime. -/
-def DepPoly.invariant (t : DepPoly.{s, p, w, w} C) (T : R → Type w) (Z : E → Type w) :
-    DepPoly.{max s r, max p r e, w, w} (C.runtime R E) where
+runtime, and a response has the invariant at the next runtime. The precondition and the
+postcondition of the specification have independent universe levels. The invariant and the
+condition at a stop have the level of the postcondition. -/
+def DepPoly.invariant (t : DepPoly.{s, p, w, z} C) (T : R → Type z) (Z : E → Type z) :
+    DepPoly.{max s r, max p r e, max w z, z} (C.runtime R E) where
   Pre a := T a.2 × t.Pre a.1
   Post a pre := Outcome (t.Post a.1 pre.2) T Z
 
 /-- The evidence of a computation moves to the computation with a runtime: from the invariant
 at the first runtime, the result has the condition at the returned value and the invariant at
 the last runtime (`run-mealyD`). -/
-def FreeDep.thread {t : DepPoly.{s, p, w, w} C} {T : R → Type w} {Z : E → Type w}
-    {Q : α → Type w} {x : Free C α} (h : FreeDep t Q x) :
+def FreeDep.thread {t : DepPoly.{s, p, w, z} C} {T : R → Type z} {Z : E → Type z}
+    {Q : α → Type z} {x : Free C α} (h : FreeDep t Q x) :
     (s : R) → T s → FreeDep (t.invariant T Z) (Outcome Q T Z) (x.thread s) :=
   FreeDep.casesOn
     (motive := fun x _ => (s : R) → T s → FreeDep (t.invariant T Z) (Outcome Q T Z) (x.thread s))
@@ -284,8 +286,8 @@ def FreeDep.thread {t : DepPoly.{s, p, w, w} C} {T : R → Type w} {Z : E → Ty
 
 /-- A verified implementation gives a verified implementation with a runtime, for an invariant
 of the runtime. -/
-def ImplDep.thread {r : DepPoly.{s, p, w, w} C} {t : DepPoly.{s', p', w, w} D}
-    {T : R → Type w} {Z : E → Type w} {f : Impl C D} (ff : ImplDep r t f) :
+def ImplDep.thread {r : DepPoly.{s, p, w, z} C} {t : DepPoly.{s', p', w', z} D}
+    {T : R → Type z} {Z : E → Type z} {f : Impl C D} (ff : ImplDep r t f) :
     ImplDep (r.invariant T Z) (t.invariant T Z) f.thread :=
   fun a pre => (ff a.1 pre.2).thread a.2 pre.1
 

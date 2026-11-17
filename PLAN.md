@@ -789,7 +789,10 @@ completeness of the function meaning against the runs, and the rules of the
 feedback equation set.
 
 These results are pending, and they take the place of the run family of a
-diagram and of the present definition of a verified diagram.
+diagram and of the present definition of a verified diagram. They are the
+next work on the library, before the open parts of D3. The library form has
+three universe levels: two for the specification of the calls, and one for
+the invariant of a loop. The runtime and the stop are at level 0.
 [Probes/Specification.lean](Probes/Specification.lean) has them with their
 checks. A specification of the calls with a runtime gives a specification of
 a diagram. A response of a call is a response with the next runtime, or a
@@ -854,13 +857,25 @@ call, the condition at each stop, and the evidence of the diagram of each
 response. A loop has an invariant at its entrance, which the body establishes
 at each exit to the entrance.
 
-These parts are open: the least threshold of a run, the two round trips of the
-connection for each diagram, independent universe levels for the
-specification of a whole diagram and for each construction on it, the
-constructors of the evidence of a composite and of a frame, the maps of
-specifications for each rule set of D2 and D3 with the condition on the
-specification of the calls, and the bound of a verified diagram along a
-derivation.
+These parts are open:
+
+- The specification and each construction on it at the three universe
+  levels. The probe has them at level 0.
+- The constructors of the evidence of a composite and of a frame, and the
+  constructors at the unit runtime, which have no unit component and no case
+  for a stop.
+- The constructors of the bound. The constructors of the evidence build the
+  map into the specification, and they do not build the bound. The present
+  loop constructor with a runtime has an invariant with the number of the
+  unrollings that remain, and a check uses that number to show that a run
+  does not reach the limit of the loop. The constructor of the evidence of a
+  loop has no such number. The probe has the bound of one loop, with one part
+  for each form of its body.
+- The maps of specifications for each rule set of D2 and D3, with the
+  condition on the specification of the calls.
+- The bound of a verified diagram along a derivation.
+- The least threshold of a run.
+- The two round trips of the connection for each diagram.
 
 ## D7: the frontend fragment
 
