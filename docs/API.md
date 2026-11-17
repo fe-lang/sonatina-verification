@@ -27,7 +27,7 @@ The Prelude imports Lean's `Init` and supplies the following modules:
 
 | Module | Contents |
 | --- | --- |
-| [`Prelude.Identity`](../Prelude/Identity.lean) | Internal identity, path induction, transport, congruence, identity laws, dependent pair identities, constructor facts for `Option` and `Sum`, and `toEq`; `Iso` with its transport of dependent evidence; `Homotopy` with `refl`, `symm`, and `trans` |
+| [`Prelude.Identity`](../Prelude/Identity.lean) | Internal identity, path induction, transport, congruence, identity laws, dependent pair identities, constructor facts for `Option` and `Sum`, and `toEq`; `Iso` with its transport of dependent evidence and its sums over fibres and bases; `Homotopy` with `refl`, `symm`, and `trans` |
 | [`Prelude.Decision`](../Prelude/Decision.lean) | `Refute`, `Dec`, `DecEq`, `decideEq`, decision combinators, and structural `DecEq` instances; `Dec.unique` gives one identity proof for each two elements of a type with a decision of identity |
 | [`Prelude.Indexed`](../Prelude/Indexed.lean) | `Elem` positions and `All` dependent environments over `List`, with lookup, update at a position, mapping, concatenation, tabulation, the positions of a concatenation, and selection, with their laws |
 | [`Prelude.Relation`](../Prelude/Relation.lean) | `Steps` with composition, mapping, and length; `Accessible` and `TypeWellFounded` for Type-valued relations; `Rel` computations with graph, composition, copairing, and agreement; `Loop` with its initial property, laws, domain evidence, and function with fuel |
@@ -37,8 +37,8 @@ The Prelude imports Lean's `Init` and supplies the following modules:
 | [`Prelude.Container.Comonoid`](../Prelude/Container/Comonoid.lean) | The data of a comonoid for composition, homomorphisms of comonoids with their composition, the state object with its comonoid, and lawful lenses with their three laws |
 | [`Prelude.Container.Section`](../Prelude/Container/Section.lean) | Closed providers, morphism interpretation, specifications, witness-dependent evidence, and computational reindexing laws |
 | [`Prelude.Container.Free`](../Prelude/Container/Free.lean) | `Free` computations with bind, interpretation, and structural agreement; implementations with substitution, composition, and copairing; the laws of the two |
-| [`Prelude.Container.Verified`](../Prelude/Container/Verified.lean) | `FreeDep` evidence that a computation satisfies a specification, with bind, substitution, interpretation, and transport along agreement; `ImplDep` lifts of implementations with composition and copairing; the laws of interpretation |
-| [`Prelude.Container.Runtime`](../Prelude/Container/Runtime.lean) | The interface with a runtime (`Container.runtime`), machines as its closed providers (`Machine`), the computation and the implementation with a runtime at each call (`Free.thread`, `Impl.thread`) with their laws for agreement, bind, and substitution, the run on a machine and the machine of an implementation (`Machine.run`, `Machine.impl`) with the laws of the run, the specification with an invariant of the runtime with the move of evidence and of a verified implementation to it (`DepPoly.invariant`, `FreeDep.thread`, `ImplDep.thread`), the machine of a part of the runtime along a lens with the law of its run (`Machine.along`, `Machine.runAlong`, `Machine.alongCongr`), and the interface and the machine of a cell with the five equations of global state (`Container.cell`, `Machine.cell`) |
+| [`Prelude.Container.Verified`](../Prelude/Container/Verified.lean) | `FreeDep` evidence that a computation satisfies a specification, with bind, substitution, interpretation, and transport along agreement; `ImplDep` lifts of implementations with composition and copairing; the laws of interpretation; the runs of a computation along its evidence, and the specification of an implementation from a specification of its calls (`FreeDep.Runs`, `Impl.spec`) |
+| [`Prelude.Container.Runtime`](../Prelude/Container/Runtime.lean) | The interface with a runtime (`Container.runtime`), machines as its closed providers (`Machine`), the computation and the implementation with a runtime at each call (`Free.thread`, `Impl.thread`) with their laws for agreement, bind, and substitution, the run on a machine and the machine of an implementation (`Machine.run`, `Machine.impl`) with the laws of the run, the specification with an invariant of the runtime with the move of evidence and of a verified implementation to it (`DepPoly.invariant`, `FreeDep.thread`, `ImplDep.thread`), the specification with the unit runtime (`DepPoly.still`), the machine of a part of the runtime along a lens with the law of its run (`Machine.along`, `Machine.runAlong`, `Machine.alongCongr`), and the interface and the machine of a cell with the five equations of global state (`Container.cell`, `Machine.cell`) |
 | [`Prelude.Container.Indexed`](../Prelude/Container/Indexed.lean) | Input/output indexed containers, typed extensions, index-preserving morphisms, and indexed composition |
 
 Ordinary data and effect interfaces are Lean's: `Empty`, `Unit`, `Bool`, `Nat`,
@@ -74,6 +74,14 @@ the value.
 `invTo` and `toInv`. For a family `Q` on `A`, `Iso.across` moves evidence at
 `x` to the family `Iso.Moved Q` at `e.to x`, and `Iso.back` returns it.
 `Iso.backAcross` and `Iso.acrossBack` are the round trips of the evidence.
+`Iso.sigmaFiber` is the isomorphism of two sums from an isomorphism of the
+fibres at each element. `Iso.sigmaBase e C` is the isomorphism of the sum of
+`C` at the values of `e` with the sum of `C`, for an isomorphism `e` of the
+bases. `Iso.sigma` has the two. The inverse map of `Iso.sigmaBase` moves an
+element of the fibre along `e.toInv`. Its first round trip uses
+`Iso.coherence`: the map of the round trip `Iso.invToOf` is `e.toInv` at the
+value of the map. `Identity.contract` is the isomorphism of a family on the
+identities from one element with its value at the reflexivity.
 `Identity.inlFiber` and `Identity.inrFiber` show that two identities from one
 element of a sum to values of one constructor are one identity.
 
@@ -167,6 +175,7 @@ of the levels of the inputs, the results, and the runs of `F`.
 | --- | --- |
 | `Loop.elim`, `Loop.elimUnique` | The initial property: the map from the loop to a family that the two rules close, and its uniqueness at each run |
 | `Loop.path` | Agreement with the paths of continue steps that end with an exit step, through `Steps` |
+| `Loop.map`, `Loop.mapMap`, `Loop.agreement` | The map of the loops from a map of the bodies, the identity of two such maps whose bodies compose to the identity, and the agreement of the loops of two bodies that agree |
 | `Loop.fixpoint` | Agreement of `Loop F` with `F ; [id, Loop F]` |
 | `Loop.unrolling` | Agreement of `Loop F` with the loop of `Rel.twice F`, the body run twice |
 | `Loop.strengthTo`, `Loop.strengthFrom`, `Loop.strengthToFrom` | The maps for a body beside an unchanged context (`Rel.withContext`), and one round trip |
@@ -381,6 +390,13 @@ postcondition for that witness. The universe levels of the specification and of
 | `ff.reindex agree` | The lift of `g` from the lift of `f` and `agree : Impl.Agreement f g` |
 | `ImplDep.ofEvidence e` | The lift of `Impl.ofSection f`, for `e : Evidence r f` |
 | `FreeDep.graph f x` | The evidence of `x` for the graph of the provider `f`: it returns the value of `x.run f` |
+| `FreeDep.Runs x h o` | The runs of `x` along its evidence `h` to the result `o`: a response of each call with its postcondition, and the identity of the returned value and `o` |
+| `FreeDep.atRun x h run` | The condition at the result of a run along the evidence |
+| `FreeDep.mapQ g x h`, `FreeDep.runsOfMap g x h run` | The evidence of another condition, from a map `g` of the conditions, and the run along the first evidence from a run along that evidence |
+| `FreeDep.own x h` | The evidence of `x` for its own runs along `h` |
+| `f.spec t` | The specification of the implementation `f` from a specification `t` of its calls. A witness of its precondition has a witness of the precondition of each call that a run can make, and its postcondition has the runs along that witness |
+| `f.specDep t` | The lift of `f` between `f.spec t` and `t` |
+| `Impl.specPre ff a pre`, `Impl.specPost ff a pre b run` | For a lift `ff` of `f` between `q` and `t`: the witness of the precondition of `f.spec t` from a witness of `q`, and the postcondition of `q` at the result of each run along that witness |
 | `ImplDep.graph g f` | The lift of `g` between the graph of `g.run f` and the graph of `f` |
 
 An implementation with its lift is a verified implementation. The lift is
@@ -416,6 +432,8 @@ independent universe levels.
 | `t.invariant T Z` | The specification of `C.runtime R E` from a specification `t` of `C`, an invariant of the runtime, and a condition at a stop. The precondition and the postcondition of `t` have independent universe levels, and `T` and `Z` have the level of the postcondition. |
 | `h.thread s inv` | The evidence of `x.thread s` for `t.invariant T Z`, from the evidence `h` of `x` and the invariant at `s` |
 | `ff.thread` | The lift of `f.thread` for the two specifications with the invariant, from the lift `ff` of `f` |
+| `Still Q`, `t.still` | The condition at a result with the unit runtime and no stop, and the specification of `C.runtime PUnit Empty` from a specification `t` of `C`, at the universe levels of `t` |
+| `FreeDep.toStill x h`, `FreeDep.ofStill x h` | The evidence of `x.thread PUnit.unit` for `t.still` from the evidence of `x` for `t`, and the converse |
 | `h.threadBind k` | The evidence of `(x.bind f).thread s`, from the evidence of `x.thread s` and the evidence of the rest from each result |
 | `h.threadSubst gg` | The evidence of `(x.subst g).thread s`, from the evidence of `x.thread s` and a lift `gg` of `g.thread` |
 | `ℓ.updateResult s` | The result on the whole runtime from a result on a part, for a lens `ℓ`: a stop stays, and the last runtime is the update of `s` |

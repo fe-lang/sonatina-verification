@@ -271,7 +271,10 @@ computations with one run on the machine of the part thus have one run on
 each machine of the whole that is that machine along the lens at their calls,
 in each continuation. The module of the runtime has the interface of a cell,
 which is Aberlé's `State`, with its machine, and the five equations of global
-state hold on that machine by computation.
+state hold on that machine by computation. A specification of an interface is
+a specification of the interface with the unit runtime and no stop, at the
+same universe levels, and the evidence of a computation and the evidence of
+the computation with the unit runtime give each other.
 
 The computation with a runtime has three laws, each as an agreement: it
 respects agreement, the computation of a bind is the first part and then the
@@ -285,7 +288,9 @@ invariant, a specification of two runtimes for one program, and the laws for
 a computation that calls the program two times. It has a lawful lens to the
 first part of a pair, the composite of two such lenses, the run of the machine
 of a cell along the lens, and two computations of a cell that have one run on
-a cell of pairs, in a continuation that reads the cell again.
+a cell of pairs, in a continuation that reads the cell again. It has the
+evidence of the program with the unit runtime, and the first evidence again
+from it.
 
 [Draft/Runtime.lean](Draft/Runtime.lean) has the evidence of a diagram for a
 specification of the interface with a runtime, by the constructors of the
@@ -774,8 +779,8 @@ kernel checks. These parts are complete: computations with graph, composition,
 copairing, and agreement; the agreement of the graph of a function and then a
 computation with that computation at the value of the function; the initial
 property of the loop; the
-correspondence of runs with paths; the fixpoint law and unrolling, each as an
-agreement; the domain evidence with its uniqueness and its construction from
+correspondence of runs with paths; the fixpoint law, unrolling, and the loops
+of two bodies that agree, each as an agreement; the domain evidence with its uniqueness and its construction from
 a measure; the function with fuel with soundness and completeness; and the
 transport of evidence that depends on a run across an agreement. Strength has
 its two maps and one round trip. Naturality, uniformity for a function, and
@@ -800,11 +805,20 @@ a diagram. A response of a call is a response with the next runtime, or a
 stop, and a result of a run is an exit with a runtime, or a stop. A witness of
 the precondition of a diagram has a witness of the precondition of each call
 that a run can make, and the runs of the diagram are over that witness. The
-graph of a machine is a specification of the calls. An implementation has a
-specification from the specification of its calls: the implementation is
-verified for it, and each specification with a lift of the implementation maps
-to it. The evidence of a computation gives the condition at the result of
-each run along that evidence.
+graph of a machine is a specification of the calls.
+
+The Prelude part of these results is complete, with its kernel checks in the
+Prelude tests.
+[Prelude/Container/Verified.lean](Prelude/Container/Verified.lean) has the
+runs of a computation along its evidence, and the condition at the result of
+each run. It has the specification of an implementation from the
+specification of its calls: the implementation is verified for it, and each
+specification with a lift of the implementation maps to it.
+[Prelude/Container/Runtime.lean](Prelude/Container/Runtime.lean) has the unit
+runtime. [Prelude/Identity.lean](Prelude/Identity.lean) has the law for a
+family on the identities from one element, and the sum over an isomorphism of
+the bases. [Prelude/Relation.lean](Prelude/Relation.lean) has the agreement
+of the loops of two bodies that agree.
 
 The precondition of a loop is an invariant: a family on the entrances that the
 body keeps, with a witness of the precondition of the body at each entrance of
@@ -821,7 +835,7 @@ of the two maps is the identity by computation. Over each witness, the runs
 of the composite are the runs of the continuation, as an equivalence with its
 two round trips. The runs of an exit past a continuation, and then the
 continuation, are the runs of that exit, as an equivalence with its two round
-trips. Each equivalence is one application of a law for
+trips. Each equivalence is one application of a law of
 [Prelude/Identity.lean](Prelude/Identity.lean): a family on the identities
 from one element is its value at the reflexivity. The runs of a loop over a
 witness are the loop of its iterations, by computation. The checks of the run
@@ -870,7 +884,7 @@ equivalence of the runs is thus a sum over an equivalence of the runs of the
 first part. That sum needs the two round trips of the
 first equivalence to agree, and an isomorphism has a first round trip with
 that property. The equivalence of the runs of a loop is one application of
-the agreement of the loops of two bodies that agree. The two laws are for
+the agreement of the loops of two bodies that agree. The two laws are in
 [Prelude/Identity.lean](Prelude/Identity.lean) and
 [Prelude/Relation.lean](Prelude/Relation.lean). The checks on the countdown
 loop have the two maps of the equivalence at a run, and its two round

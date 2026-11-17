@@ -348,6 +348,52 @@ def stillBindRun (A : Type) (a : A) (n : Nat) :
         (f := Container.Section.zero) (fun _ => .refl))
       ⟨n, Nat.lt_succ_self _⟩).val ≡ n := .refl
 
+/-- The run of the two calls along the evidence: each response is the value of its shape. -/
+def twiceRuns (A : Type) (a : A) : Container.FreeDep.Runs (twice A a) (twiceDep A a) a :=
+  ⟨a, .refl, a, .refl, ⟨.refl⟩⟩
+
+-- The condition at the result of that run is the composite of its two identities.
+def twiceAtRun (A : Type) (a : A) :
+    Identity (Container.FreeDep.atRun (twice A a) (twiceDep A a) (twiceRuns A a)) .refl := .refl
+
+-- The evidence of the runs, with the provider, gives that run.
+def twiceOwnRun (A : Type) (a : A) :
+    Identity ((Container.FreeDep.own (twice A a) (twiceDep A a)).run echoEvidence)
+      (twiceRuns A a) := .refl
+
+/-- The specification of the implementation, from the specification of its calls. Its
+precondition is one level above its postcondition. -/
+def twiceSpec (A : Type) : Container.DepPoly.{0, 0, 1, 0} (each A) := (twice A).spec echoSpec
+
+-- The implementation is verified for its specification. The run of that lift with the
+-- provider is the run along the witness, for an arbitrary witness.
+def twiceSpecRun (A : Type) (a : A) (pre : (twiceSpec A).Pre a) :
+    Identity (((twice A).specDep echoSpec).run echoEvidence a pre)
+      ⟨a, .refl, a, .refl, ⟨.refl⟩⟩ := .refl
+
+-- A specification with a lift of the implementation maps to it: the run along the witness
+-- of the lift has the postcondition of that specification.
+def twiceSpecPost (A : Type) (a : A) :
+    Identity
+      (Container.Impl.specPost (twiceLift A) a Nat a ⟨a, .refl, a, .refl, ⟨.refl⟩⟩) .refl :=
+  .refl
+
+/-- info: 'PreludeTests.Containers.FreeChecks.twiceAtRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms twiceAtRun
+
+/-- info: 'PreludeTests.Containers.FreeChecks.twiceOwnRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms twiceOwnRun
+
+/-- info: 'PreludeTests.Containers.FreeChecks.twiceSpecRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms twiceSpecRun
+
+/-- info: 'PreludeTests.Containers.FreeChecks.twiceSpecPost' does not depend on any axioms -/
+#guard_msgs in
+#print axioms twiceSpecPost
+
 /-- info: 'Prelude.Container.Free.substTrans' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Container.Free.substTrans

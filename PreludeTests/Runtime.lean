@@ -35,7 +35,11 @@ computation, and each of its three laws is the reflexivity. The composite of two
 lawful by the composition of homomorphisms, and its laws compute. The machine of the cell
 along the lens has a runtime with a second part, which stays. A cell of pairs implements the
 cell of the first part, and the two computations of the fifth group have one run on the machine
-of the cell of pairs, in a continuation that reads the cell again. -/
+of the cell of pairs, in a continuation that reads the cell again.
+
+The seventh group has the unit runtime. The evidence of the program moves to the program with
+the unit runtime and back, and the result is the first evidence. A specification whose
+precondition is one level above its postcondition keeps its levels. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -383,7 +387,44 @@ def writtenWideValue (a b c q : Nat) :
     (Identity.transport (fun out => Fin (returnedWide out + 1)) (writtenWide a b (c, q))
       ⟨b + b + q, Nat.lt_succ_self _⟩).val ≡ b + b + q := .refl
 
+/-! The unit runtime. -/
+
+/-- The evidence of the program for the state invariant, as evidence of the program with the
+unit runtime. -/
+def tickStill (b : Nat) :=
+  FreeDep.toStill (tick ()) (tickInvariant b)
+
+set_option smartUnfolding false in
+/-- That evidence gives the first evidence again, for an arbitrary bound. -/
+def tickStillBack (b : Nat) : FreeDep.ofStill (tick ()) (tickStill b) ≡ tickInvariant b := .refl
+
+/-- The specification with the unit runtime of a specification whose precondition is one level
+above its postcondition. -/
+def tickFamilyStill (b : Nat) : DepPoly.{0, 0, 1, 0} (Tick.runtime PUnit Empty) :=
+  (tickFamily b).still
+
+/-- The evidence of one call for that specification, with the unit runtime. -/
+def tickFamilyStillEvidence (b : Nat) (pre : (tickFamily b).Pre ()) :
+    FreeDep (tickFamily b).still (Still ((tickFamily b).Post () pre))
+      ((Free.call (C := Tick) ()).thread PUnit.unit) :=
+  FreeDep.toStill (t := tickFamily b) (Q := (tickFamily b).Post () pre) (Free.call ())
+    (FreeDep.call (r := tickFamily b) () pre)
+
+set_option smartUnfolding false in
+/-- That evidence has the postcondition at the response, for an arbitrary witness and an
+arbitrary response. -/
+def tickFamilyStillCall (b : Nat) (pre : (tickFamily b).Pre ()) (r : Nat) (post : pre.1 r) :
+    ((tickFamilyStillEvidence b pre).parts.2 (.inr (r, .unit)) post).result ≡ post := .refl
+
 end PreludeTests.Runtime
+
+/-- info: 'PreludeTests.Runtime.tickStillBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.tickStillBack
+
+/-- info: 'PreludeTests.Runtime.tickFamilyStillCall' does not depend on any axioms -/
+#guard_msgs in
+#print axioms PreludeTests.Runtime.tickFamilyStillCall
 
 /-- info: 'PreludeTests.Runtime.tickOutcomeLast' does not depend on any axioms -/
 #guard_msgs in

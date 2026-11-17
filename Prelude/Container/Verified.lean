@@ -7,7 +7,13 @@ evidence of the postcondition of the response, for that witness. A run with a pr
 satisfies the specification gives the evidence at the returned value.
 
 The evidence of a composite is indexed by the composite of the implementations, so the
-composition of evidence follows the constructors of the composition of implementations. -/
+composition of evidence follows the constructors of the composition of implementations.
+
+A computation has runs along its evidence: a run has a response of each call with its
+postcondition, and the result. An implementation has a specification from a specification of
+its calls. A witness of its precondition has a witness of the precondition of each call that a
+run can make, and its postcondition has the runs along that witness. The implementation is
+verified for it, and each specification with a lift of the implementation maps to it. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -137,6 +143,40 @@ def runReindex {provider : Section C} (e : Evidence r provider) {x y : Free C α
           (Identity.transRefl ((next (provider a)).run (Homotopy.refl provider)))).trans
           (runReindex e (next (provider a)) (verified (provider a) (e a pre))))
 
+/-- The runs of a computation along its evidence. A run of a returned value is the identity of
+that value and the result. A run of a call has a response with its postcondition, and a run of
+the continuation at that response. -/
+def Runs : (x : Free C α) → FreeDep r Q x → α → Type (max p z u)
+  | .pure a, _, o => ULift.{max p z} (a ≡ o)
+  | .request s k, h, o =>
+      (i : C.Pos s) × (post : r.Post s h.parts.1 i) × Runs (k i) (h.parts.2 i post) o
+
+/-- The condition at the result of a run along the evidence. -/
+def atRun : (x : Free C α) → (h : FreeDep r Q x) → {o : α} → Runs x h o → Q o
+  | .pure _, h, _, e => Identity.transport Q e.down h.result
+  | .request _ k, h, _, t => atRun (k t.1) (h.parts.2 t.1 t.2.1) t.2.2
+
+/-- The evidence of another condition, from a map of the conditions. -/
+def mapQ {Q' : α → Type v'} (g : (a : α) → Q a → Q' a) :
+    (x : Free C α) → FreeDep r Q x → FreeDep r Q' x
+  | .pure a, h => .pure (g a h.result)
+  | .request _ k, h => .request h.parts.1 fun i post => mapQ g (k i) (h.parts.2 i post)
+
+/-- A computation with evidence has the evidence of its own runs. -/
+def own : (x : Free C α) → (h : FreeDep r Q x) → FreeDep r (fun o => Runs x h o) x
+  | .pure _, _ => .pure ⟨.refl⟩
+  | .request s k, h =>
+      .request h.parts.1 fun i post =>
+        mapQ (Q := fun o => Runs (k i) (h.parts.2 i post) o)
+          (Q' := fun o => Runs (.request s k) h o)
+          (fun _ run => ⟨i, post, run⟩) (k i) (own (k i) (h.parts.2 i post))
+
+/-- The runs do not use the condition at the result. -/
+def runsOfMap {Q' : α → Type v'} (g : (a : α) → Q a → Q' a) :
+    (x : Free C α) → (h : FreeDep r Q x) → {o : α} → Runs x (mapQ g x h) o → Runs x h o
+  | .pure _, _, _, e => e
+  | .request _ k, h, _, t => ⟨t.1, t.2.1, runsOfMap g (k t.1) (h.parts.2 t.1 t.2.1) t.2.2⟩
+
 end FreeDep
 
 /-- The dependent lift of an implementation. For each shape and each witness of its
@@ -240,5 +280,35 @@ def runTrans {f : Impl C D} {g : Impl D E} (ff : ImplDep r t f) (gg : ImplDep t 
   FreeDep.runSubst gg e (ff a pre)
 
 end ImplDep
+
+section Specification
+
+variable {C : Container.{s, p}} {D : Container.{s', p'}}
+
+/-- The specification of an implementation, from a specification of its calls. A witness of
+the precondition has a witness of the precondition of each call that a run can make. The
+postcondition has the runs along that witness. -/
+def Impl.spec (f : Impl C D) (t : DepPoly.{s', p', w', z'} D) :
+    DepPoly.{s, p, max s' p' p w' z', max p' z' p} C where
+  Pre a := FreeDep t (fun _ => PUnit.{1}) (f a)
+  Post a pre b := FreeDep.Runs (f a) pre b
+
+/-- An implementation is verified for its own specification. -/
+def Impl.specDep (f : Impl C D) (t : DepPoly.{s', p', w', z'} D) : ImplDep (f.spec t) t f :=
+  fun a pre => FreeDep.own (f a) pre
+
+/-- Each specification with a lift of the implementation gives a witness of the precondition
+of the specification of the implementation. -/
+def Impl.specPre {f : Impl C D} {t : DepPoly.{s', p', w', z'} D} {q : DepPoly.{s, p, w, z} C}
+    (ff : ImplDep q t f) (a : C.Shape) (pre : q.Pre a) : (f.spec t).Pre a :=
+  FreeDep.mapQ (fun _ _ => PUnit.unit) (f a) (ff a pre)
+
+/-- Each run along that witness has the postcondition of the specification with the lift. -/
+def Impl.specPost {f : Impl C D} {t : DepPoly.{s', p', w', z'} D} {q : DepPoly.{s, p, w, z} C}
+    (ff : ImplDep q t f) (a : C.Shape) (pre : q.Pre a) (b : C.Pos a)
+    (run : (f.spec t).Post a (Impl.specPre ff a pre) b) : q.Post a pre b :=
+  FreeDep.atRun (f a) (ff a pre) (FreeDep.runsOfMap (fun _ _ => PUnit.unit) (f a) (ff a pre) run)
+
+end Specification
 
 end Prelude.Container

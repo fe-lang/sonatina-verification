@@ -177,6 +177,17 @@ def uniformCheck (s : Nat) :
         (fun _ t p => match t, p with | .inl _, p => p | .inr _, p => p) (run3 s))
       _ .refl ≡ run3 s := .refl
 
+/-- The body with its runs one level higher agrees with the body. -/
+def lifted : Rel.Agreement (Rel.graph loop) (Rel.lift.{0, 0, 0, 1} (Rel.graph loop)) :=
+  fun _ _ => ⟨fun p => ⟨p⟩, fun q => q.down, fun _ => .refl, fun _ => .refl⟩
+
+-- Bodies that agree have loops that agree. The run of the second loop has the length of the
+-- first run, and the two round trips are the reflexivity.
+def agreementLength (s : Nat) : ((Loop.agreement lifted _ _).to (run3 s)).length ≡ 4 := .refl
+def agreementRoundTrip (s : Nat) : (Loop.agreement lifted _ _).invTo (run3 s) ≡ .refl := .refl
+def agreementRoundTripBack (s : Nat) :
+    (Loop.agreement lifted _ _).toInv ((Loop.agreement lifted _ _).to (run3 s)) ≡ .refl := .refl
+
 /-- A body with two continue cases: the outer case above the counter 1, and the inner case
 at the counter 1. -/
 def split : Nat × Nat → ((Nat × Unit) ⊕ (Nat × Nat)) ⊕ (Nat × Nat)
@@ -210,6 +221,14 @@ def codiagonalCheck (s : Nat) :
 /-- info: 'Prelude.Loop.Domain.unique' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Loop.Domain.unique
+
+/-- info: 'Prelude.Loop.agreement' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Loop.agreement
+
+/-- info: 'PreludeTests.LoopChecks.agreementRoundTripBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms agreementRoundTripBack
 
 /-- info: 'PreludeTests.LoopChecks.markRoundTripIsRefl' does not depend on any axioms -/
 #guard_msgs in

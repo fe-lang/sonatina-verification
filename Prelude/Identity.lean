@@ -8,7 +8,7 @@ has no eliminator of a `Prop` equality, so its reduction compares no two values.
 set_option autoImplicit false
 set_option genInjectivity false
 
-universe u v w
+universe u v w z
 
 namespace Prelude
 
@@ -161,6 +161,29 @@ def symmTransport (P : α → Type v) (p : a ≡ b) (y : P b) :
     transport P p (transport P p.symm y) ≡ y :=
   ind (fun _ p => (y : P _) → transport P p (transport P p.symm y) ≡ y) (fun _ => .refl) p y
 
+/-- The map of an inverse identity is the inverse of the map. -/
+def congSymm (f : α → β) (p : a ≡ b) : cong f p.symm ≡ (cong f p).symm :=
+  ind (fun _ p => cong f p.symm ≡ (cong f p).symm) .refl p
+
+/-- An identity cancels its inverse on the left of a composite. -/
+def symmTransTrans (t : a ≡ b) (p : b ≡ c) : t.symm.trans (t.trans p) ≡ p :=
+  ind (fun _ t => (p : _ ≡ c) → t.symm.trans (t.trans p) ≡ p) (fun _ => .refl) t p
+
+/-- An identity cancels on the right of a composite. -/
+def cancelRight (t : b ≡ c) {p q : a ≡ b} (h : p.trans t ≡ q.trans t) : p ≡ q :=
+  ind (fun _ t => p.trans t ≡ q.trans t → p ≡ q)
+    (fun h => ((transRefl p).symm.trans h).trans (transRefl q)) t h
+
+/-- A pointwise identity from a function to the identity function is natural. -/
+def natural {h : α → α} (H : (x : α) → h x ≡ x) (p : a ≡ b) :
+    (H a).trans p ≡ (cong h p).trans (H b) :=
+  ind (fun b p => (H a).trans p ≡ (cong h p).trans (H b)) (transRefl (H a)) p
+
+/-- A pointwise identity from a function to the identity function, at a value of the
+function, is the map of that identity. -/
+def naturalAt {h : α → α} (H : (x : α) → h x ≡ x) (x : α) : H (h x) ≡ cong h (H x) :=
+  cancelRight (H x) (natural H (H x))
+
 /-- Two identities from one element to `inl` values: an identity of the values that carries
 the first identity to the second. -/
 abbrev InlFiber (s : Sum α β) {x y : α} (p : s ≡ .inl x) (q : s ≡ .inl y) : Type (max u v) :=
@@ -237,7 +260,96 @@ def acrossBack (e : Iso α β) (Q : α → Type w) (x : α) (evidence : e.Moved 
     e.across Q x (e.back Q x evidence) ≡ evidence :=
   Identity.transportSymm Q (e.invTo x) evidence
 
+/-- The first round trip of an isomorphism, in the form that the second round trip
+determines. -/
+def invToOf (e : Iso α β) (x : α) : e.inv (e.to x) ≡ x :=
+  (e.invTo (e.inv (e.to x))).symm.trans
+    ((Identity.cong e.inv (e.toInv (e.to x))).trans (e.invTo x))
+
+/-- The two round trips agree: the map of that first round trip is the second round trip at
+the value of the map. -/
+def coherence (e : Iso α β) (x : α) : Identity.cong e.to (e.invToOf x) ≡ e.toInv (e.to x) :=
+  let p : e.to (e.inv (e.to x)) ≡ e.to x := Identity.cong e.to (e.invTo x)
+  let first : e.to (e.inv (e.to (e.inv (e.to x)))) ≡ e.to (e.inv (e.to x)) :=
+    Identity.cong e.to (e.invTo (e.inv (e.to x)))
+  let inner : e.invTo (e.inv (e.to x)) ≡ Identity.cong (e.inv ∘ e.to) (e.invTo x) :=
+    Identity.naturalAt (h := e.inv ∘ e.to) e.invTo x
+  let moved : first ≡ Identity.cong (e.to ∘ e.inv) p :=
+    (Identity.cong (Identity.cong e.to) inner).trans
+      ((Identity.congComp (e.inv ∘ e.to) e.to (e.invTo x)).symm.trans
+        (Identity.congComp e.to (e.to ∘ e.inv) (e.invTo x)))
+  let square : first.trans (e.toInv (e.to x)) ≡ (e.toInv (e.to (e.inv (e.to x)))).trans p :=
+    (Identity.cong (fun q => q.trans (e.toInv (e.to x))) moved).trans
+      (Identity.natural (h := e.to ∘ e.inv) e.toInv p).symm
+  let middle : Identity.cong e.to (Identity.cong e.inv (e.toInv (e.to x))) ≡
+      e.toInv (e.to (e.inv (e.to x))) :=
+    (Identity.congComp e.inv e.to (e.toInv (e.to x))).symm.trans
+      (Identity.naturalAt (h := e.to ∘ e.inv) e.toInv (e.to x)).symm
+  let parts : Identity.cong e.to (e.invToOf x) ≡
+      first.symm.trans ((e.toInv (e.to (e.inv (e.to x)))).trans p) :=
+    (Identity.congTrans e.to (e.invTo (e.inv (e.to x))).symm
+        ((Identity.cong e.inv (e.toInv (e.to x))).trans (e.invTo x))).trans
+      (Identity.cong₂ Identity.trans (Identity.congSymm e.to (e.invTo (e.inv (e.to x))))
+        ((Identity.congTrans e.to (Identity.cong e.inv (e.toInv (e.to x))) (e.invTo x)).trans
+          (Identity.cong (fun q => q.trans p) middle)))
+  (parts.trans (Identity.cong (fun q => first.symm.trans q) square.symm)).trans
+    (Identity.symmTransTrans first (e.toInv (e.to x)))
+
+/-- An isomorphism of the fibres at each element gives an isomorphism of the sums. -/
+def sigmaFiber {B : Type u} {C : B → Type v} {C' : B → Type w}
+    (φ : (b : B) → Iso (C b) (C' b)) : Iso ((b : B) × C b) ((b : B) × C' b) where
+  to x := ⟨x.1, (φ x.1).to x.2⟩
+  inv y := ⟨y.1, (φ y.1).inv y.2⟩
+  invTo x := Identity.cong (Sigma.mk x.1) ((φ x.1).invTo x.2)
+  toInv y := Identity.cong (Sigma.mk y.1) ((φ y.1).toInv y.2)
+
+/-- An element of the fibre over the value of an isomorphism, moved back along the map of an
+identity. -/
+def sigmaBaseBack {B' : Type u} {B : Type v} (e : Iso B' B) (C : B → Type w) {b b' : B'}
+    (p : b ≡ b') (c : C (e.to b')) :
+    (⟨b, Identity.transport C (Identity.cong e.to p).symm c⟩ : (b' : B') × C (e.to b')) ≡
+      ⟨b', c⟩ :=
+  Identity.indEnd
+    (fun b p =>
+      (⟨b, Identity.transport C (Identity.cong e.to p).symm c⟩ : (b' : B') × C (e.to b')) ≡
+        ⟨b', c⟩)
+    .refl p
+
+/-- An isomorphism of the bases gives an isomorphism of the sums of a family on the second
+base. The two maps and the second round trip use the second round trip of the bases. The
+first round trip uses the agreement of the two round trips of the bases. -/
+def sigmaBase {B' : Type u} {B : Type v} (e : Iso B' B) (C : B → Type w) :
+    Iso ((b' : B') × C (e.to b')) ((b : B) × C b) where
+  to x := ⟨e.to x.1, x.2⟩
+  inv y := ⟨e.inv y.1, Identity.transport C (e.toInv y.1).symm y.2⟩
+  invTo x :=
+    Identity.transport
+      (fun q =>
+        (⟨e.inv (e.to x.1), Identity.transport C q.symm x.2⟩ : (b' : B') × C (e.to b')) ≡
+          ⟨x.1, x.2⟩)
+      (e.coherence x.1) (sigmaBaseBack e C (e.invToOf x.1) x.2)
+  toInv y := Identity.sigma (e.toInv y.1) (Identity.symmTransport C (e.toInv y.1) y.2)
+
+/-- An isomorphism of the bases, and an isomorphism of the fibres over it, give an isomorphism
+of the sums. -/
+def sigma {B' : Type u} {B : Type v} {C' : B' → Type w} {C : B → Type z} (e : Iso B' B)
+    (φ : (b' : B') → Iso (C' b') (C (e.to b'))) : Iso ((b' : B') × C' b') ((b : B) × C b) :=
+  (sigmaFiber φ).trans (sigmaBase e C)
+
 end Iso
+
+/-- A family on the identities from one element is its value at the reflexivity. -/
+def Identity.contract {α : Type u} {x₀ : α} (H : (m : α) → x₀ ≡ m → Type w) :
+    Iso ((m : α) × (e : x₀ ≡ m) × H m e) (H x₀ .refl) where
+  to t := Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) t.2.1 t.2.2
+  inv h := ⟨x₀, .refl, h⟩
+  invTo t :=
+    Identity.ind
+      (fun m e => (h : H m e) →
+        (⟨x₀, .refl, Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) e h⟩ :
+          (m : α) × (e : x₀ ≡ m) × H m e) ≡ ⟨m, e, h⟩)
+      (fun _ => .refl) t.2.1 t.2.2
+  toInv _ := .refl
 
 /-- Pointwise identity of dependent functions. -/
 abbrev Homotopy {α : Type u} {P : α → Type v} (f g : (x : α) → P x) :=

@@ -213,6 +213,30 @@ def elimUnique {F : Rel A (B ⊕ A)} {R : A → B → Type w}
     (onNext _ _ _ p r).trans
       (Identity.cong (step _ _ _ p) (elimUnique base step h onExit onNext r))
 
+/-! #### Agreement of bodies -/
+
+/-- A map of the bodies gives a map of the loops. -/
+def map {F : Rel.{u, max v u, r} A (B ⊕ A)} {G : Rel.{u, max v u, r'} A (B ⊕ A)}
+    (f : (a : A) → (s : B ⊕ A) → F a s → G a s) : {a : A} → {b : B} → Loop F a b → Loop G a b :=
+  elim (fun _ b p => .exit (f _ (.inl b) p)) (fun _ a' _ p l => .next (f _ (.inr a') p) l)
+
+/-- Two maps of the bodies whose composite is the identity at each run give maps of the loops
+whose composite is the identity at each run. -/
+def mapMap {F : Rel.{u, max v u, r} A (B ⊕ A)} {G : Rel.{u, max v u, r'} A (B ⊕ A)}
+    (f : (a : A) → (s : B ⊕ A) → F a s → G a s) (g : (a : A) → (s : B ⊕ A) → G a s → F a s)
+    (gf : (a : A) → (s : B ⊕ A) → (p : F a s) → g a s (f a s p) ≡ p) :
+    {a : A} → {b : B} → (l : Loop F a b) → map g (map f l) ≡ l
+  | _, _, .exit p => Identity.cong Loop.exit (gf _ _ p)
+  | _, _, .next p l => Identity.cong₂ Loop.next (gf _ _ p) (mapMap f g gf l)
+
+/-- Bodies that agree have loops that agree. -/
+def agreement {F : Rel.{u, max v u, r} A (B ⊕ A)} {G : Rel.{u, max v u, r'} A (B ⊕ A)}
+    (e : Rel.Agreement F G) : Rel.Agreement (Loop F) (Loop G) := fun _ _ =>
+  { to := map fun a s => (e a s).to
+    inv := map fun a s => (e a s).inv
+    invTo := mapMap (fun a s => (e a s).to) (fun a s => (e a s).inv) fun a s => (e a s).invTo
+    toInv := mapMap (fun a s => (e a s).inv) (fun a s => (e a s).to) fun a s => (e a s).toInv }
+
 /-! #### Runs as paths -/
 
 /-- A path of continue steps and one exit step. -/

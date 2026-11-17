@@ -34,6 +34,10 @@ A specification of an interface, with an invariant of the runtime, gives a speci
 interface with a runtime. The evidence of a computation moves to it, and a verified
 implementation gives a verified implementation with a runtime.
 
+A specification of an interface is also a specification of the interface with the unit runtime
+and no stop. The two have the same universe levels, and the evidence of a computation and the
+evidence of the computation with the unit runtime give each other.
+
 A lens of runtimes is a morphism of two state objects: its view gives a part of the runtime, and
 its update gives the runtime with a new part. A machine on the part gives a machine on the
 whole runtime along the lens. For a lawful lens, the run on the whole is the run on the part
@@ -290,6 +294,42 @@ def ImplDep.thread {r : DepPoly.{s, p, w, z} C} {t : DepPoly.{s', p', w', z} D}
     {T : R → Type z} {Z : E → Type z} {f : Impl C D} (ff : ImplDep r t f) :
     ImplDep (r.invariant T Z) (t.invariant T Z) f.thread :=
   fun a pre => (ff a.1 pre.2).thread a.2 pre.1
+
+/-- The condition at a result with the unit runtime and no stop, from a condition at the
+returned value. -/
+def Still (Q : α → Type v) : Empty ⊕ (α × PUnit.{1}) → Type v
+  | .inl e => nomatch e
+  | .inr y => Q y.1
+
+/-- The specification with the unit runtime and no stop, from a specification with no runtime.
+The precondition and the postcondition keep their universe levels. -/
+def DepPoly.still (t : DepPoly.{s, p, w, z} C) :
+    DepPoly.{s, p, w, z} (C.runtime PUnit.{1} Empty) where
+  Pre a := t.Pre a.1
+  Post a pre := Still (t.Post a.1 pre)
+
+/-- The evidence of a computation with the unit runtime gives the evidence of the
+computation. -/
+def FreeDep.ofStill {t : DepPoly.{s, p, w, z} C} {Q : α → Type v} : (x : Free C α) →
+    FreeDep (DepPoly.still t) (Still Q) (x.thread PUnit.unit) → FreeDep t Q x
+  | .pure _, h => .pure h.result
+  | .request _ k, h =>
+      .request h.parts.1 fun i post => ofStill (k i) (h.parts.2 (.inr (i, .unit)) post)
+
+/-- The evidence of a computation gives the evidence of the computation with the unit
+runtime. -/
+def FreeDep.toStill {t : DepPoly.{s, p, w, z} C} {Q : α → Type v} : (x : Free C α) →
+    FreeDep t Q x → FreeDep (DepPoly.still t) (Still Q) (x.thread PUnit.unit)
+  | .pure _, h => .pure h.result
+  | .request a k, h =>
+      FreeDep.request (r := DepPoly.still t) (shape := (a, PUnit.unit))
+        (next := Sum.elim (fun stopped => .pure (.inl stopped))
+          (fun next => (k next.1).thread next.2))
+        h.parts.1
+        fun i =>
+          match i with
+          | .inl e => nomatch e
+          | .inr y => fun post => toStill (k y.1) (h.parts.2 y.1 post)
 
 section Lens
 

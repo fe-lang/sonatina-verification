@@ -352,4 +352,76 @@ def consumeHomotopy (f : Nat → Nat) (n payload : Nat) :
       (((addZero f).trans (addZero _)).trans ((addZero f).trans (addZero _)).symm n)
       (.mark (f n) payload))) payload := .refl
 
+/-- The exchange of the two parts of a pair. Its round trips hold by computation at an
+arbitrary pair. -/
+def exchange : Iso (Nat × Bool) (Bool × Nat) :=
+  ⟨fun x => (x.2, x.1), fun y => (y.2, y.1), fun _ => .refl, fun _ => .refl⟩
+
+/-- The stamps at the number of a pair, as a family on the second base. -/
+abbrev Marked (y : Bool × Nat) : Type := Stamp y.2
+
+/-- The sum of the stamps over the pairs in the two orders. -/
+def stamps : Iso ((x : Nat × Bool) × Stamp x.1) ((y : Bool × Nat) × Stamp y.2) :=
+  Iso.sigmaBase exchange Marked
+
+-- The inverse map moves the stamp along the round trip of the bases, and the payload stays.
+def stampsBack (n payload : Nat) (b : Bool) :
+    read (stamps.inv ⟨(b, n), .mark n payload⟩).2 ≡ payload := .refl
+
+-- The two round trips of the bases agree, and the two round trips of the sum are the
+-- reflexivity, at an arbitrary pair and an arbitrary payload.
+def exchangeCoherence (n : Nat) (b : Bool) : exchange.coherence (n, b) ≡ .refl := .refl
+def stampsRound (n payload : Nat) (b : Bool) :
+    stamps.invTo ⟨(n, b), .mark n payload⟩ ≡ .refl := .refl
+def stampsRoundBack (n payload : Nat) (b : Bool) :
+    stamps.toInv ⟨(b, n), .mark n payload⟩ ≡ .refl := .refl
+
+/-- The same sum with an isomorphism of the fibres over the exchange. -/
+def stampsFiber : Iso ((x : Nat × Bool) × Stamp x.1) ((y : Bool × Nat) × Stamp y.2) :=
+  Iso.sigma (C := Marked) exchange fun _ => Iso.refl _
+
+def stampsFiberRound (n payload : Nat) (b : Bool) :
+    stampsFiber.invTo ⟨(n, b), .mark n payload⟩ ≡ .refl := .refl
+
+/-- The stamps on the identities from a number are the stamps at that number. -/
+def based (n : Nat) : Iso ((m : Nat) × (_ : n ≡ m) × Stamp m) (Stamp n) :=
+  Identity.contract fun m _ => Stamp m
+
+def basedValue (n payload : Nat) : read ((based n).to ⟨n, .refl, .mark n payload⟩) ≡ payload :=
+  .refl
+def basedRound (n payload : Nat) : (based n).invTo ⟨n, .refl, .mark n payload⟩ ≡ .refl := .refl
+
+-- The value at an arbitrary identity keeps the payload, by the round trip.
+def basedAt {n m : Nat} (h : n ≡ m) (payload : Nat) :
+    (based n).inv ((based n).to ⟨m, h, .mark m payload⟩) ≡ ⟨m, h, .mark m payload⟩ :=
+  (based n).invTo ⟨m, h, .mark m payload⟩
+
+/-- info: 'Prelude.Iso.coherence' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Iso.coherence
+
+/-- info: 'Prelude.Iso.sigma' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Iso.sigma
+
+/-- info: 'PreludeTests.IdentityChecks.stampsBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms stampsBack
+
+/-- info: 'PreludeTests.IdentityChecks.stampsRound' does not depend on any axioms -/
+#guard_msgs in
+#print axioms stampsRound
+
+/-- info: 'PreludeTests.IdentityChecks.stampsFiberRound' does not depend on any axioms -/
+#guard_msgs in
+#print axioms stampsFiberRound
+
+/-- info: 'PreludeTests.IdentityChecks.basedRound' does not depend on any axioms -/
+#guard_msgs in
+#print axioms basedRound
+
+/-- info: 'PreludeTests.IdentityChecks.basedAt' does not depend on any axioms -/
+#guard_msgs in
+#print axioms basedAt
+
 end PreludeTests.IdentityChecks

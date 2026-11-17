@@ -17,9 +17,6 @@ runs of a loop are the loop of `Prelude.Relation` on the entrances with the fami
 iteration has the runs of the body at the result that the next entrance, the exit, or the stop
 names.
 
-An implementation has a specification from the specification of its calls. The implementation
-is verified for it, and each specification with a lift of the implementation maps to it.
-
 A witness of the precondition of a diagram gives the evidence of the computation of the diagram
 with each number of unrollings, for evidence of the rest at each result of a run. That is
 soundness: the condition at the result of a run of the computation along the evidence is a run
@@ -66,67 +63,6 @@ specification, with their round trips, the equivalence of the runs over the witn
 derivation gives, with its two round trips, and the
 condition at the result of a run over the witness that the constructors give, through the
 invariant of each iteration. -/
-
-namespace Prelude.Container
-
-variable {C D : Container.{0, 0}} {α : Type} {r : DepPoly.{0, 0, 0, 0} C} {Q Q' : α → Type}
-
-/-- The runs of a computation along its evidence. -/
-def FreeDep.Runs : (x : Free C α) → FreeDep r Q x → α → Type
-  | .pure a, _, o => a ≡ o
-  | .request s k, h, o =>
-      (i : C.Pos s) × (post : r.Post s h.parts.1 i) × Runs (k i) (h.parts.2 i post) o
-
-/-- The condition at the result of a run along the evidence. -/
-def FreeDep.atRun : (x : Free C α) → (h : FreeDep r Q x) → {o : α} → FreeDep.Runs x h o → Q o
-  | .pure _, h, _, e => Identity.transport Q e h.result
-  | .request _ k, h, _, t => atRun (k t.1) (h.parts.2 t.1 t.2.1) t.2.2
-
-/-- The evidence of another condition, from a map of the conditions. -/
-def FreeDep.mapQ (g : (a : α) → Q a → Q' a) : (x : Free C α) → FreeDep r Q x → FreeDep r Q' x
-  | .pure a, h => .pure (g a h.result)
-  | .request _ k, h => .request h.parts.1 fun i post => mapQ g (k i) (h.parts.2 i post)
-
-/-- A computation with evidence has the evidence of its own runs. -/
-def FreeDep.own : (x : Free C α) → (h : FreeDep r Q x) → FreeDep r (fun o => FreeDep.Runs x h o) x
-  | .pure _, _ => .pure .refl
-  | .request s k, h =>
-      .request h.parts.1 fun i post =>
-        mapQ (Q := fun o => FreeDep.Runs (k i) (h.parts.2 i post) o)
-          (Q' := fun o => FreeDep.Runs (.request s k) h o)
-          (fun _ run => ⟨i, post, run⟩) (k i) (own (k i) (h.parts.2 i post))
-
-/-- The runs do not use the condition at the result. -/
-def FreeDep.runsOfMap (g : (a : α) → Q a → Q' a) :
-    (x : Free C α) → (h : FreeDep r Q x) → {o : α} → FreeDep.Runs x (mapQ g x h) o →
-    FreeDep.Runs x h o
-  | .pure _, _, _, e => e
-  | .request _ k, h, _, t => ⟨t.1, t.2.1, runsOfMap g (k t.1) (h.parts.2 t.1 t.2.1) t.2.2⟩
-
-/-- The specification of an implementation, from a specification of its calls. A witness of
-the precondition has a witness of the precondition of each call that a run can make. The
-postcondition has the runs along that witness. -/
-def Impl.spec (f : Impl C D) (t : DepPoly.{0, 0, 0, 0} D) : DepPoly.{0, 0, 0, 0} C where
-  Pre a := FreeDep t (fun _ => PUnit) (f a)
-  Post a pre b := FreeDep.Runs (f a) pre b
-
-/-- An implementation is verified for its own specification. -/
-def Impl.specDep (f : Impl C D) (t : DepPoly.{0, 0, 0, 0} D) : ImplDep (f.spec t) t f :=
-  fun a pre => FreeDep.own (f a) pre
-
-/-- The specification of an implementation is the strongest: each specification with a lift of
-the implementation gives a witness of its precondition, and each run along that witness has
-the postcondition of the specification. -/
-def Impl.specPre {f : Impl C D} {t : DepPoly.{0, 0, 0, 0} D} {q : DepPoly.{0, 0, 0, 0} C}
-    (ff : ImplDep q t f) (a : C.Shape) (pre : q.Pre a) : (f.spec t).Pre a :=
-  FreeDep.mapQ (fun _ _ => PUnit.unit) (f a) (ff a pre)
-
-def Impl.specPost {f : Impl C D} {t : DepPoly.{0, 0, 0, 0} D} {q : DepPoly.{0, 0, 0, 0} C}
-    (ff : ImplDep q t f) (a : C.Shape) (pre : q.Pre a) (b : C.Pos a)
-    (run : (f.spec t).Post a (Impl.specPre ff a pre) b) : q.Post a pre b :=
-  FreeDep.atRun (f a) (ff a pre) (FreeDep.runsOfMap _ (f a) (ff a pre) run)
-
-end Prelude.Container
 
 namespace Draft
 
@@ -957,7 +893,7 @@ set_option smartUnfolding false in
 def treeTwo (a s : Nat) :=
   (alongTwo a s).2 3 (Nat.le_refl 3) (fun q => .pure (some q))
     (returns loop (entry 2 a, s) (wit 2 a s))
-    (.inr (some (runsS 2 a s).1.1, (runsS 2 a s).1.2)) .refl
+    (.inr (some (runsS 2 a s).1.1, (runsS 2 a s).1.2)) ⟨.refl⟩
 
 set_option smartUnfolding false in
 /-- The round trip: the condition at the result of that run of the approximant is the run of
@@ -1337,8 +1273,6 @@ def Diagram.Verified.stateLiftAt {Γ : List Ty} {Qs : Exits Ty}
 
 end Draft
 
-#print axioms Prelude.Container.Impl.specDep
-#print axioms Prelude.Container.Impl.specPost
 #print axioms Draft.Diagram.verified
 #print axioms Draft.Diagram.StateDep.toEvidence
 #print axioms Draft.Diagram.Verified.stateLift
@@ -1673,7 +1607,7 @@ set_option smartUnfolding false in
 def treeNested (a s : Nat) :=
   (alongNested a s).2 6 (Nat.le_refl 6) (fun q => .pure (some q))
     (returns nested (entry 2 a, s) (witNested 2 a s))
-    (.inr (some (runsNested 2 a s).1.1, (runsNested 2 a s).1.2)) .refl
+    (.inr (some (runsNested 2 a s).1.1, (runsNested 2 a s).1.2)) ⟨.refl⟩
 
 set_option smartUnfolding false in
 /-- The round trip for the loop in a loop. -/
@@ -1685,25 +1619,6 @@ end Draft.Checks.Specification
 #print axioms Draft.Checks.Specification.roundTripNested
 
 /-! ### The exit equations and the loop law -/
-
-namespace Prelude
-
-universe u w
-
-/-- A family on the identities from one element is its value at the reflexivity. -/
-def Identity.contract {α : Type u} {x₀ : α} (H : (m : α) → x₀ ≡ m → Type w) :
-    Iso ((m : α) × (e : x₀ ≡ m) × H m e) (H x₀ .refl) where
-  to t := Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) t.2.1 t.2.2
-  inv h := ⟨x₀, .refl, h⟩
-  invTo t :=
-    Identity.ind
-      (fun m e => (h : H m e) →
-        (⟨x₀, .refl, Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) e h⟩ :
-          (m : α) × (e : x₀ ≡ m) × H m e) ≡ ⟨m, e, h⟩)
-      (fun _ => .refl) t.2.1 t.2.2
-  toInv _ := .refl
-
-end Prelude
 
 namespace Draft
 
@@ -1844,158 +1759,6 @@ end Draft.Checks.Specification.ExitEquations
 #print axioms Draft.Checks.Specification.ExitEquations.fixpointBack
 
 /-! ### A derivation gives a cartesian map of specifications -/
-
-/-! The laws of the Prelude that the maps use: the sum over an equivalence of the bases, and the
-agreement of the loops of two bodies that agree. The sum needs the two round trips of the
-equivalence of the bases to agree, and an isomorphism has a first round trip with that
-property. -/
-
-namespace Prelude
-
-universe u v w z r r'
-
-namespace Identity
-
-variable {α : Type u} {β : Type v} {a b c : α}
-
-/-- A pointwise identity from a function to the identity function is natural. -/
-def natural {h : α → α} (H : (x : α) → h x ≡ x) (p : a ≡ b) :
-    (H a).trans p ≡ (cong h p).trans (H b) :=
-  ind (fun b p => (H a).trans p ≡ (cong h p).trans (H b)) (transRefl (H a)) p
-
-/-- An identity cancels on the right of a composite. -/
-def cancelRight (t : b ≡ c) {p q : a ≡ b} (h : p.trans t ≡ q.trans t) : p ≡ q :=
-  ind (fun _ t => p.trans t ≡ q.trans t → p ≡ q)
-    (fun h => ((transRefl p).symm.trans h).trans (transRefl q)) t h
-
-/-- A pointwise identity from a function to the identity function, at a value of the
-function. -/
-def naturalAt {h : α → α} (H : (x : α) → h x ≡ x) (x : α) : H (h x) ≡ cong h (H x) :=
-  cancelRight (H x) (natural H (H x))
-
-/-- An identity cancels its inverse on the left of a composite. -/
-def symmTransTrans (t : a ≡ b) (p : b ≡ c) : t.symm.trans (t.trans p) ≡ p :=
-  ind (fun _ t => (p : _ ≡ c) → t.symm.trans (t.trans p) ≡ p) (fun _ => .refl) t p
-
-/-- The map of an inverse identity is the inverse of the map. -/
-def congSymm (f : α → β) (p : a ≡ b) : cong f p.symm ≡ (cong f p).symm :=
-  ind (fun _ p => cong f p.symm ≡ (cong f p).symm) .refl p
-
-end Identity
-
-namespace Iso
-
-variable {α : Type u} {β : Type v}
-
-/-- The first round trip of an isomorphism, in the form that the second round trip
-determines. -/
-def invToOf (e : Iso α β) (x : α) : e.inv (e.to x) ≡ x :=
-  (e.invTo (e.inv (e.to x))).symm.trans
-    ((Identity.cong e.inv (e.toInv (e.to x))).trans (e.invTo x))
-
-/-- The two round trips agree: the map of that first round trip is the second round trip at
-the value of the map. -/
-def coherence (e : Iso α β) (x : α) : Identity.cong e.to (e.invToOf x) ≡ e.toInv (e.to x) :=
-  let p : e.to (e.inv (e.to x)) ≡ e.to x := Identity.cong e.to (e.invTo x)
-  let first : e.to (e.inv (e.to (e.inv (e.to x)))) ≡ e.to (e.inv (e.to x)) :=
-    Identity.cong e.to (e.invTo (e.inv (e.to x)))
-  let inner : e.invTo (e.inv (e.to x)) ≡ Identity.cong (e.inv ∘ e.to) (e.invTo x) :=
-    Identity.naturalAt (h := e.inv ∘ e.to) e.invTo x
-  let moved : first ≡ Identity.cong (e.to ∘ e.inv) p :=
-    (Identity.cong (Identity.cong e.to) inner).trans
-      ((Identity.congComp (e.inv ∘ e.to) e.to (e.invTo x)).symm.trans
-        (Identity.congComp e.to (e.to ∘ e.inv) (e.invTo x)))
-  let square : first.trans (e.toInv (e.to x)) ≡ (e.toInv (e.to (e.inv (e.to x)))).trans p :=
-    (Identity.cong (fun q => q.trans (e.toInv (e.to x))) moved).trans
-      (Identity.natural (h := e.to ∘ e.inv) e.toInv p).symm
-  let middle : Identity.cong e.to (Identity.cong e.inv (e.toInv (e.to x))) ≡
-      e.toInv (e.to (e.inv (e.to x))) :=
-    (Identity.congComp e.inv e.to (e.toInv (e.to x))).symm.trans
-      (Identity.naturalAt (h := e.to ∘ e.inv) e.toInv (e.to x)).symm
-  let parts : Identity.cong e.to (e.invToOf x) ≡
-      first.symm.trans ((e.toInv (e.to (e.inv (e.to x)))).trans p) :=
-    (Identity.congTrans e.to (e.invTo (e.inv (e.to x))).symm
-        ((Identity.cong e.inv (e.toInv (e.to x))).trans (e.invTo x))).trans
-      (Identity.cong₂ Identity.trans (Identity.congSymm e.to (e.invTo (e.inv (e.to x))))
-        ((Identity.congTrans e.to (Identity.cong e.inv (e.toInv (e.to x))) (e.invTo x)).trans
-          (Identity.cong (fun q => q.trans p) middle)))
-  (parts.trans (Identity.cong (fun q => first.symm.trans q) square.symm)).trans
-    (Identity.symmTransTrans first (e.toInv (e.to x)))
-
-/-- An isomorphism of the fibres at each element gives an isomorphism of the sums. -/
-def sigmaFiber {B : Type u} {C : B → Type v} {C' : B → Type w}
-    (φ : (b : B) → Iso (C b) (C' b)) : Iso ((b : B) × C b) ((b : B) × C' b) where
-  to x := ⟨x.1, (φ x.1).to x.2⟩
-  inv y := ⟨y.1, (φ y.1).inv y.2⟩
-  invTo x := Identity.cong (Sigma.mk x.1) ((φ x.1).invTo x.2)
-  toInv y := Identity.cong (Sigma.mk y.1) ((φ y.1).toInv y.2)
-
-/-- An element of the fibre over the value of an isomorphism, moved back along the map of an
-identity. -/
-def sigmaBaseBack {B' : Type u} {B : Type v} (e : Iso B' B) (C : B → Type w) {b b' : B'}
-    (p : b ≡ b') (c : C (e.to b')) :
-    (⟨b, Identity.transport C (Identity.cong e.to p).symm c⟩ : (b' : B') × C (e.to b')) ≡
-      ⟨b', c⟩ :=
-  Identity.indEnd
-    (fun b p =>
-      (⟨b, Identity.transport C (Identity.cong e.to p).symm c⟩ : (b' : B') × C (e.to b')) ≡
-        ⟨b', c⟩)
-    .refl p
-
-/-- An isomorphism of the bases gives an isomorphism of the sums of a family on the second
-base. -/
-def sigmaBase {B' : Type u} {B : Type v} (e : Iso B' B) (C : B → Type w) :
-    Iso ((b' : B') × C (e.to b')) ((b : B) × C b) where
-  to x := ⟨e.to x.1, x.2⟩
-  inv y := ⟨e.inv y.1, Identity.transport C (e.toInv y.1).symm y.2⟩
-  invTo x :=
-    Identity.transport
-      (fun q =>
-        (⟨e.inv (e.to x.1), Identity.transport C q.symm x.2⟩ : (b' : B') × C (e.to b')) ≡
-          ⟨x.1, x.2⟩)
-      (e.coherence x.1) (sigmaBaseBack e C (e.invToOf x.1) x.2)
-  toInv y := Identity.sigma (e.toInv y.1) (Identity.symmTransport C (e.toInv y.1) y.2)
-
-/-- An isomorphism of the bases, and an isomorphism of the fibres over it, give an isomorphism
-of the sums. -/
-def sigma {B' : Type u} {B : Type v} {C' : B' → Type w} {C : B → Type z} (e : Iso B' B)
-    (φ : (b' : B') → Iso (C' b') (C (e.to b'))) : Iso ((b' : B') × C' b') ((b : B) × C b) :=
-  (sigmaFiber φ).trans (sigmaBase e C)
-
-end Iso
-
-namespace Loop
-
-variable {A : Type u} {B : Type v}
-
-/-- A map of the bodies gives a map of the loops. -/
-def map {F : Rel.{u, max v u, r} A (B ⊕ A)} {G : Rel.{u, max v u, r'} A (B ⊕ A)}
-    (f : (a : A) → (s : B ⊕ A) → F a s → G a s) : {a : A} → {b : B} → Loop F a b → Loop G a b :=
-  elim (fun _ b p => .exit (f _ (.inl b) p)) (fun _ a' _ p l => .next (f _ (.inr a') p) l)
-
-/-- Two maps of the bodies whose composite is the identity at each run give maps of the loops
-whose composite is the identity at each run. -/
-def mapMap {F : Rel.{u, max v u, r} A (B ⊕ A)} {G : Rel.{u, max v u, r'} A (B ⊕ A)}
-    (f : (a : A) → (s : B ⊕ A) → F a s → G a s) (g : (a : A) → (s : B ⊕ A) → G a s → F a s)
-    (gf : (a : A) → (s : B ⊕ A) → (p : F a s) → g a s (f a s p) ≡ p) :
-    {a : A} → {b : B} → (l : Loop F a b) → map g (map f l) ≡ l
-  | _, _, .exit p => Identity.cong Loop.exit (gf _ _ p)
-  | _, _, .next p l => Identity.cong₂ Loop.next (gf _ _ p) (mapMap f g gf l)
-
-/-- Bodies that agree have loops that agree. -/
-def agreement {F : Rel.{u, max v u, r} A (B ⊕ A)} {G : Rel.{u, max v u, r'} A (B ⊕ A)}
-    (e : Rel.Agreement F G) : Rel.Agreement (Loop F) (Loop G) := fun _ _ =>
-  { to := map fun a s => (e a s).to
-    inv := map fun a s => (e a s).inv
-    invTo := mapMap (fun a s => (e a s).to) (fun a s => (e a s).inv) fun a s => (e a s).invTo
-    toInv := mapMap (fun a s => (e a s).inv) (fun a s => (e a s).to) fun a s => (e a s).toInv }
-
-end Loop
-
-end Prelude
-
-#print axioms Prelude.Iso.sigma
-#print axioms Prelude.Loop.agreement
 
 namespace Draft
 
@@ -2491,52 +2254,6 @@ end Draft.Checks.Specification
 #print axioms Draft.Checks.Specification.wholeRoundBack
 
 /-! ### The unit runtime -/
-
-namespace Prelude.Container
-
-universe s p w z v t
-
-variable {C : Container.{s, p}} {α : Type t}
-
-/-- The condition at a result with the unit runtime and no stop, from a condition at the
-returned value. -/
-def Still (Q : α → Type v) : Empty ⊕ (α × PUnit.{1}) → Type v
-  | .inl e => nomatch e
-  | .inr y => Q y.1
-
-/-- The specification with the unit runtime and no stop, from a specification with no runtime.
-The precondition and the postcondition keep their universe levels. -/
-def DepPoly.still (t : DepPoly.{s, p, w, z} C) :
-    DepPoly.{s, p, w, z} (C.runtime PUnit.{1} Empty) where
-  Pre a := t.Pre a.1
-  Post a pre := Still (t.Post a.1 pre)
-
-variable {t : DepPoly.{s, p, w, z} C} {Q : α → Type v}
-
-/-- The evidence of a computation with the unit runtime gives the evidence of the
-computation. -/
-def FreeDep.ofStill : (x : Free C α) →
-    FreeDep (DepPoly.still t) (Still Q) (x.thread PUnit.unit) → FreeDep t Q x
-  | .pure _, h => .pure h.result
-  | .request _ k, h =>
-      .request h.parts.1 fun i post => ofStill (k i) (h.parts.2 (.inr (i, .unit)) post)
-
-/-- The evidence of a computation gives the evidence of the computation with the unit
-runtime. -/
-def FreeDep.toStill : (x : Free C α) → FreeDep t Q x →
-    FreeDep (DepPoly.still t) (Still Q) (x.thread PUnit.unit)
-  | .pure _, h => .pure h.result
-  | .request a k, h =>
-      FreeDep.request (r := DepPoly.still t) (shape := (a, PUnit.unit))
-        (next := Sum.elim (fun stopped => .pure (.inl stopped))
-          (fun next => (k next.1).thread next.2))
-        h.parts.1
-        fun i =>
-          match i with
-          | .inl e => nomatch e
-          | .inr y => fun post => toStill (k y.1) (h.parts.2 y.1 post)
-
-end Prelude.Container
 
 namespace Draft
 
