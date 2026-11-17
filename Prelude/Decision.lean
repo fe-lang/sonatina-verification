@@ -83,19 +83,21 @@ def unique (dec : (x y : α) → Dec (x ≡ y)) {a b : α} (p q : a ≡ b) : p �
         (pathSame (dec a b) p q)).trans
       (pathSplit dec q).symm)
 
-/-- At equal endpoints a decision of identity returns reflexivity. -/
+/-- The decision of the identity of an element with itself is the reflexivity. -/
 def yesRefl (dec : (x y : α) → Dec (x ≡ y)) (x : α) : dec x x ≡ .yes .refl :=
   let self : (d : Dec (x ≡ x)) → d ≡ .yes .refl
     | .yes p => Identity.cong Dec.yes (unique dec p .refl)
     | .no refute => (refute .refl).elim
   self (dec x x)
 
-/-- Reindex data when the decision identifies its index with the requested index. -/
+/-- The transport of a value of a family along a decision of identity: the transported value
+when the decision has an identity proof, and no value when it has none. -/
 def transport? {a b : α} (P : α → Type v) (x : P a) : Dec (a ≡ b) → Option (P b)
   | .yes p => some (Identity.transport P p x)
   | .no _ => none
 
-/-- Decide identity of dependent pairs by comparing the indices and then their fibers. -/
+/-- The decision of the identity of two dependent pairs, from a decision for the first
+components and a decision for the second components over each first component. -/
 def sigma {P : α → Type v} (base : (a b : α) → Dec (a ≡ b))
     (fiber : (a : α) → (x y : P a) → Dec (x ≡ y)) (x y : Sigma P) : Dec (x ≡ y) :=
   match base x.1 y.1 with

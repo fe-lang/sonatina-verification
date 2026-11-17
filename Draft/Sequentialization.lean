@@ -55,7 +55,15 @@ a diagram after it that agrees at each case: the decision of the kinds has a val
 operands are weakened operands. The proof is for each diagram that agrees with the source
 diagram, so the diagram after a ready step of the list takes the place of the diagram after
 the given ready step. The bound of the list is the number of the steps, and the diagram after
-a ready step has one step less. -/
+a ready step has one step less.
+
+A test with two cases has a list of ready steps, when the rest of each case is a diagram of
+the fragment. The list has the test, and each step that is ready in the rest of the two cases
+with one operation and the same operands. The operands are ports of the context of the test,
+and the test is pure or the step is pure. A ready step of the first case and a ready step of
+the second case give one element of the list. The list is complete for the moves before the
+test: each step that is ready in the rest of each case, with operands of the context of the
+test, is in the list, with a diagram after it that agrees at each case. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -192,7 +200,8 @@ def Diagram.Order.straight : {Γ : List Ty} → {Qs : Exits Ty} → (e d : Diagr
           (o.2.2 (o.2.1.single h).1) (o.2.1.straight h (o.2.1.single h).1)⟩
   | _, _, .seq _ _, _, o, _ => nomatch o
 
-/-- The residual diagrams and readiness witness at a specified call. -/
+/-- The evidence that a call is a ready step of a diagram: the diagram after the step, and the
+evidence that the step is ready. -/
 abbrev Diagram.ReadyFor {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
     (call : (S.interface (Port Γ)).Shape) : Type :=
   (after : (cb : (S.output call.1).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
@@ -242,7 +251,9 @@ def Diagram.choices : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Q
         (Diagram.choices (rest h.1) h.2.2).filterMap (Diagram.Choice.past a first rest h.1 h.2.1)
   | _, _, .seq _ _, _ => []
 
-/-- Keep a listed choice when its operation and each ordered operand match the call. -/
+/-- A ready step as the ready step of a call. The decision of the identity of the two calls
+gives the evidence for the call when the operation and the operands are the same, and no
+value when they are not. -/
 def Diagram.Choice.atCall [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
     (k : d.Choice) (call : (S.interface (Port Γ)).Shape) : Option (d.ReadyFor call) :=
   Dec.transport? d.ReadyFor k.2.2 (Dec.sigma (P := fun b => PortMap Γ (S.input b)) decideEq
@@ -254,8 +265,9 @@ variable {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap Γ (S.input 
     (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs)
     (two : (S.output a).Binary)
 
-/-- The common call moves before the test. Its residual uses the selected arm's residual
-with the output ports exchanged by interchange. -/
+/-- A step that is ready in the rest of each of the two cases of a test, with operands of the
+context of the test, is ready in the diagram of the test. The diagram after it has the test,
+and then the diagram after the step in each case, with the output ports in the other order. -/
 def Diagram.Ready.pastBinary {b : S.Op} (central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure))
     (args : PortMap Γ (S.input b))
     (l : (rest two.left).ReadyFor ⟨b, args.weaken two.left.1⟩)
@@ -266,8 +278,10 @@ def Diagram.Ready.pastBinary {b : S.Op} (central : (S.kind a ≡ .pure) ⊕ (S.k
 
 variable [DecEq S.Op]
 
-/-- Match one left occurrence with every matching right occurrence. The left operands must
-come from before the test. Their weakening on the right is the call to look for there. -/
+/-- The ready steps of a test from one ready step of the rest of the first case, for a value
+of the decision of the kinds and a value of the decision of the operands: one ready step for
+each ready step of the rest of the second case with the same operation and the same operands.
+The operands are ports of the context of the test. -/
 private def Diagram.Choice.matchRight (l : (rest two.left).Choice)
     (rights : List (rest two.right).Choice)
     (central : Option ((S.kind a ≡ .pure) ⊕ (S.kind l.1 ≡ .pure)))
@@ -278,8 +292,12 @@ private def Diagram.Choice.matchRight (l : (rest two.left).Choice)
     rights.filterMap fun r => (r.atCall ⟨l.1, inputs.1.weaken two.right.1⟩).map fun right =>
       ⟨l.1, inputs.1, Diagram.Ready.pastBinary a first rest two ok inputs.1 left right⟩
 
-/-- The test itself and all the calls ready in both of its straight-line arms. Each entry
-contains its readiness derivation. Repeated matching occurrences retain their own residuals. -/
+/-- The ready steps of a test with two cases, when the rest of each case is a diagram of the
+fragment. The test is ready. A step is ready when it is ready in the rest of the two cases
+with one operation and the same operands, its operands are ports of the context of the test,
+and the test is pure or the step is pure. A ready step of the first case and a ready step of
+the second case give one element, so two equal calls in one case give different elements, each
+with its diagram after the step. -/
 def Diagram.binaryChoices (arms : (c : (S.output a).Case) → (rest c).Straight) :
     List (Diagram.step ⟨a, first⟩ rest).Choice :=
   let rights := (rest two.right).choices (arms two.right)
@@ -881,8 +899,8 @@ def Diagram.Choice.pastSome {Γ : List Ty} {Qs : Exits Ty} (a b : S.Op)
     (Diagram.Choice.pastOf a first rest center only b (second.weaken center.1) r₁)
     (Kind.centralOf central).2 (PortMap.strengthenWeaken center.1 second)
 
-/-- A position of the requested operation and operands, with agreement of the residual in
-every output case. -/
+/-- A ready step is in a list of ready steps of the diagram: a ready step of the list with the
+same operation and operands, and a diagram after it that agrees at each case. -/
 abbrev Diagram.Ready.ListedIn (b : S.Op) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
     (args : PortMap Γ (S.input b)) (after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs)
     (choices : List d.Choice) : Type :=
@@ -891,6 +909,7 @@ abbrev Diagram.Ready.ListedIn (b : S.Op) {Γ : List Ty} {Qs : Exits Ty} (d : Dia
       (Elem (⟨b, args, after', r'⟩ : d.Choice) choices ×
         ((cb : (S.output b).Case) → Diagram.Agreement (after cb) (after' cb))))
 
+/-- A ready step is in the list of the ready steps of a diagram of the fragment. -/
 abbrev Diagram.Ready.Listed (b : S.Op) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
     (args : PortMap Γ (S.input b)) (after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs)
     (h : d.Straight) : Type := Diagram.Ready.ListedIn b d args after (d.choices h)
@@ -930,7 +949,7 @@ def Diagram.Ready.listed {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} → {d 
                   (fun cb => ih.2.2.2 cb) (h'.2.1 ca) cb)⟩)
         h'
 
-/-- Matching a choice against its own call returns its residual and readiness evidence. -/
+/-- A ready step is the ready step of its own call, with its own evidence. -/
 private def Diagram.Choice.atSelf [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
     (k : d.Choice) : k.atCall ⟨k.1, k.2.1⟩ ≡ some k.2.2 :=
   let call : (S.interface (Port Γ)).Shape := ⟨k.1, k.2.1⟩
@@ -938,9 +957,10 @@ private def Diagram.Choice.atSelf [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} {d
     (Dec.yesRefl (Dec.sigma (P := fun b => PortMap Γ (S.input b)) decideEq
       (fun _ => All.decide (fun _ => Elem.decide))) call)
 
-/-- Every move admitted by `Ready.past` across a binary test with straight-line arms has
-a position in the search. Its residual agrees in every output case, even when several
-occurrences in one arm have the same operation and operands. -/
+/-- The list of the ready steps of a test with two cases is complete for the moves before the
+test. A step that is ready in the rest of each case, with operands of the context of the test,
+is in the list, with a diagram after it that agrees at each case. This holds also when one
+case has two calls with the same operation and the same operands. -/
 def Diagram.Ready.pastListed [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (a b : S.Op)
     (central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure))
     (first : PortMap Γ (S.input a)) (args : PortMap Γ (S.input b))

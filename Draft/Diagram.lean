@@ -90,24 +90,28 @@ def pair {M K : Boundary Ty} (j : M.Case) (c : K.Case) : (product M K).Case :=
 def family {F : List Ty → Type} {Q : Boundary Ty} (table : All F Q) (c : Q.Case) : F c.1 :=
   table.lookup c.2
 
-/-- A boundary with exactly two cases. Their contexts may coincide. -/
+/-- The evidence that a boundary has two cases. The two cases can have one context. -/
 inductive Binary : Boundary Ty → Type where
   | pair (left right : List Ty) : Binary [left, right]
 
+/-- The first case of a boundary with two cases. -/
 def Binary.left {K : Boundary Ty} : Binary K → K.Case
   | .pair _ _ => ⟨_, .here⟩
 
+/-- The second case of a boundary with two cases. -/
 def Binary.right {K : Boundary Ty} : Binary K → K.Case
   | .pair _ _ => ⟨_, .there .here⟩
 
-/-- Dependent case analysis on the two positions, including when they have equal contexts. -/
+/-- The case analysis on a boundary with two cases: a value at each case, from a value at the
+first case and a value at the second case. -/
 def Binary.elim {K : Boundary Ty} (two : Binary K) {F : K.Case → Type u}
     (l : F two.left) (r : F two.right) (c : K.Case) : F c :=
   match (generalizing := true) K, two, c with
   | _, .pair _ _, ⟨_, .here⟩ => l
   | _, .pair _ _, ⟨_, .there .here⟩ => r
 
-/-- A property of the selected value follows from its two cases. -/
+/-- A property of the value of the case analysis at each case, from the property of the two
+given values. -/
 def Binary.elimAt {K : Boundary Ty} (two : Binary K) {F : K.Case → Type u}
     {l : F two.left} {r : F two.right} (P : (c : K.Case) → F c → Type v)
     (hl : P two.left l) (hr : P two.right r) (c : K.Case) : P c (two.elim l r c) :=
