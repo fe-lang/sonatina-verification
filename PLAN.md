@@ -742,6 +742,11 @@ These parts are open:
 - The soundness of the interchange rule for each interpretation in which each
   pure operation is central. The theorem of D2 is for each lowering in which
   each pure operation makes no call.
+- The class of the operations that the copy rule, the merge of the equal
+  calls, and the dependency graph read. The pure kind of a signature names an
+  operation as central for the interchange rule, and it names the operation
+  for copy naturality in these three places. An operation that is central
+  only is not in the copy equation set.
 
 ## D6: generic definitions
 
