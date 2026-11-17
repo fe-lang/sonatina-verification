@@ -152,6 +152,44 @@ def selectedTwice (n m : Nat) (b : Bool) :
       (.cons (.there .here) (.cons .here .nil) : All (fun a => Elem a [Ty.nat, Ty.nat]) _) ≡
       .refl := .refl
 
+/-- The decision of the identity of two positions of one element, and of two lists of
+positions. -/
+def samePosition : ((Elem.decide third third).isYes, (Elem.decide first third).isYes) ≡
+    (true, false) := .refl
+
+def positions : All (fun a => Elem a [Ty.nat, Ty.bool, Ty.nat]) [.nat, .nat] :=
+  .cons third (.cons first .nil)
+
+def samePositions :
+    ((All.decide (fun _ => Elem.decide) positions positions).isYes,
+        (All.decide (fun _ => Elem.decide) positions (.cons first (.cons first .nil))).isYes) ≡
+      (true, false) := .refl
+
+/-- The identity of a decision is consumed through a dependent payload. -/
+def decidedPayload : Dec (positions ≡ positions) → Nat
+  | .yes p =>
+      (Identity.transport
+        (fun (q : All (fun a => Elem a [Ty.nat, Ty.bool, Ty.nat]) [.nat, .nat]) =>
+          Fin (q.head.toFin.val + 1))
+        p ⟨2, Nat.lt_succ_self _⟩).val
+  | .no _ => 0
+
+def decidedSelection :
+    decidedPayload (All.decide (fun _ => Elem.decide) positions positions) ≡ 2 := .refl
+
+/-- The values at the image of a list, with arbitrary values. -/
+def imageValues (n m : Nat) (b : Bool) :
+    All.image (T := fun (_ : Unit) => Nat) (fun _ => ()) (fun _ _ => n + m) (arbitrary n m b) ≡
+      .cons (n + m) (.cons (n + m) (.cons (n + m) .nil)) := .refl
+
+/-- info: 'PreludeTests.decidedSelection' does not depend on any axioms -/
+#guard_msgs in
+#print axioms decidedSelection
+
+/-- info: 'PreludeTests.imageValues' does not depend on any axioms -/
+#guard_msgs in
+#print axioms imageValues
+
 /-- info: 'Prelude.Identity.transport' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Identity.transport

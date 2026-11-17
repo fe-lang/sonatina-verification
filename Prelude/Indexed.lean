@@ -5,7 +5,9 @@ import Prelude.Decision
 
 The functions on a position and on an environment use `casesOn` with an explicit motive. A
 generated matcher on these families eliminates `Prop` equalities of the list and of the value,
-and the elaborator then compares the values again at each step. -/
+and the elaborator then compares the values again at each step. The decisions of the identity of
+two positions and of two environments use a generated matcher: the analysis of two values at
+one list needs the identity of the two lists. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -104,6 +106,23 @@ def find [DecEq α] (a : α) : (xs : List α) → Dec (Elem a xs)
                 match uncons i with
                 | .inl same => differ same
                 | .inr j => absent j)
+
+/-- The type with a value at the first position only. -/
+def IsHere {b : α} {xs : List α} (i : Elem a (b :: xs)) : Type :=
+  consCases (motive := fun _ _ => Type) i Unit (fun _ _ => Empty)
+
+/-- The position of the tail, for each position after the first position. -/
+def back {b : α} {xs : List α} (i : Elem a (b :: xs)) : Option (Elem a xs) :=
+  consCases (motive := fun c _ => Option (Elem c xs)) i none (fun _ j => some j)
+
+/-- The decision of the identity of two positions of one element. -/
+def decide : {xs : List α} → (i j : Elem a xs) → Dec (i ≡ j)
+  | _, .here, .here => .yes .refl
+  | _, .here, .there _ => .no (fun p => Identity.transport IsHere p ())
+  | _, .there _, .here => .no (fun p => Identity.transport IsHere p.symm ())
+  | _, .there i, .there j =>
+      (decide i j).map (Identity.cong Elem.there)
+        (fun p => Identity.someInject (Identity.cong back p))
 
 end Elem
 
@@ -289,6 +308,22 @@ def selectTabulate {xs : List α} (env : All P xs) {ys : List α} (y : All P ys)
       Identity.cong₂ All.cons (same _ .here)
         (selectTabulate env rest (fun b i => f b (.there i)) (fun b i => same b (.there i))))
     f same
+
+/-- The values at the image of a list, from a function of the values over the function of the
+elements. -/
+def image {β : Type u} {T : β → Type v} (f : α → β) (g : (a : α) → P a → T (f a))
+    {xs : List α} (x : All P xs) : All T (xs.map f) :=
+  All.casesOn (motive := fun xs _ => All T (xs.map f)) x .nil
+    (fun y rest => .cons (g _ y) (image f g rest))
+
+/-- The decision of the identity of two environments, from the decision at each element. -/
+def decide (dec : (a : α) → (x y : P a) → Dec (x ≡ y)) :
+    {xs : List α} → (x y : All P xs) → Dec (x ≡ y)
+  | _, .nil, .nil => .yes .refl
+  | _, .cons x xs, .cons y ys =>
+      ((dec _ x y).product (decide dec xs ys)).map
+        (fun p => Identity.cong₂ All.cons p.1 p.2)
+        (fun p => (Identity.cong head p, Identity.cong tail p))
 
 end All
 

@@ -22,7 +22,23 @@ occurrence in the list of the remaining occurrences. It is admitted when the cal
 operand is done, and the effectful call before it is done. The response has the remaining list
 without the occurrence and the done list with it. A word of runs is an admissible order when it
 has evidence of this specification, with no remaining occurrence at its end. Each occurrence
-thus has one run. -/
+thus has one run.
+
+Two calls of a pure operation at the same ports are one call in the merged diagram. The merge
+goes through the steps one time, from the first step. It has the list of the available calls:
+the calls of pure operations in the steps before, each with its ports and its output ports in
+the context of the merged diagram, and a port map from the context of the source diagram to
+that context. A step whose operation and ports are those of an available call is not a step of
+the merged diagram: the rest has the output ports of the available call. Each other step is a
+step of the merged diagram, and its call is available to the rest when its operation is pure.
+The decision uses the identity of two operations and the identity of two ports.
+
+The merged diagram has a derivation from the source diagram, in each rule set that has the
+interchange rule and the copy rule. The proof is one recursion on the diagram, for a context of
+diagrams that absorbs each available call: in the context, a step at the ports of the call is
+the rest with the output ports of the call. The context under a step absorbs the call of that
+step by the copy rule. It absorbs each earlier call by one interchange and the absorption of
+the context before. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -307,5 +323,343 @@ def Signature.ran {Q : Empty ⊕ (Unit × S.Progress Γ₀) → Type} (k : Nat)
         (fun _ post =>
           Identity.transport (fun st => FreeDep (S.admissible Γ₀) Q (rest.thread st))
             post.symm next)
+
+/-! The merge of the equal calls. -/
+
+/-- The identity of a kind with the pure kind, when the kind is the pure kind. -/
+def Kind.isPure : (k : Kind) → Option (k ≡ .pure)
+  | .pure => some .refl
+  | .effectful => none
+
+/-- An available call: a call of a pure operation in the steps before a point, with its ports,
+the one case of its output boundary, and its output ports. -/
+structure Available (S : Signature Ty) (Γ : List Ty) where
+  op : S.Op
+  pure : S.kind op ≡ .pure
+  args : PortMap Γ (S.input op)
+  center : (S.output op).Case
+  only : (c : (S.output op).Case) → center ≡ c
+  outs : PortMap Γ center.1
+
+/-- The data of a call that a later step can use: an operation, its ports, a case of its output
+boundary, and the output ports of that case. -/
+abbrev Used (S : Signature Ty) (Γ : List Ty) : Type :=
+  (o : S.Op) × (PortMap Γ (S.input o) × ((c : (S.output o).Case) × PortMap Γ c.1))
+
+namespace Available
+
+variable {Γ : List Ty}
+
+/-- The data of an available call. -/
+def used (e : Available S Γ) : Used S Γ := ⟨e.op, e.args, e.center, e.outs⟩
+
+/-- An available call in a context with more ports. -/
+def weaken (Ξ : List Ty) (e : Available S Γ) : Available S (Ξ ++ Γ) :=
+  ⟨e.op, e.pure, e.args.weaken Ξ, e.center, e.only, PortMap.weaken Ξ e.outs⟩
+
+/-- The call of a step with a pure operation, in the context after the step. -/
+def ofStep (f : S.Op) (pure : S.kind f ≡ .pure) (args : PortMap Γ (S.input f))
+    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c) :
+    Available S (center.1 ++ Γ) :=
+  ⟨f, pure, args.weaken center.1, center, only,
+    All.tabulate (P := Port (center.1 ++ Γ)) center.1 fun _ i => i.left⟩
+
+/-- The available calls after a step: the call of the step when its operation is pure, and
+then the calls before the step. -/
+def after (table : List (Available S Γ)) (f : S.Op) (args : PortMap Γ (S.input f))
+    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c) :
+    List (Available S (center.1 ++ Γ)) :=
+  Option.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ)))
+    (Kind.isPure (S.kind f))
+    (table.map (weaken center.1))
+    (fun pure => ofStep f pure args center only :: table.map (weaken center.1))
+
+/-- The case and the output ports of an available call, when it is a call of the operation at
+the ports. -/
+def use [DecEq S.Op] (e : Available S Γ) (f : S.Op) (args : PortMap Γ (S.input f)) :
+    Option ((c : (S.output f).Case) × ((outs : PortMap Γ c.1) × (e.used ≡ ⟨f, args, c, outs⟩))) :=
+  match decideEq e.op f with
+  | .no _ => none
+  | .yes sameOp =>
+      Identity.ind
+        (fun (f : S.Op) _ => (args : PortMap Γ (S.input f)) →
+          Option ((c : (S.output f).Case) ×
+            ((outs : PortMap Γ c.1) × (e.used ≡ ⟨f, args, c, outs⟩))))
+        (fun args =>
+          match All.decide (fun _ => Elem.decide) e.args args with
+          | .no _ => none
+          | .yes samePorts =>
+              Identity.ind
+                (fun (args : PortMap Γ (S.input e.op)) _ =>
+                  Option ((c : (S.output e.op).Case) ×
+                    ((outs : PortMap Γ c.1) × (e.used ≡ ⟨e.op, args, c, outs⟩))))
+                (some ⟨e.center, e.outs, .refl⟩) samePorts)
+        sameOp args
+
+/-- An available call of a list that is a call of an operation at given ports, with its case
+and its output ports. -/
+structure Found (table : List (Available S Γ)) (f : S.Op) (args : PortMap Γ (S.input f)) where
+  entry : Available S Γ
+  mem : Elem entry table
+  center : (S.output f).Case
+  outs : PortMap Γ center.1
+  same : entry.used ≡ ⟨f, args, center, outs⟩
+
+/-- The first available call of a list that is a call of the operation at the ports. -/
+def find [DecEq S.Op] (f : S.Op) (args : PortMap Γ (S.input f)) :
+    (table : List (Available S Γ)) → Option (Found table f args)
+  | [] => none
+  | e :: rest =>
+      Option.casesOn (motive := fun _ => Option (Found (e :: rest) f args)) (e.use f args)
+        ((find f args rest).map fun found =>
+          ⟨found.entry, .there found.mem, found.center, found.outs, found.same⟩)
+        (fun m => some ⟨e, .here, m.1, m.2.1, m.2.2⟩)
+
+end Available
+
+/-- The step with one output case, with a diagram at the center of the cases as its rest. -/
+def Diagram.under {Γ : List Ty} {Qs : Exits Ty} (f : S.Op) (args : PortMap Γ (S.input f))
+    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c)
+    (D : Diagram S (center.1 ++ Γ) Qs) : Diagram S Γ Qs :=
+  .step ⟨f, args⟩ fun c =>
+    Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) (only c) D
+
+/-- The merge of a diagram of the fragment at a list of available calls and a port map to the
+context of the merged diagram. -/
+def Diagram.mergeWith [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} →
+    List (Available S Γ) → PortMap Γ Δ → (d : Diagram S Δ Qs) → d.Straight → Diagram S Γ Qs
+  | _, _, _, _, ρ, .exit out, _ => .exit (out.select ρ)
+  | Γ, _, Qs, table, ρ, .step call rest, h =>
+      Option.casesOn (motive := fun _ => Diagram S Γ Qs)
+        (Available.find call.1 (ρ.select call.2) table)
+        (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
+          (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+            (ρ.lift h.1.1) (rest h.1) h.2.2))
+        (fun found =>
+          Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+            (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2))
+  | _, _, _, _, _, .seq _ _, h => nomatch h
+
+/-- The merge of the equal calls of a diagram of the fragment. -/
+def Diagram.merge [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (h : d.Straight) : Diagram S Γ Qs :=
+  Diagram.mergeWith [] (PortMap.id Γ) d h
+
+/-! The derivation of the merged diagram. -/
+
+variable {R : Rules S}
+
+/-- A context of diagrams absorbs the data of a call: in the context, a step of the operation
+at the ports is the rest at the case, with the output ports in the place of the output ports
+of the step. -/
+def Absorbed (R : Rules S) {Γ Γ₀ : List Ty} {Qs : Exits Ty}
+    (K : Diagram S Γ Qs → Diagram S Γ₀ Qs) (k : Used S Γ) : Type :=
+  (D : (c : (S.output k.1).Case) → Diagram S (c.1 ++ Γ) Qs) →
+    Diagram.Derivation R (K (.step ⟨k.1, k.2.1⟩ D))
+      (K (Diagram.rename (k.2.2.2.append (PortMap.id Γ)) (D k.2.2.1)))
+
+/-- The derivations are a congruence for the step with one output case. -/
+def Diagram.Derivation.under {Γ : List Ty} {Qs : Exits Ty} (f : S.Op)
+    (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
+    (only : (c : (S.output f).Case) → center ≡ c) {D D' : Diagram S (center.1 ++ Γ) Qs}
+    (der : Diagram.Derivation R D D') :
+    Diagram.Derivation R (Diagram.under f args center only D)
+      (Diagram.under f args center only D') :=
+  .step ⟨f, args⟩ fun c =>
+    Identity.ind
+      (fun (c : (S.output f).Case) (p : center ≡ c) =>
+        Diagram.Derivation R
+          (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p D)
+          (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p D'))
+      der (only c)
+
+/-- A step with one output case agrees with the step that has the diagram of the center as its
+rest. -/
+def Diagram.Agreement.under {Γ : List Ty} {Qs : Exits Ty} (f : S.Op)
+    (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
+    (only : (c : (S.output f).Case) → center ≡ c)
+    (rest : (c : (S.output f).Case) → Diagram S (c.1 ++ Γ) Qs) :
+    Diagram.Agreement (.step ⟨f, args⟩ rest) (Diagram.under f args center only (rest center)) :=
+  .step ⟨f, args⟩ fun c =>
+    Identity.ind
+      (fun (c : (S.output f).Case) (p : center ≡ c) =>
+        Diagram.Agreement (rest c)
+          (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
+            (rest center)))
+      (Diagram.Agreement.refl _) (only c)
+
+section
+
+variable {Γ Γ₀ : List Ty} {Qs : Exits Ty} {K : Diagram S Γ Qs → Diagram S Γ₀ Qs}
+  (cong : {D D' : Diagram S Γ Qs} → Diagram.Derivation R D D' →
+    Diagram.Derivation R (K D) (K D'))
+  (f : S.Op) (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
+  (only : (c : (S.output f).Case) → center ≡ c)
+
+/-- The context under a step absorbs the call of the step, by the copy rule. -/
+def Absorbed.ofStep (copy : Rules.Map (Rules.copy S) R) (pure : S.kind f ≡ .pure) :
+    Absorbed R (fun D => K (Diagram.under f args center only D))
+      (Available.ofStep f pure args center only).used :=
+  fun D =>
+    (cong (.agree (.step ⟨f, args⟩ fun ca =>
+        Identity.ind
+          (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+            Diagram.Agreement
+              (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                (.step ⟨f, args.weaken center.1⟩ D))
+              (.step ⟨f, args.weaken ca.1⟩ fun c' =>
+                Identity.transport
+                  (fun (c : (S.output f).Case) => Diagram S (c'.1 ++ (c.1 ++ Γ)) Qs) p (D c')))
+          (Diagram.Agreement.refl _) (only ca)))).trans
+      ((cong (.rule (copy.diagram (.copy f pure args fun ca c' =>
+          Identity.transport
+            (fun (c : (S.output f).Case) => Diagram S (c'.1 ++ (c.1 ++ Γ)) Qs) (only ca)
+            (D c'))))).trans
+        (cong (.agree (.step ⟨f, args⟩ fun ca =>
+          Identity.ind
+            (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+              Diagram.Agreement
+                (Diagram.rename (PortMap.copy ca.1 Γ)
+                  (Identity.transport
+                    (fun (c : (S.output f).Case) => Diagram S (ca.1 ++ (c.1 ++ Γ)) Qs) p
+                    (D ca)))
+                (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                  (Diagram.rename (PortMap.copy center.1 Γ) (D center))))
+            (Diagram.Agreement.refl _) (only ca)))))
+
+/-- The ports of an available call under more ports, after the exchange with those ports. -/
+def Available.underPorts (Ξ : List Ty) (e : Available S Γ) :
+    (PortMap.lift Ξ (e.outs.append (PortMap.id Γ))).select (PortMap.exchange Ξ e.center.1 Γ) ≡
+      (PortMap.weaken Ξ e.outs).append (PortMap.id (Ξ ++ Γ)) :=
+  (Identity.cong
+      (fun (m : PortMap (Ξ ++ Γ) (e.center.1 ++ Γ)) =>
+        All.select
+          ((All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left)).append m)
+          (PortMap.exchange Ξ e.center.1 Γ))
+      (All.mapAppend (fun (t : Ty) (i : Port Γ t) => (i.right Ξ : Port (Ξ ++ Γ) t)) e.outs
+        (PortMap.id Γ))).trans
+    ((PortMap.selectExchange (All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left))
+        (PortMap.weaken Ξ e.outs) (PortMap.weaken Ξ (PortMap.id Γ))).trans
+      (Identity.cong (All.append (PortMap.weaken Ξ e.outs)) (PortMap.liftId Ξ Γ)))
+
+/-- The context under a step absorbs each call that the context before absorbs: the step of the
+call moves before the step of the context by one interchange. -/
+def Absorbed.under (inter : Rules.Map (Rules.interchange S) R) (e : Available S Γ)
+    (absorbed : Absorbed R K e.used) :
+    Absorbed R (fun D => K (Diagram.under f args center only D)) (e.weaken center.1).used :=
+  fun D =>
+    (cong (.agree (.step ⟨f, args⟩ fun ca =>
+        Identity.ind
+          (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+            Diagram.Agreement
+              (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                (.step ⟨e.op, e.args.weaken center.1⟩ D))
+              (.step ⟨e.op, e.args.weaken ca.1⟩ fun cb =>
+                Identity.transport
+                  (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) p (D cb)))
+          (Diagram.Agreement.refl _) (only ca)))).trans
+      ((cong (.rule (inter.diagram (.swap f e.op (.inr e.pure) args e.args fun ca cb =>
+          Identity.transport
+            (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) (only ca)
+            (D cb))))).trans
+        ((absorbed fun cb => .step ⟨f, args.weaken cb.1⟩ fun ca =>
+            Diagram.rename (PortMap.exchange ca.1 cb.1 Γ)
+              (Identity.transport
+                (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) (only ca)
+                (D cb))).trans
+          (cong (.agree (.stepPorts f
+            ((PortMap.selectWeaken e.outs (PortMap.id Γ) args).trans (PortMap.idSelect args))
+            fun ca =>
+              Identity.ind
+                (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+                  Diagram.Agreement
+                    (Diagram.rename (PortMap.lift ca.1 (e.outs.append (PortMap.id Γ)))
+                      (Diagram.rename (PortMap.exchange ca.1 e.center.1 Γ)
+                        (Identity.transport
+                          (fun (c : (S.output f).Case) =>
+                            Diagram S (e.center.1 ++ (c.1 ++ Γ)) Qs) p (D e.center))))
+                    (Identity.transport
+                      (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                      (Diagram.rename
+                        ((PortMap.weaken center.1 e.outs).append (PortMap.id (center.1 ++ Γ)))
+                        (D e.center))))
+                (Diagram.renameCompose (D e.center) _ _ _ (e.underPorts center.1))
+                (only ca))))))
+
+/-- The context under a step absorbs each available call after the step. -/
+def Absorbed.after (inter : Rules.Map (Rules.interchange S) R)
+    (copy : Rules.Map (Rules.copy S) R) (table : List (Available S Γ))
+    (absorbed : All (fun e => Absorbed R K e.used) table) :
+    All (fun e => Absorbed R (fun D => K (Diagram.under f args center only D)) e.used)
+      (Available.after table f args center only) :=
+  Option.casesOn
+    (motive := fun pure =>
+      All (fun e => Absorbed R (fun D => K (Diagram.under f args center only D)) e.used)
+        (Option.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) pure
+          (table.map (Available.weaken center.1))
+          (fun pure =>
+            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))))
+    (Kind.isPure (S.kind f))
+    (All.image (Available.weaken center.1)
+      (fun e a => Absorbed.under cong f args center only inter e a) absorbed)
+    (fun pure =>
+      .cons (Absorbed.ofStep cong f args center only copy pure)
+        (All.image (Available.weaken center.1)
+          (fun e a => Absorbed.under cong f args center only inter e a) absorbed))
+
+end
+
+/-- The merged diagram has a derivation from the diagram with the ports of the map, in each
+context that absorbs each available call. -/
+def Diagram.mergeWithDerivation [DecEq S.Op] (inter : Rules.Map (Rules.interchange S) R)
+    (copy : Rules.Map (Rules.copy S) R) {Γ₀ : List Ty} :
+    {Γ Δ : List Ty} → {Qs : Exits Ty} → (K : Diagram S Γ Qs → Diagram S Γ₀ Qs) →
+    (cong : {D D' : Diagram S Γ Qs} → Diagram.Derivation R D D' →
+      Diagram.Derivation R (K D) (K D')) →
+    (table : List (Available S Γ)) → All (fun e => Absorbed R K e.used) table →
+    (ρ : PortMap Γ Δ) → (d : Diagram S Δ Qs) → (h : d.Straight) →
+    Diagram.Derivation R (K (Diagram.rename ρ d)) (K (Diagram.mergeWith table ρ d h))
+  | _, _, _, _, _, _, _, _, .exit _, _ => .agree (Diagram.Agreement.refl _)
+  | Γ, _, Qs, K, cong, table, absorbed, ρ, .step call rest, h =>
+      Option.casesOn
+        (motive := fun found =>
+          Diagram.Derivation R
+            (K (.step ⟨call.1, ρ.select call.2⟩ fun c => Diagram.rename (ρ.lift c.1) (rest c)))
+            (K (Option.casesOn (motive := fun _ => Diagram S Γ Qs) found
+              (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
+                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                  (ρ.lift h.1.1) (rest h.1) h.2.2))
+              (fun found =>
+                Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                    h.2.2)))))
+        (Available.find call.1 (ρ.select call.2) table)
+        ((cong (.agree (Diagram.Agreement.under call.1 (ρ.select call.2) h.1 h.2.1
+            fun c => Diagram.rename (ρ.lift c.1) (rest c)))).trans
+          (Diagram.mergeWithDerivation inter copy
+            (fun D => K (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1 D))
+            (fun der => cong (der.under call.1 (ρ.select call.2) h.1 h.2.1))
+            (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+            (Absorbed.after cong call.1 (ρ.select call.2) h.1 h.2.1 inter copy table absorbed)
+            (ρ.lift h.1.1) (rest h.1) h.2.2))
+        (fun found =>
+          ((Identity.transport (Absorbed R K) found.same (absorbed.lookup found.mem))
+              fun c => Diagram.rename (ρ.lift c.1) (rest c)).trans
+            ((cong (.agree (Diagram.renameCompose (rest found.center) _ _ _
+                ((PortMap.selectLift found.outs (PortMap.id Γ) ρ).trans
+                  (Identity.cong (All.append found.outs) (PortMap.idSelect ρ)))))).trans
+              (Diagram.mergeWithDerivation inter copy K cong table absorbed
+                (found.outs.append ρ) (rest found.center)
+                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2))))
+  | _, _, _, _, _, _, _, _, .seq _ _, h => nomatch h
+
+/-- The merged diagram of a diagram of the fragment has a derivation from the diagram, in each
+rule set that has the interchange rule and the copy rule. -/
+def Diagram.mergeDerivation [DecEq S.Op] (inter : Rules.Map (Rules.interchange S) R)
+    (copy : Rules.Map (Rules.copy S) R) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (h : d.Straight) : Diagram.Derivation R d (d.merge h) :=
+  .trans (.symm (.agree d.renameId))
+    (Diagram.mergeWithDerivation inter copy (fun D => D) (fun der => der) [] .nil
+      (PortMap.id Γ) d h)
 
 end Draft

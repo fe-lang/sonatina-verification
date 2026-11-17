@@ -61,6 +61,34 @@ inductive Op where
   | isZero
   | emit
 
+/-- The number of an operation. -/
+def Op.code : Op → Nat
+  | .add => 0
+  | .isZero => 1
+  | .emit => 2
+
+/-- The operation of a number. -/
+def Op.ofCode : Nat → Op
+  | 0 => .add
+  | n + 1 =>
+      match n with
+      | 0 => .isZero
+      | _ + 1 => .emit
+
+/-- The operation of the number of an operation is the operation. -/
+def Op.ofCodeCode : (o : Op) → Op.ofCode o.code ≡ o
+  | .add => .refl
+  | .isZero => .refl
+  | .emit => .refl
+
+/-- The decision of the identity of two operations, from the decision of the identity of their
+numbers. -/
+instance : DecEq Op where
+  decEq a b :=
+    (decideEq a.code b.code).map
+      (fun p => (Op.ofCodeCode a).symm.trans ((Identity.cong Op.ofCode p).trans (Op.ofCodeCode b)))
+      (Identity.cong Op.code)
+
 /-- One value type. `add` is pure and has two inputs. `isZero` is a pure test: its output
 boundary has two cases with no port. `emit` is effectful. -/
 def sig : Signature Unit where
@@ -77,6 +105,9 @@ def sig : Signature Unit where
     | .add => .one [()]
     | .isZero => [[], []]
     | .emit => .one [()]
+
+/-- The decision of the identity of two operations of the signature. -/
+instance : DecEq sig.Op := inferInstanceAs (DecEq Op)
 
 abbrev Value : Unit → Type := fun _ => Nat
 

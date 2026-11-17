@@ -51,7 +51,12 @@ one history. The list of the orders has the two orders of the two calls. The wor
 call of `A`, then `D`, and then the other call of `A` is an admissible order of the occurrences,
 and it is not the word of an order: `D` runs when one of the two calls is done. The evidence
 runs on the machine of the runs, and a check consumes the identity that no occurrence
-remains. -/
+remains. The merged diagram of the diagram with two calls has one call of `A`. It gives the
+same values, and a check consumes the soundness of its derivation through a dependent payload.
+A last diagram has the effectful `C` between the two calls of `A`. Its merged diagram has one
+call of `A`: the derivation moves the second call before `C` by one interchange, and then it
+uses the copy rule. A check consumes its soundness through a dependent payload that has the
+response of the store. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -586,6 +591,81 @@ def rewiredFinished :
         (FreeDep.run machineEvidence rewired))
       ⟨0, Nat.zero_lt_succ _⟩).val ≡ 0 := .refl
 
+/-- The interchange equation set with the copy equation set. -/
+abbrev both : Rules sig := (Rules.interchange sig).sum (Rules.copy sig)
+
+set_option smartUnfolding false in
+/-- The merged diagram has one call of `A`: it has two steps, and the diagram with two calls has
+three. -/
+def mergedSize : (twice.size, (twice.merge twiceStraight).size) ≡ (3, 2) := .refl
+
+set_option smartUnfolding false in
+/-- The merged diagram gives the values of the diagram with two calls. -/
+def mergedRun (flag : Bool) (u v x y : Nat) :
+    observe stop count (twice.merge twiceStraight) flag u v x y ≡ (x + y + (x + y), x + y) :=
+  .refl
+
+/-- The soundness of the derivation of the merged diagram. -/
+def mergedSound (x y : Nat) :
+    Free.Agreement ((twice.meaning stop count (inputs x y)).subst lower)
+      (((twice.merge twiceStraight).meaning stop count (inputs x y)).subst lower) :=
+  (Diagram.mergeDerivation (R := both) (Rules.Map.inl _ _) (Rules.Map.inr _ _) twice
+      twiceStraight).sound stop count (.sum (.interchange returns) (.copy returns))
+    (inputs x y) .pure
+
+set_option smartUnfolding false in
+/-- The identity of the returned values of the diagram with two calls and of its merged diagram
+is consumed through a dependent payload that has the output of `D`. -/
+def mergedPayload (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).1)
+        ((mergedSound stop count x y).run (f := provider flag u v) (fun _ => .refl)))
+      ⟨x + y + (x + y), Nat.lt_succ_self _⟩).val ≡ x + y + (x + y) := .refl
+
+/-- `A` at the two inputs, then the effectful `C` at the first input, and then `A` at the two
+inputs again. The exit has the output of the second call of `A` and the response of `C`. -/
+def apart : Diagram sig [(), ()] Two :=
+  .step ⟨.add, .cons .here (.cons (.there .here) .nil)⟩ fun
+    | ⟨_, .here⟩ => .step ⟨.emit, .cons (.there .here) .nil⟩ fun
+      | ⟨_, .here⟩ =>
+          .step ⟨.add, .cons (.there (.there .here)) (.cons (.there (.there (.there .here))) .nil)⟩
+            fun
+            | ⟨_, .here⟩ =>
+                .exit ⟨_, .here, Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩
+
+/-- The diagram is a diagram of the fragment. -/
+def apartStraight : apart.Straight := ⟨center, only, center, only, center, only, ()⟩
+
+set_option smartUnfolding false in
+/-- The merged diagram has one call of `A`. -/
+def apartSize : (apart.size, (apart.merge apartStraight).size) ≡ (3, 2) := .refl
+
+set_option smartUnfolding false in
+/-- The merged diagram gives the values of the diagram, for arbitrary inputs and an arbitrary
+response of the store. -/
+def apartRun (flag : Bool) (u v x y : Nat) :
+    (observe stop count apart flag u v x y,
+        observe stop count (apart.merge apartStraight) flag u v x y) ≡
+      ((x + y, u + x), (x + y, u + x)) := .refl
+
+/-- The soundness of the derivation of the merged diagram: the second call of `A` moves before
+`C` by one interchange, and the copy rule gives one call. -/
+def apartSound (x y : Nat) :
+    Free.Agreement ((apart.meaning stop count (inputs x y)).subst lower)
+      (((apart.merge apartStraight).meaning stop count (inputs x y)).subst lower) :=
+  (Diagram.mergeDerivation (R := both) (Rules.Map.inl _ _) (Rules.Map.inr _ _) apart
+      apartStraight).sound stop count (.sum (.interchange returns) (.copy returns))
+    (inputs x y) .pure
+
+set_option smartUnfolding false in
+/-- The identity of the returned values is consumed through a dependent payload that has the
+response of the store. -/
+def apartPayload (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).2)
+        ((apartSound stop count x y).run (f := provider flag u v) (fun _ => .refl)))
+      ⟨u + x, Nat.lt_succ_self _⟩).val ≡ u + x := .refl
+
 end Draft.Checks.Dependency
 
 /-- info: 'Draft.Checks.Dependency.orders' does not depend on any axioms -/
@@ -703,3 +783,27 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.rewiredFinished' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.rewiredFinished
+
+/-- info: 'Draft.Checks.Dependency.mergedSize' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.mergedSize
+
+/-- info: 'Draft.Checks.Dependency.mergedRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.mergedRun
+
+/-- info: 'Draft.Checks.Dependency.mergedPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.mergedPayload
+
+/-- info: 'Draft.Checks.Dependency.apartSize' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.apartSize
+
+/-- info: 'Draft.Checks.Dependency.apartRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.apartRun
+
+/-- info: 'Draft.Checks.Dependency.apartPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.apartPayload

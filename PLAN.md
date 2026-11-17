@@ -595,6 +595,19 @@ each implementation in which each pure operation returns without a call, which
 is the premise of the interchange rule. The copy equation set has this rule,
 and the sum of two rule sets joins it to the interchange equation set.
 
+[Draft/Source.lean](Draft/Source.lean) has the merge of the equal calls of a
+diagram of the fragment: two calls of a pure operation at the same ports are
+one call in the merged diagram. The merge goes through the steps one time,
+with the list of the available calls and a port map to the context of the
+merged diagram. It uses the decision of the identity of two operations, which
+is a premise on the signature, and the decision of the identity of two ports,
+which [Prelude/Indexed.lean](Prelude/Indexed.lean) has. The merged diagram has
+a derivation from the source diagram in each rule set that has the
+interchange rule and the copy rule. The proof is one recursion on the diagram,
+for a context of diagrams that absorbs each available call. The context under
+a step absorbs the call of that step by the copy rule, and it absorbs each
+earlier call by one interchange.
+
 [Draft/Checks/Dependency.lean](Draft/Checks/Dependency.lean) has the three
 required checks. The first source diagram has three steps. `A` and `B` are
 pure, and `B` uses the output of `A`. `C` is effectful and uses one input
@@ -642,7 +655,12 @@ one history. The list of the orders has the two orders of the two calls. The
 word that runs one call of `A`, then `D`, and then the other call of `A` is an
 admissible order of the occurrences, and it is not the word of an order. Its
 evidence runs on the machine of the runs, and a check consumes the identity
-that no occurrence remains.
+that no occurrence remains. The merged diagram of the fourth source diagram
+has one call of `A`. It gives the same values, and a check consumes the
+soundness of its derivation through a dependent payload. One more diagram has
+the effectful `C` between the two calls of `A`. The derivation of its merged
+diagram has one interchange and the copy rule, and a check consumes its
+soundness through a dependent payload that has the response of the store.
 
 These parts are open:
 
@@ -652,9 +670,16 @@ These parts are open:
   order of the occurrences of a diagram of the fragment has a diagram with a
   derivation from the source diagram, in the interchange equation set with
   the copy equation set. The occurrences of that diagram are the occurrences
-  of the source diagram in the order of the word. The parts are a theorem
-  that two ports with one history can replace each other, by a recursion on
-  the history, and the diagram of a graph and an admissible word.
+  of the source diagram in the order of the word. The proof goes through the
+  merged diagram, and three parts of it are open:
+  - The merged diagram is a diagram of the fragment with no two equal
+    occurrences, and its occurrences are the occurrences of the source diagram
+    without each later equal occurrence.
+  - For a diagram of the fragment with no two equal occurrences, each
+    admissible order of the occurrences is the word of an order, with the
+    interchange rule only.
+  - The merged calls go back into an order of the merged diagram, at the
+    places of the word, by the copy rule and the theorem of the ready step.
 - The decision of the identity of two histories, which the decision of the
   precondition of a run needs.
 - The check that reads the receipt of the order `C A B` through its

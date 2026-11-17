@@ -95,7 +95,8 @@ Two modules are separate imports. `import Prelude` does not include them.
 position of `xs` or a position of `ys`, with the identity of `i` with its
 image. `Elem.uncons i` gives the first position or a position of the tail for a
 position of a nonempty list. `Elem.find a xs` is the decision of a position
-of `a` in `xs`, for a type with decidable identity. `Elem.consCases` is the case analysis of a position of a nonempty
+of `a` in `xs`, for a type with decidable identity. `Elem.decide i j` is the
+decision of the identity of two positions of one element. `Elem.consCases` is the case analysis of a position of a nonempty
 list, and `Elem.ofNil` gives a value of each type from a position of the
 empty list. `All.select env positions` gives the values of `env` at a list of
 positions, which can repeat a position and omit a position.
@@ -110,11 +111,16 @@ part. `All.selectAppend` gives the selection at a
 concatenation of two lists of positions. `All.selectTabulate` gives the
 selection at a table of positions, from the value at each position of the
 table. `All.selectSelect` gives the selection at selected positions.
+`All.image f g` gives the values at the image of a list under `f`, from a
+function `g` of the values. `All.decide` is the decision of the identity of
+two environments, from the decision at each element.
 `All.nilEta` shows that an environment of the empty list is the empty
 environment, and `All.appendOne` gives the concatenation of an environment of
 one value and an environment. The
 functions on `Elem` and `All` use `casesOn` with an explicit motive, so their
-evaluation eliminates no equality of lists.
+evaluation eliminates no equality of lists. The two decisions of identity are
+the exception: the analysis of two values at one list uses a generated
+matcher.
 `Steps R a b` retains the individual transitions, so executions with equal
 endpoints can have different lengths and labels. `Steps.foldProp` interprets
 such a trace in a reflexive, transitive Prop-valued relation.
