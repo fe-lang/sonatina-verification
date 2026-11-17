@@ -92,6 +92,47 @@ def ofNil {β : Type w} (i : Elem a ([] : List α)) : β :=
     (motive := fun zs _ => List.casesOn (motive := fun _ => Type w) zs β (fun _ _ => PUnit))
     i PUnit.unit (fun _ => PUnit.unit)
 
+set_option smartUnfolding false in
+/-- The part of a position of the second part of a concatenation. -/
+def splitRight : (xs : List α) → {ys : List α} → {a : α} → (i : Elem a ys) →
+    split xs (i.right xs) ≡ .inr ⟨i, .refl⟩
+  | [], _, _, _ => .refl
+  | b :: xs, ys, a, i =>
+      Identity.cong
+        (fun (s : ((j : Elem a xs) × (i.right xs ≡ j.left)) ⊕
+            ((j : Elem a ys) × (i.right xs ≡ j.right xs))) =>
+          (match s with
+          | .inl found => .inl ⟨.there found.1, Identity.cong Elem.there found.2⟩
+          | .inr found => .inr ⟨found.1, Identity.cong Elem.there found.2⟩ :
+            ((j : Elem a (b :: xs)) × (Elem.there (i.right xs) ≡ j.left)) ⊕
+              ((j : Elem a ys) × (Elem.there (i.right xs) ≡ j.right (b :: xs)))))
+        (splitRight xs i)
+
+set_option smartUnfolding false in
+/-- A position of an element of a list gives a position of its value in the list of the values
+of a partial function. -/
+def ofFilterMap {f : α → Option β} {x : α} {y : β} : {xs : List α} → Elem x xs →
+    f x ≡ some y → Elem y (xs.filterMap f)
+  | _ :: l, .here, q =>
+      Identity.indEnd
+        (fun (v : Option β) (_ : v ≡ some y) =>
+          Elem y (Option.casesOn (motive := fun _ => List β) v (l.filterMap f)
+            (fun b => b :: l.filterMap f)))
+        .here q
+  | b :: l, .there j, q =>
+      Option.casesOn
+        (motive := fun v =>
+          Elem y (Option.casesOn (motive := fun _ => List β) v (l.filterMap f)
+            (fun c => c :: l.filterMap f)))
+        (f b) (ofFilterMap j q) (fun _ => .there (ofFilterMap j q))
+
+/-- A position of an element of a list and a position in its list of values give a position in
+the concatenation of the lists of values. -/
+def ofFlatMap {f : α → List β} {x : α} {y : β} : {xs : List α} → Elem x xs → Elem y (f x) →
+    Elem y (xs.flatMap f)
+  | _ :: _, .here, j => j.left
+  | b :: _, .there i, j => (ofFlatMap i j).right (f b)
+
 /-- A position of an element in a list, or the evidence that the list has no such position. -/
 def find [DecEq α] (a : α) : (xs : List α) → Dec (Elem a xs)
   | [] => .no (fun i => ofNil i)

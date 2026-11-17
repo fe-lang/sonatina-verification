@@ -94,6 +94,15 @@ def Diagram.ops : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) �
   | _, _, .step call rest, h => call.1 :: Diagram.ops (rest h.1) h.2.2
   | _, _, .seq _ _, _ => []
 
+/-- The operations of a diagram with renamed ports are the operations of the diagram. -/
+def Diagram.opsRename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap Γ Δ) →
+    (d : Diagram S Δ Qs) → (h : d.Straight) →
+    (d.rename ρ).ops (Diagram.Straight.rename ρ d h) ≡ d.ops h
+  | _, _, _, _, .exit _, _ => .refl
+  | _, _, _, ρ, .step call rest, h =>
+      Identity.cong (fun l => call.1 :: l) (Diagram.opsRename (ρ.lift h.1.1) (rest h.1) h.2.2)
+  | _, _, _, _, .seq _ _, h => nomatch h
+
 /-! The dependency graph. -/
 
 mutual

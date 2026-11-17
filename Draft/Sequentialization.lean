@@ -38,7 +38,17 @@ The other direction holds for a diagram of the fragment whose occurrences have n
 two positions. The step of an admitted run is a ready step: no operand of it is an output port
 of a step before it, because the call of that step is not done, and one of each two steps is
 pure, because the effectful call before the step is done. An admissible order of the
-occurrences is thus the word of an order: the order has the ready step of each run. -/
+occurrences is thus the word of an order: the order has the ready step of each run.
+
+The list of the orders of a diagram of the fragment is complete: each order of the diagram
+agrees with an order of the list. The evidence of an order has functions of the output cases,
+and the list has the functions that the value at the center of the cases gives, so the
+statement is an agreement of diagrams. Each ready step is in the list of the ready steps, with
+a diagram after it that agrees at each case: the decision of the kinds has a value, and the
+operands are weakened operands. The proof is for each diagram that agrees with the source
+diagram, so the diagram after a ready step of the list takes the place of the diagram after
+the given ready step. The bound of the list is the number of the steps, and the diagram after
+a ready step has one step less. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -182,6 +192,33 @@ abbrev Diagram.Choice {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) : Typ
     ((after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
       Diagram.Ready b d args after))
 
+/-- The ready step of the diagram from a ready step of the rest of the first step, for a value
+of the decision of the kinds and a value of the decision of the operands. -/
+def Diagram.Choice.pastOf {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap Γ (S.input a))
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs) (center : (S.output a).Case)
+    (only : (c : (S.output a).Case) → center ≡ c) (b : S.Op)
+    (args : PortMap (center.1 ++ Γ) (S.input b))
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (center.1 ++ Γ)) Qs}
+    (r : Diagram.Ready b (rest center) args after)
+    (v : Option ((S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure)))
+    (w : Option ((inner : PortMap Γ (S.input b)) × (args ≡ inner.weaken center.1))) :
+    Option (Diagram.step ⟨a, first⟩ rest).Choice :=
+  v.bind fun central =>
+    w.map fun outer =>
+      ⟨b, outer.1, _,
+        (Diagram.Ready.pastOne a central first outer.1 center only
+          (Identity.transport (fun x => Diagram.Ready b (rest center) x after) outer.2 r)).2⟩
+
+/-- A ready step of the rest of a first step is a ready step of the diagram when one of the
+two steps is pure, and its operands have no output port of the first step. The output boundary
+of the first step has one case. -/
+def Diagram.Choice.past {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap Γ (S.input a))
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs) (center : (S.output a).Case)
+    (only : (c : (S.output a).Case) → center ≡ c) (choice : (rest center).Choice) :
+    Option (Diagram.step ⟨a, first⟩ rest).Choice :=
+  Diagram.Choice.pastOf a first rest center only choice.1 choice.2.1 choice.2.2.2
+    (Kind.central (S.kind a) (S.kind choice.1)) (PortMap.strengthen center.1 choice.2.1)
+
 /-- The ready steps of a diagram of the fragment, in the order of its steps. The first step is
 ready. A ready step of its rest is ready when one of the two steps is pure, and its operands
 have no output port of the first step. -/
@@ -190,18 +227,7 @@ def Diagram.choices : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Q
   | _, _, .exit _, _ => []
   | _, _, .step ⟨a, first⟩ rest, h =>
       ⟨a, first, rest, .here first rest⟩ ::
-        (Diagram.choices (rest h.1) h.2.2).filterMap fun choice =>
-          match Kind.central (S.kind a) (S.kind choice.1) with
-          | none => none
-          | some central =>
-              match PortMap.strengthen h.1.1 choice.2.1 with
-              | none => none
-              | some outer =>
-                  some ⟨choice.1, outer.1, _,
-                    (Diagram.Ready.pastOne a central first outer.1 h.1 h.2.1
-                      (Identity.transport
-                        (fun x => Diagram.Ready choice.1 (rest h.1) x choice.2.2.1) outer.2
-                        choice.2.2.2)).2⟩
+        (Diagram.choices (rest h.1) h.2.2).filterMap (Diagram.Choice.past a first rest h.1 h.2.1)
   | _, _, .seq _ _, _ => []
 
 /-- The order with a ready step first, from an order of the diagram after that step at the
@@ -677,5 +703,165 @@ def Diagram.Order.ofGraph {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (
   Diagram.Order.ofAdmissible w d h (S.inputs Γ) none [] (distinct, fun _ _ j => j.ofNil) ev
 
 end Admissible
+
+/-! The completeness of the list of the orders. -/
+
+/-- The filter of the ready steps has a value at a ready step whose operands are operands of
+the context before the first step, when one of the two steps is pure. -/
+def Diagram.Choice.pastSome {Γ : List Ty} {Qs : Exits Ty} (a b : S.Op)
+    (central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure))
+    (first : PortMap Γ (S.input a)) (second : PortMap Γ (S.input b))
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs) (center : (S.output a).Case)
+    (only : (c : (S.output a).Case) → center ≡ c)
+    {after₁ : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (center.1 ++ Γ)) Qs}
+    (r₁ : Diagram.Ready b (rest center) (second.weaken center.1) after₁) :
+    Diagram.Choice.past a first rest center only ⟨b, second.weaken center.1, after₁, r₁⟩ ≡
+      some ⟨b, second, _,
+        (Diagram.Ready.pastOne a (Kind.centralOf central).1 first second center only r₁).2⟩ :=
+  Identity.cong₂
+    (Diagram.Choice.pastOf a first rest center only b (second.weaken center.1) r₁)
+    (Kind.centralOf central).2 (PortMap.strengthenWeaken center.1 second)
+
+/-- A ready step of a diagram that agrees with a diagram of the fragment: a ready step of the
+list of that diagram with the same operation and operands, and a diagram after it that agrees
+at each case. -/
+abbrev Diagram.Ready.Listed (b : S.Op) {Γ : List Ty} {Qs : Exits Ty} (d' : Diagram S Γ Qs)
+    (args : PortMap Γ (S.input b)) (after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs)
+    (h' : d'.Straight) : Type :=
+  (after' : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
+    ((r' : Diagram.Ready b d' args after') ×
+      (Elem (⟨b, args, after', r'⟩ : d'.Choice) (d'.choices h') ×
+        ((cb : (S.output b).Case) → Diagram.Agreement (after cb) (after' cb))))
+
+/-- Each ready step is in the list of the ready steps, for each diagram of the fragment that
+agrees with the diagram. -/
+def Diagram.Ready.listed {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} → {d : Diagram S Γ Qs} →
+    {args : PortMap Γ (S.input b)} →
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs} →
+    Diagram.Ready b d args after → (d' : Diagram S Γ Qs) → Diagram.Agreement d d' →
+    (h' : d'.Straight) → Diagram.Ready.Listed b d' args after h'
+  | _, _, _, _, _, .here args _, _, same, h' =>
+      same.view (fun d' => (h' : d'.Straight) → Diagram.Ready.Listed b d' args _ h')
+        (fun rest' each _ => ⟨rest', .here args rest', .here, each⟩) h'
+  | Γ, _, _, _, _, @Diagram.Ready.past _ _ _ _ _ a central first second _ after inner, _, same,
+      h' =>
+      same.view (fun d' => (h' : d'.Straight) → Diagram.Ready.Listed b d' second _ h')
+        (fun rest' each h' =>
+          let ih := Diagram.Ready.listed (inner h'.1) (rest' h'.1) (each h'.1) h'.2.2
+          let po := Diagram.Ready.pastOne a (Kind.centralOf central).1 first second h'.1 h'.2.1
+            ih.2.1
+          ⟨_, po.2,
+            .there (Elem.ofFilterMap ih.2.2.1
+              (Diagram.Choice.pastSome a b central first second rest' h'.1 h'.2.1 ih.2.1)),
+            fun cb => .step _ fun ca =>
+              Diagram.Agreement.rename (PortMap.exchange ca.1 cb.1 Γ)
+                (Identity.ind
+                  (fun (c : (S.output a).Case) (p : h'.1 ≡ c) =>
+                    (cb : (S.output b).Case) →
+                    Diagram.Agreement (after c cb)
+                      ((Identity.transport
+                        (fun (c : (S.output a).Case) =>
+                          (aft : (cb : (S.output b).Case) →
+                              Diagram S (cb.1 ++ (c.1 ++ Γ)) _) ×
+                            Diagram.Ready b (rest' c) (second.weaken c.1) aft)
+                        p ⟨ih.1, ih.2.1⟩).1 cb))
+                  (fun cb => ih.2.2.2 cb) (h'.2.1 ca) cb)⟩)
+        h'
+
+/-- The diagram after a ready step of a diagram of the fragment has one step less. -/
+def Diagram.Ready.opsAfter {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} →
+    {d : Diagram S Γ Qs} → {args : PortMap Γ (S.input b)} →
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs} →
+    (r : Diagram.Ready b d args after) → (h : d.Straight) →
+    ((after (r.single h).1).ops (r.straight h (r.single h).1)).length + 1 ≡ (d.ops h).length
+  | _, _, _, _, _, .here _ rest, h =>
+      Identity.cong (fun k => k + 1)
+        (Identity.ind
+          (fun (c : (S.output b).Case) (p : h.1 ≡ c) =>
+            ((rest c).ops (Identity.transport (fun c => (rest c).Straight) p h.2.2)).length ≡
+              ((rest h.1).ops h.2.2).length)
+          .refl (h.2.1 h.1))
+  | Γ, _, _, _, _, @Diagram.Ready.past _ _ _ _ _ _ _ _ _ _ after inner, h =>
+      Identity.cong (fun k => k + 1)
+        ((Identity.cong (fun (l : List S.Op) => l.length + 1)
+            (Diagram.opsRename (PortMap.exchange h.1.1 _ Γ) (after h.1 _)
+              ((inner h.1).straight h.2.2 _))).trans
+          (Diagram.Ready.opsAfter (inner h.1) h.2.2))
+
+/-- The order with a ready step of the list first, and then an order of the list of the diagram
+after that step, is an order of the list. -/
+def Diagram.Order.pickListed : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (h : d.Straight) → (choice : d.Choice) → Elem choice (d.choices h) → (m : Nat) →
+    (tail : (e : Diagram S ((choice.2.2.2.single h).1.1 ++ Γ) Qs) ×
+      Diagram.Order e (choice.2.2.1 (choice.2.2.2.single h).1)) →
+    Elem tail
+      (Diagram.ordersWithin m (choice.2.2.1 (choice.2.2.2.single h).1)
+        (choice.2.2.2.straight h (choice.2.2.2.single h).1)) →
+    Elem
+      (Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h).1
+        (choice.2.2.2.single h).2 tail)
+      (Diagram.ordersWithin (m + 1) d h)
+  | _, _, .exit _, _, _, mem, _, _, _ => mem.ofNil
+  | _, _, .step _ _, h, choice, mem, _, _, memTail =>
+      Elem.ofFlatMap mem
+        (Elem.map
+          (fun tail =>
+            Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h).1
+              (choice.2.2.2.single h).2 tail)
+          memTail)
+  | _, _, .seq _ _, h, _, _, _, _, _ => nomatch h
+
+/-- An order of the list of a diagram that agrees with a diagram. -/
+abbrev Diagram.Order.Listed {Γ : List Ty} {Qs : Exits Ty} (e d : Diagram S Γ Qs) (h : d.Straight)
+    (n : Nat) : Type :=
+  (r : (e' : Diagram S Γ Qs) × Diagram.Order e' d) ×
+    (Elem r (Diagram.ordersWithin n d h) × Diagram.Agreement e r.1)
+
+/-- Each order of a diagram agrees with an order of the list, for each diagram of the fragment
+that agrees with the diagram and each bound that is the number of its steps. -/
+def Diagram.Order.listedWithin : {Γ : List Ty} → {Qs : Exits Ty} → (e d : Diagram S Γ Qs) →
+    Diagram.Order e d → (d' : Diagram S Γ Qs) → Diagram.Agreement d d' → (h' : d'.Straight) →
+    (n : Nat) → (d'.ops h').length ≡ n → Diagram.Order.Listed e d' h' n
+  | Γ, Qs, .exit out, _, o, d', same, h', n, _ =>
+      Identity.ind
+        (fun (d : Diagram S Γ Qs) _ => (d' : Diagram S Γ Qs) → Diagram.Agreement d d' →
+          (h' : d'.Straight) → (n : Nat) → Diagram.Order.Listed (.exit out) d' h' n)
+        (fun (d' : Diagram S Γ Qs) (same : Diagram.Agreement (Diagram.exit out) d') h' n =>
+          same.view
+            (fun d' => (h' : d'.Straight) → (n : Nat) → Diagram.Order.Listed (.exit out) d' h' n)
+            (fun _ n =>
+              match n with
+              | 0 => ⟨⟨.exit out, .refl⟩, .here, Diagram.Agreement.refl _⟩
+              | _ + 1 => ⟨⟨.exit out, .refl⟩, .here, Diagram.Agreement.refl _⟩)
+            h' n)
+        o d' same h' n
+  | Γ, Qs, .step call rest, _, o, d', same, h', _, fuel =>
+      let found := o.2.1.listed d' same h'
+      let c := (found.2.1.single h').1
+      let only := (found.2.1.single h').2
+      let ih := Diagram.Order.listedWithin (rest c) (o.1 c) (o.2.2 c) (found.1 c)
+        (found.2.2.2 c) (found.2.1.straight h' c) _ .refl
+      Identity.transport (fun n => Diagram.Order.Listed (.step call rest) d' h' n)
+        ((found.2.1.opsAfter h').trans fuel)
+        ⟨Diagram.Order.pick call.1 found.2.1 c only ih.1,
+          Diagram.Order.pickListed d' h' ⟨call.1, call.2, found.1, found.2.1⟩ found.2.2.1 _ ih.1
+            ih.2.1,
+          .step call fun cb =>
+            Identity.ind
+              (fun (cb : (S.output call.1).Case) (p : c ≡ cb) =>
+                Diagram.Agreement (rest cb)
+                  (Identity.transport
+                    (fun (c : (S.output call.1).Case) =>
+                      (e : Diagram S (c.1 ++ Γ) Qs) × Diagram.Order e (found.1 c))
+                    p ih.1).1)
+              ih.2.2 (only cb)⟩
+  | _, _, .seq _ _, _, o, _, _, _, _, _ => nomatch o
+
+/-- Each order of a diagram of the fragment agrees with an order of the list of its orders. -/
+def Diagram.Order.listed {Γ : List Ty} {Qs : Exits Ty} (e d : Diagram S Γ Qs)
+    (o : Diagram.Order e d) (h : d.Straight) :
+    (r : (e' : Diagram S Γ Qs) × Diagram.Order e' d) ×
+      (Elem r (d.orders h) × Diagram.Agreement e r.1) :=
+  Diagram.Order.listedWithin e d o d (Diagram.Agreement.refl d) h _ .refl
 
 end Draft

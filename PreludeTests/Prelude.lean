@@ -185,6 +185,25 @@ def decidedPayload : Dec (positions ≡ positions) → Nat
 def decidedSelection :
     decidedPayload (All.decide (fun _ => Elem.decide) positions positions) ≡ 2 := .refl
 
+/-- The part of a position of the second part of a concatenation is that position. -/
+def splitOfRight : Elem.splitRight [Ty.bool, Ty.bool] third ≡ .refl := .refl
+
+/-- The number of each pair with a true flag. -/
+def flagged (x : Bool × Nat) : Option Nat :=
+  match x.1 with
+  | true => some x.2
+  | false => none
+
+/-- A position of the list of the values of a partial function, with arbitrary values. -/
+def filteredPosition (n m k : Nat) :
+    (Elem.ofFilterMap (f := flagged) (y := k) (xs := [(false, n), (true, m), (true, k)])
+      (.there (.there .here)) .refl).toFin.val ≡ 1 := .refl
+
+/-- A position of the concatenation of the lists of values, with arbitrary values. -/
+def flatPosition (n m : Nat) :
+    (Elem.ofFlatMap (f := fun (x : Nat) => [x, x]) (xs := [n, m]) (.there .here)
+      (.there .here)).toFin.val ≡ 3 := .refl
+
 /-- A selection is a table of its values, with arbitrary values. -/
 def selectionIsTable (n m : Nat) (b : Bool) :
     All.selectValues (arbitrary n m b) positions
@@ -230,6 +249,18 @@ def sameThird : Elem.sameNumber third third .refl ≡ .refl := .refl
 /-- info: 'PreludeTests.pairComputes' does not depend on any axioms -/
 #guard_msgs in
 #print axioms pairComputes
+
+/-- info: 'PreludeTests.splitOfRight' does not depend on any axioms -/
+#guard_msgs in
+#print axioms splitOfRight
+
+/-- info: 'PreludeTests.filteredPosition' does not depend on any axioms -/
+#guard_msgs in
+#print axioms filteredPosition
+
+/-- info: 'PreludeTests.flatPosition' does not depend on any axioms -/
+#guard_msgs in
+#print axioms flatPosition
 
 /-- info: 'PreludeTests.oneProof' does not depend on any axioms -/
 #guard_msgs in

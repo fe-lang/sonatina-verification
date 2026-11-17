@@ -15,7 +15,11 @@ has the response of the store.
 
 The source diagram is a diagram of the fragment with fixed occurrences. Its ready steps are `A`
 and `C`: `B` has the output of `A` as an operand. The list of its orders has the three orders
-and no other order, and each order of the list gives the same two values.
+and no other order, and each order of the list gives the same two values. The list is
+complete: the theorem gives an order of the list for each order. For the evidence of the three
+orders above, which is not from the list, it gives the three positions of the list. A check
+consumes the agreement of the order `C A B` with the order of the list through a dependent
+payload that has the response of the store.
 
 The source diagram has a verified implementation: its lift for a specification with an
 admission, and then the verified lowering. The map of verified implementations along the
@@ -231,6 +235,33 @@ def allRuns (flag : Bool) (u v x y : Nat) :
     ((Diagram.orders source straight).map fun r =>
         observe stop count r.1 flag u v x y) ≡
       [(x + y + y, u + x), (x + y + y, u + x), (x + y + y, u + x)] := .refl
+
+set_option smartUnfolding false in
+/-- The evidence of the three orders, which is not from the list, has the three positions of
+the list of the orders. -/
+def listedPositions :
+    ((Diagram.Order.listed source source sourceOrder straight).2.1.toFin.val,
+      (Diagram.Order.listed middle source middleOrder straight).2.1.toFin.val,
+      (Diagram.Order.listed front source frontOrder straight).2.1.toFin.val) ≡ (0, 1, 2) := .refl
+
+/-- The order `C A B` and the order of the list that the theorem gives agree after the
+lowering. -/
+def listedSound (x y : Nat) :
+    Free.Agreement ((front.meaning stop count (inputs x y)).subst lower)
+      (((Diagram.Order.listed front source frontOrder straight).1.1.meaning stop count
+        (inputs x y)).subst lower) :=
+  (Diagram.Derivation.agree (R := Rules.interchange sig)
+      (Diagram.Order.listed front source frontOrder straight).2.2).sound stop count
+    (.interchange returns) (inputs x y) .pure
+
+set_option smartUnfolding false in
+/-- The agreement of the theorem is consumed through a dependent payload that has the response
+of the store. -/
+def listedPayload (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).2)
+        ((listedSound stop count x y).run (f := provider flag u v) (fun _ => .refl)))
+      ⟨u + x, Nat.lt_succ_self _⟩).val ≡ u + x := .refl
 
 /-! The evidence of each order. -/
 
@@ -891,6 +922,14 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.sourceReceipt' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.sourceReceipt
+
+/-- info: 'Draft.Checks.Dependency.listedPositions' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.listedPositions
+
+/-- info: 'Draft.Checks.Dependency.listedPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.listedPayload
 
 /-- info: 'Draft.Checks.Dependency.middleReceipt' does not depend on any axioms -/
 #guard_msgs in

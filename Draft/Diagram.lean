@@ -115,6 +115,15 @@ def Kind.cases : (k : Kind) → (k ≡ .pure) ⊕ (k ≡ .effectful)
 def Kind.pureNotEffectful (p : Kind.pure ≡ .effectful) : Empty :=
   Identity.transport (fun k => match k with | .pure => Unit | .effectful => Empty) p ()
 
+/-- The decision that one of two kinds is the pure kind has a value when one of them is. -/
+def Kind.centralOf : {k l : Kind} → (k ≡ .pure) ⊕ (l ≡ .pure) →
+    (c : (k ≡ .pure) ⊕ (l ≡ .pure)) × (Kind.central k l ≡ some c)
+  | .pure, .pure, _ => ⟨.inl .refl, .refl⟩
+  | .pure, .effectful, _ => ⟨.inl .refl, .refl⟩
+  | .effectful, .pure, _ => ⟨.inr .refl, .refl⟩
+  | .effectful, .effectful, .inl p => (Kind.pureNotEffectful p.symm).elim
+  | .effectful, .effectful, .inr p => (Kind.pureNotEffectful p.symm).elim
+
 /-- Operations with a product of typed input ports and an output boundary. A test is an
 operation whose output boundary has two or more cases. -/
 structure Signature (Ty : Type) where
@@ -184,6 +193,28 @@ def strengthenBy (Ξ : List Ty) {Γ : List Ty} : {Δ : List Ty} →
       | .inr found =>
           let inner := strengthenBy Ξ ps (fun t i j => absent t (.there i) j)
           ⟨.cons found.1 inner.1, Identity.cong₂ (fun q qs => All.cons q qs) found.2 inner.2⟩
+
+set_option smartUnfolding false in
+/-- A weakened port map is the weakened port map of itself. -/
+def strengthenWeaken (Ξ : List Ty) {Γ : List Ty} : {Δ : List Ty} →
+    (ports : PortMap Γ Δ) → strengthen Ξ (ports.weaken Ξ) ≡ some ⟨ports, .refl⟩
+  | _, .nil => .refl
+  | _, .cons (a := t) (xs := Δ) p ps =>
+      Identity.cong₂
+        (fun (s : ((j : Elem t Ξ) × (p.right Ξ ≡ j.left)) ⊕
+              ((j : Elem t Γ) × (p.right Ξ ≡ j.right Ξ)))
+            (r : Option ((inner : PortMap Γ Δ) × (PortMap.weaken Ξ ps ≡ inner.weaken Ξ))) =>
+          (match s with
+          | .inl _ => none
+          | .inr found =>
+              match r with
+              | none => none
+              | some inner =>
+                  some ⟨.cons found.1 inner.1,
+                    Identity.cong₂ (fun q qs => All.cons q qs) found.2 inner.2⟩ :
+            Option ((inner : PortMap Γ (t :: Δ)) ×
+              (PortMap.weaken Ξ (All.cons p ps : PortMap Γ (t :: Δ)) ≡ inner.weaken Ξ))))
+        (Elem.splitRight Ξ p) (strengthenWeaken Ξ ps)
 
 variable {X : Ty → Type}
 
@@ -869,6 +900,34 @@ def Diagram.Agreement.renamePorts {Γ Δ : List Ty} {Qs : Exits Ty} (d : Diagram
     {ρ ρ' : PortMap Γ Δ} (same : ρ ≡ ρ') : Diagram.Agreement (d.rename ρ) (d.rename ρ') :=
   Identity.ind (fun ρ' _ => Diagram.Agreement (d.rename ρ) (d.rename ρ'))
     (Diagram.Agreement.refl _) same
+
+/-- The view of an agreement from a diagram. From a step, the other diagram is a step with the
+same call, and the rests agree at each case. From an exit, the other diagram is that exit. -/
+def Diagram.Agreement.View : {Γ : List Ty} → {Qs : Exits Ty} → (d d' : Diagram S Γ Qs) →
+    Type 1
+  | Γ, Qs, .step call rest, d' =>
+      (motive : Diagram S Γ Qs → Type) →
+        ((rest' : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs) →
+          ((c : (S.output call.1).Case) → Diagram.Agreement (rest c) (rest' c)) →
+          motive (.step call rest')) →
+        motive d'
+  | Γ, Qs, .exit out, d' => (motive : Diagram S Γ Qs → Type) → motive (.exit out) → motive d'
+  | _, _, .seq _ _, _ => PUnit
+
+/-- An agreement gives the form of the other diagram. -/
+def Diagram.Agreement.view : {Γ : List Ty} → {Qs : Exits Ty} → {d d' : Diagram S Γ Qs} →
+    Diagram.Agreement d d' → Diagram.Agreement.View d d'
+  | _, _, _, _, .exit _ => fun _ m => m
+  | _, _, _, _, .step _ each => fun _ k => k _ each
+  | _, _, _, _, .seq _ _ => PUnit.unit
+
+/-- Two diagrams that agree have renamed diagrams that agree. -/
+def Diagram.Agreement.rename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap Γ Δ) →
+    {d d' : Diagram S Δ Qs} → Diagram.Agreement d d' →
+    Diagram.Agreement (d.rename ρ) (d'.rename ρ)
+  | _, _, _, _, _, _, .exit _ => Diagram.Agreement.refl _
+  | _, _, _, ρ, _, _, .step _ each => .step _ fun c => Diagram.Agreement.rename (ρ.lift c.1) (each c)
+  | _, _, _, ρ, _, _, .seq head tail => .seq (Diagram.Agreement.rename ρ head) tail
 
 /-- A function of diagrams for each list of added ports, at the family of a step whose output
 boundary is identical to the boundary with one case: an agreement at the one case gives the

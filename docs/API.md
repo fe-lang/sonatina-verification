@@ -97,7 +97,12 @@ Two modules are separate imports. `import Prelude` does not include them.
 `xs ++ ys`. `Elem.split xs i` gives the part of a position of `xs ++ ys`: a
 position of `xs` or a position of `ys`, with the identity of `i` with its
 image. `Elem.uncons i` gives the first position or a position of the tail for a
-position of a nonempty list. `Elem.find a xs` is the decision of a position
+position of a nonempty list. `Elem.splitRight` shows that the part of a
+position of `ys` in `xs ++ ys` is that position. `Elem.ofFilterMap` gives a
+position in `xs.filterMap f` from a position of `x` in `xs` and an identity
+`f x ≡ some y`. `Elem.ofFlatMap` gives a position in `xs.flatMap f` from a
+position of `x` in `xs` and a position in `f x`. `Elem.find a xs` is the
+decision of a position
 of `a` in `xs`, for a type with decidable identity. `Elem.decide i j` is the
 decision of the identity of two positions of one element, and
 `Elem.sameNumber` shows that two positions of one element with one number are
