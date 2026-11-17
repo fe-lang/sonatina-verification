@@ -378,7 +378,8 @@ specification of an implementation, the evidence of the computation of a
 diagram with each number of unrollings from a witness of the precondition, the
 completeness of that evidence against the runs, the verified diagram as a map
 into the specification of the diagram, the bound of a verified diagram, the
-maps of specifications that a derivation gives, and the unit runtime.
+maps of specifications that a derivation gives, the unit runtime, and the
+constructors of the evidence of a diagram in the form of the Prelude.
 
 The text below describes the plain part.
 
@@ -819,9 +820,12 @@ limit of a loop only at a runtime with a given condition. With the empty
 condition, the lift needs no evidence for the computation at the limit.
 
 A specification of the calls with no runtime is the case of the unit runtime
-with no stop: the specification with a runtime that `DepPoly.invariant` gives
-for the invariant with no content. A verified diagram at the unit runtime
-gives the verified implementation of each approximant with no runtime.
+with no stop: the specification with that runtime has the precondition of the
+call, and the postcondition of the call at each response. The two keep their
+universe levels. The evidence of a computation and the evidence of the
+computation with the unit runtime give each other. A verified diagram at the
+unit runtime gives the verified implementation of each approximant with no
+runtime.
 
 A rule set holds for a specification of the calls when each rule has a map
 between the specifications of its two sides, in each direction. A derivation
@@ -830,11 +834,24 @@ verified diagram moves along them. The map of a loop is one application of
 the uniformity of the loop of
 [Prelude/Relation.lean](Prelude/Relation.lean).
 
+In the form of the Prelude, a verified diagram is the verified implementation
+with one call, from a specification of the interface of the diagram to the
+specification of the diagram. The evidence of a diagram at an input, for a
+condition at each result, is the evidence of that one call: a witness of the
+precondition of the diagram, and the condition at the result of each run over
+that witness. The constructors of this evidence have the forms of a diagram.
+An exit has its condition. A step has a witness of the precondition of its
+call, the condition at each stop, and the evidence of the diagram of each
+response. A loop has an invariant at its entrance, which the body establishes
+at each exit to the entrance.
+
 These parts are open: the least threshold of a run, the two round trips of the
 connection for each diagram, independent universe levels for the
-specification of a whole diagram, the maps of specifications for each rule
-set of D2 and D3 with the condition on the specification of the calls, and
-the bound of a verified diagram along a derivation.
+specification of a whole diagram and for each construction on it, the
+constructors of the evidence of a composite and of a frame, the maps of
+specifications for each rule set of D2 and D3 with the condition on the
+specification of the calls, and the bound of a verified diagram along a
+derivation.
 
 ## D7: the frontend fragment
 

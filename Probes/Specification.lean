@@ -41,10 +41,19 @@ A specification of the calls with no runtime is the case of the unit runtime wit
 verified diagram at the unit runtime gives the verified implementation of each approximant with
 no runtime.
 
+In the form of the Prelude, the evidence of a diagram at an input, for a condition at each
+result, is the evidence of one call of the interface of the diagram, for the specification of
+the diagram. A verified diagram is the verified implementation with one call, from a
+specification of the interface of the diagram to the specification of the diagram. The
+constructors of that evidence have the forms of a diagram: an exit, a step, a copairing, and a
+loop with an invariant.
+
 The checks are on the countdown loop, for an arbitrary value and an arbitrary runtime: the
 round trip of a run through the computation with a number of unrollings, the same for a loop
 in a loop, the run that the result of the function meaning on a machine has, for an arbitrary
-computation at the limit, and the map of a run over the witness that a derivation gives. -/
+computation at the limit, the map of a run over the witness that a derivation gives, and the
+condition at the result of a run over the witness that the constructors give, through the
+invariant of each iteration. -/
 
 namespace Prelude.Container
 
@@ -2062,22 +2071,47 @@ end Draft.Checks.Specification
 
 namespace Prelude.Container
 
-variable {C : Container.{0, 0}} {α : Type}
+universe s p w z v t
 
-/-- The specification with the unit runtime and no stop, from a specification with no
-runtime. -/
-abbrev DepPoly.still (t : DepPoly.{0, 0, 0, 0} C) : DepPoly.{0, 0, 0, 0} (C.runtime PUnit Empty) :=
-  t.invariant (fun _ => PUnit) (fun _ => PUnit)
+variable {C : Container.{s, p}} {α : Type t}
 
-/-- The evidence of a computation with the unit runtime is the evidence of the computation. -/
-def FreeDep.still {t : DepPoly.{0, 0, 0, 0} C} {Q : α → Type} :
-    (x : Free C α) →
-    FreeDep t.still (Outcome Q (fun _ => PUnit) (fun _ => PUnit)) (x.thread PUnit.unit) →
-    FreeDep t Q x
-  | .pure _, h => .pure h.result.1
+/-- The condition at a result with the unit runtime and no stop, from a condition at the
+returned value. -/
+def Still (Q : α → Type v) : Empty ⊕ (α × PUnit.{1}) → Type v
+  | .inl e => nomatch e
+  | .inr y => Q y.1
+
+/-- The specification with the unit runtime and no stop, from a specification with no runtime.
+The precondition and the postcondition keep their universe levels. -/
+def DepPoly.still (t : DepPoly.{s, p, w, z} C) :
+    DepPoly.{s, p, w, z} (C.runtime PUnit.{1} Empty) where
+  Pre a := t.Pre a.1
+  Post a pre := Still (t.Post a.1 pre)
+
+variable {t : DepPoly.{s, p, w, z} C} {Q : α → Type v}
+
+/-- The evidence of a computation with the unit runtime gives the evidence of the
+computation. -/
+def FreeDep.ofStill : (x : Free C α) →
+    FreeDep (DepPoly.still t) (Still Q) (x.thread PUnit.unit) → FreeDep t Q x
+  | .pure _, h => .pure h.result
   | .request _ k, h =>
-      .request h.parts.1.2 fun i post =>
-        still (k i) (h.parts.2 (.inr (i, .unit)) (post, .unit))
+      .request h.parts.1 fun i post => ofStill (k i) (h.parts.2 (.inr (i, .unit)) post)
+
+/-- The evidence of a computation gives the evidence of the computation with the unit
+runtime. -/
+def FreeDep.toStill : (x : Free C α) → FreeDep t Q x →
+    FreeDep (DepPoly.still t) (Still Q) (x.thread PUnit.unit)
+  | .pure _, h => .pure h.result
+  | .request a k, h =>
+      FreeDep.request (r := DepPoly.still t) (shape := (a, PUnit.unit))
+        (next := Sum.elim (fun stopped => .pure (.inl stopped))
+          (fun next => (k next.1).thread next.2))
+        h.parts.1
+        fun i =>
+          match i with
+          | .inl e => nomatch e
+          | .inr y => fun post => toStill (k y.1) (h.parts.2 y.1 post)
 
 end Prelude.Container
 
@@ -2094,10 +2128,266 @@ def Diagram.Verified.lift {Γ : List Ty} {Qs : Exits Ty}
     (limit : (env : All X Γ) → (pre : q₀.Pre env) → FreeDep r₀ (q₀.Post env pre) stop)
     (n : Nat) : ImplDep q₀ r₀ (d.impl stop n) :=
   fun env pre =>
-    FreeDep.still _
+    FreeDep.ofStill _
       ((Diagram.Verified.stateLift _ v n).impl
-        (fun env _ pre s' _ => (limit env pre.2).thread s' .unit) (env, .unit) (.unit, pre))
+        (fun env _ pre _ _ => FreeDep.toStill stop (limit env pre)) (env, .unit) pre)
 
 end Draft
 
 #print axioms Draft.Diagram.Verified.lift
+
+/-! ### The form of the Prelude, and the constructors of the evidence -/
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+
+/-- The evidence of a diagram at an input, for a condition at each result of a run. -/
+abbrev Diagram.Holds {Γ : List Ty} {Qs : Exits Ty} (P : E ⊕ (Qs.At X × R) → Type)
+    (d : Diagram S Γ Qs) (a : All X Γ × R) : Type 1 :=
+  FreeDep (d.spec r) P (Free.call (C := ⟨All X Γ × R, fun _ => E ⊕ (Qs.At X × R)⟩) a)
+
+/-- The evidence of a continuation at an input, for a condition at each result of a run. -/
+abbrev Continuation.Holds {K : Boundary Ty} {Qs : Exits Ty} (P : E ⊕ (Qs.At X × R) → Type)
+    (k : Continuation S K Qs) (a : K.At X × R) : Type 1 :=
+  FreeDep (k.spec r) P (Free.call (C := ⟨K.At X × R, fun _ => E ⊕ (Qs.At X × R)⟩) a)
+
+/-- A verified diagram: the verified implementation with one call, to the specification of the
+diagram. -/
+abbrev Diagram.VerifiedImpl {Γ : List Ty} {Qs : Exits Ty}
+    (q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)) (d : Diagram S Γ Qs) :
+    Type 1 :=
+  ImplDep q (d.spec r) (Impl.id ⟨All X Γ × R, fun _ => E ⊕ (Qs.At X × R)⟩)
+
+/-- The two forms of a verified diagram give each other. -/
+def Diagram.VerifiedImpl.toVerified {Γ : List Ty} {Qs : Exits Ty}
+    {q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)} {d : Diagram S Γ Qs}
+    (v : d.VerifiedImpl r q) : d.Verified r q :=
+  fun a pre => ⟨(v a pre).parts.1, fun o run => ((v a pre).parts.2 o run).result⟩
+
+/-- The converse. -/
+def Diagram.Verified.toVerifiedImpl {Γ : List Ty} {Qs : Exits Ty}
+    {q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)} {d : Diagram S Γ Qs}
+    (v : d.Verified r q) : d.VerifiedImpl r q :=
+  fun a pre => .request (v a pre).1 fun o run => .pure ((v a pre).2 o run)
+
+section Constructors
+
+variable {r} {Γ : List Ty} {Qs : Exits Ty} {P : E ⊕ (Qs.At X × R) → Type} {env : All X Γ} {s : R}
+
+/-- The evidence of an exit: its condition at the runtime. -/
+def Diagram.Holds.exit (out : Qs.At (Port Γ)) (h : P (.inr (out.select env, s))) :
+    (Diagram.exit (S := S) out).Holds r P (env, s) :=
+  .request PUnit.unit fun _ run => .pure (Identity.transport P run h)
+
+section Step
+
+variable (call : (S.interface (Port Γ)).Shape)
+  (rest : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs)
+  (admit : r.Pre (⟨call.1, env.select call.2⟩, s))
+  (stopped : (e : E) → r.Post (⟨call.1, env.select call.2⟩, s) admit (.inl e) → P (.inl e))
+  (next : (y : (S.output call.1).At X × R) →
+    r.Post (⟨call.1, env.select call.2⟩, s) admit (.inr y) →
+    (rest y.1.1).Holds r P (y.1.2.append env, y.2))
+
+/-- The witness after each response of the call of a step. -/
+def Diagram.Holds.stepWitness :
+    (x : E ⊕ ((S.output call.1).At X × R)) →
+    r.Post (⟨call.1, env.select call.2⟩, s) admit x →
+    Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
+      ((rest y.1.1).spec r).Pre (y.1.2.append env, y.2)) x
+  | .inl _, _ => PUnit.unit
+  | .inr y, post => (next y post).parts.1
+
+/-- The condition at the result of each run after a response of the call of a step. -/
+def Diagram.Holds.stepResult :
+    (x : E ⊕ ((S.output call.1).At X × R)) →
+    (post : r.Post (⟨call.1, env.select call.2⟩, s) admit x) → (o : E ⊕ (Qs.At X × R)) →
+    Spec.resumePost
+      (fun (y : (S.output call.1).At X × R) p o =>
+        ((rest y.1.1).spec r).Post (y.1.2.append env, y.2) p o)
+      x (Diagram.Holds.stepWitness call rest admit next x post) o → P o
+  | .inl e, post, _, run => Identity.transport P run (stopped e post)
+  | .inr y, post, o, run => ((next y post).parts.2 o run).result
+
+/-- The evidence of a step: a witness of the precondition of the call at the runtime, the
+condition at each stop, and the evidence of the diagram of each response from the next
+runtime, which receives the postcondition. -/
+def Diagram.Holds.step : (Diagram.step call rest).Holds r P (env, s) :=
+  .request ⟨admit, Diagram.Holds.stepWitness call rest admit next⟩ fun o run =>
+    .pure (Diagram.Holds.stepResult call rest admit stopped next run.1 run.2.1 o run.2.2)
+
+end Step
+
+/-- The evidence of a step for the graph of a machine, at a call where the machine gives a
+response: the evidence of the diagram of that response from its next runtime. -/
+def Diagram.Holds.stepResponse (m : Machine (S.interface X) R E)
+    (call : (S.interface (Port Γ)).Shape)
+    (rest : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs)
+    {b : (S.output call.1).At X × R} (known : m (⟨call.1, env.select call.2⟩, s) ≡ .inr b)
+    (next : (rest b.1.1).Holds m.graph P (b.1.2.append env, b.2)) :
+    (Diagram.step call rest).Holds m.graph P (env, s) :=
+  Diagram.Holds.step (r := m.graph) (env := env) (s := s) call rest PUnit.unit
+    (fun _ post => (Identity.inrNotInl (known.symm.trans post)).elim)
+    (fun _ post =>
+      Identity.transport
+        (fun (c : (S.output call.1).At X × R) =>
+          (rest c.1.1).Holds m.graph P (c.1.2.append env, c.2))
+        (Identity.inrInject (known.symm.trans post)) next)
+
+end Constructors
+
+section Constructors
+
+variable {r} {K : Boundary Ty} {Qs : Exits Ty} {P : E ⊕ (Qs.At X × R) → Type}
+
+/-- The evidence of a copairing: the evidence of the diagram of the case. -/
+def Continuation.Holds.copair {a : K.At X × R} (each : (c : K.Case) → Diagram S c.1 Qs)
+    (h : (each a.1.1).Holds r P (a.1.2, a.2)) : (Continuation.copair each).Holds r P a :=
+  .request h.parts.1 fun o run => .pure (h.parts.2 o run).result
+
+/-- The condition at a result of the body of a loop: the condition of the loop at a stop and at
+an exit of the loop, and the invariant at the next entrance. -/
+def Continuation.Holds.loopCondition (Inv : K.At X × R → Type) (P : E ⊕ (Qs.At X × R) → Type) :
+    E ⊕ (Exits.At (K :: Qs) X × R) → Type
+  | .inl e => P (.inl e)
+  | .inr y => Exits.At.elim (fun k => Inv (k, y.2)) (fun q => P (.inr (q, y.2))) y.1
+
+section Loop
+
+variable (Inv : K.At X × R → Type) (body : Continuation S K (K :: Qs))
+  (bodyH : (a : K.At X × R) → Inv a →
+    body.Holds r (Continuation.Holds.loopCondition Inv P) a)
+
+/-- The body keeps the invariant. -/
+def Continuation.Holds.loopKeeps : (iterSpec r body).Keeps Inv :=
+  fun a i => ⟨(bodyH a i).parts.1, fun a' post =>
+    ((bodyH a i).parts.2 (.inr (Exits.At.here a'.1, a'.2)) post).result⟩
+
+/-- The condition of the loop at the result of an iteration that ends the loop. -/
+def Continuation.Holds.loopExit (x : (a : K.At X × R) × Inv a) :
+    (o : E ⊕ (Qs.At X × R)) →
+    (iterSpec r body).iterate (Continuation.Holds.loopKeeps Inv body bodyH) x (.inl o) → P o
+  | .inl e, post => ((bodyH x.1 x.2).parts.2 (.inl e) post).result
+  | .inr y, post => ((bodyH x.1 x.2).parts.2 (.inr (Exits.At.there K y.1, y.2)) post).result
+
+/-- The evidence of a loop, for an invariant at the entrance: the evidence of the body at each
+entrance with the invariant, with the invariant at each exit to the entrance. -/
+def Continuation.Holds.loop {a : K.At X × R} (start : Inv a) :
+    (Continuation.loop body).Holds r P a :=
+  .request ⟨Inv, start, Continuation.Holds.loopKeeps Inv body bodyH⟩ fun o run =>
+    .pure
+      (Loop.elim (R := fun (_ : (a : K.At X × R) × Inv a) (o : E ⊕ (Qs.At X × R)) => P o)
+        (fun x _ post => Continuation.Holds.loopExit Inv body bodyH x _ post)
+        (fun _ _ _ _ rest => rest) run)
+
+end Loop
+
+end Constructors
+
+end Draft
+
+#print axioms Draft.Diagram.Holds.step
+#print axioms Draft.Continuation.Holds.loop
+
+/-! The check on the countdown loop: the runtime at the exit is the runtime at the entrance plus
+the counter. The invariant has the sum of the runtime and the counter. -/
+
+namespace Draft.Checks.Specification.Invariant
+
+open Draft Draft.Checks.Countdown Draft.Checks.Specification
+
+/-- The counter of an entrance. -/
+def counter (k : Entry.At Value) : Nat := (Boundary.onlyValues k).lookup .here
+
+/-- The sum with a successor on the left. -/
+def succAdd (m : Nat) : (n : Nat) → (m + 1) + n ≡ (m + n) + 1
+  | 0 => .refl
+  | n + 1 => Identity.cong (· + 1) (succAdd m n)
+
+variable (s₀ c₀ : Nat)
+
+/-- The invariant: the sum of the runtime and the counter is the sum at the first entrance. -/
+abbrev Inv (x : Entry.At Value × Nat) : Type := x.2 + counter x.1 ≡ s₀ + c₀
+
+/-- The condition at a result: no stop, and the runtime at the exit. -/
+def Final : Unit ⊕ (Exits.At [Out] Value × Nat) → Type
+  | .inl _ => Empty
+  | .inr y => y.2 ≡ s₀ + c₀
+
+/-- The evidence of the body at each entrance with the invariant, by the constructors. -/
+def bodyHolds : (x : Entry.At Value × Nat) → Inv s₀ c₀ x →
+    body.Holds G (Continuation.Holds.loopCondition (Inv s₀ c₀) (Final s₀ c₀)) x
+  | (⟨⟨_, .here⟩, .cons 0 (.cons _ .nil)⟩, s), inv =>
+      Continuation.Holds.copair _
+        (Diagram.Holds.stepResponse machine ⟨.isZero, .cons .here .nil⟩ _
+          (b := (⟨⟨_, .here⟩, .nil⟩, s)) .refl (Diagram.Holds.exit _ inv))
+  | (⟨⟨_, .here⟩, .cons (c + 1) (.cons a .nil)⟩, s), inv =>
+      Continuation.Holds.copair _
+        (Diagram.Holds.stepResponse machine ⟨.isZero, .cons .here .nil⟩ _
+          (b := (⟨⟨_, .there .here⟩, .nil⟩, s)) .refl
+          (Diagram.Holds.stepResponse machine ⟨.pred, .cons .here .nil⟩ _
+            (b := (value c, s)) .refl
+            (Diagram.Holds.stepResponse machine ⟨.emit, .cons (.there (.there .here)) .nil⟩ _
+              (b := (value (s + a), s + 1)) .refl
+              (Diagram.Holds.exit _ ((succAdd s c).trans inv)))))
+
+/-- The evidence of the loop from each entrance: the runtime at the exit is the runtime at the
+entrance plus the counter. -/
+def holds (c a s : Nat) : loop.Holds G (Final s c) (entry c a, s) :=
+  Continuation.Holds.loop (Inv s c) body (bodyHolds s c) (a := (entry c a, s)) .refl
+
+end Draft.Checks.Specification.Invariant
+
+#print axioms Draft.Checks.Specification.Invariant.holds
+
+namespace Draft.Checks.Specification.Invariant
+
+open Draft Draft.Checks.Countdown Draft.Checks.Specification
+
+variable (a s : Nat)
+
+/-- The witness of the precondition of the loop that the evidence has. -/
+def witness : (loop.spec G).Pre (entry 2 a, s) := (holds 2 a s).parts.1
+
+/-- One iteration over that witness. -/
+abbrev StepH := (iterSpec G body).iterate (witness a s).2.2
+
+set_option smartUnfolding false in
+/-- The first iteration, with the invariant witness at the next entrance. -/
+def first : (i : Inv s 2 (entry 1 (s + a), s + 1)) ×
+    StepH a s ⟨(entry 2 a, s), (witness a s).2.1⟩ (.inr ⟨(entry 1 (s + a), s + 1), i⟩) :=
+  ⟨_, ⟨.inr (⟨⟨_, .there .here⟩, .nil⟩, s), .refl, .inr (value 1, s), .refl,
+      .inr (value (s + a), s + 1), .refl, .refl⟩, .refl⟩
+
+set_option smartUnfolding false in
+/-- The second iteration. -/
+def second : (i : Inv s 2 (entry 0 ((s + 1) + (s + a)), s + 2)) ×
+    StepH a s ⟨(entry 1 (s + a), s + 1), (first a s).1⟩
+      (.inr ⟨(entry 0 ((s + 1) + (s + a)), s + 2), i⟩) :=
+  ⟨_, ⟨.inr (⟨⟨_, .there .here⟩, .nil⟩, s + 1), .refl, .inr (value 0, s + 1), .refl,
+      .inr (value ((s + 1) + (s + a)), s + 2), .refl, .refl⟩, .refl⟩
+
+set_option smartUnfolding false in
+/-- The last iteration: the exit. -/
+def last : StepH a s ⟨(entry 0 ((s + 1) + (s + a)), s + 2), (second a s).1⟩
+    (.inl (.inr (out ((s + 1) + (s + a)), s + 2))) :=
+  ⟨.inr (⟨⟨_, .here⟩, .nil⟩, s + 2), .refl, .refl⟩
+
+/-- The run of the loop over the witness, from the counter 2. -/
+def run : (loop.spec G).Post (entry 2 a, s) (witness a s)
+    (.inr (out ((s + 1) + (s + a)), s + 2)) :=
+  .next (first a s).2 (.next (second a s).2 (.exit (last a s)))
+
+set_option smartUnfolding false in
+/-- The condition at the result of the run: the identity of the runtime at the exit with the
+runtime at the entrance plus 2, for an arbitrary value and an arbitrary runtime. The evidence
+goes through the invariant of each of the two iterations. -/
+def runtimeAtExit :
+    ((holds 2 a s).parts.2 (.inr (out ((s + 1) + (s + a)), s + 2)) (run a s)).result ≡
+      (Identity.refl : s + 2 ≡ s + 2) := .refl
+
+end Draft.Checks.Specification.Invariant
+
+#print axioms Draft.Checks.Specification.Invariant.runtimeAtExit
