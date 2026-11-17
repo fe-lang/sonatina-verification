@@ -784,8 +784,17 @@ to it. The evidence of a computation gives the condition at the result of
 each run along that evidence. The function meaning and the specification of a
 diagram are two recursions on the diagram, and their connection is the
 soundness and the completeness of the function meaning against the runs. The
-form of the precondition of a loop is open: the domain, in which each run from
-the entrance stops, or an invariant that the body keeps.
+precondition of a loop is an invariant: a family on the entrances that the
+body keeps, with a witness of the precondition of the body at each entrance of
+the family. The runs of the loop are the loop of
+[Prelude/Relation.lean](Prelude/Relation.lean) on the entrances with the
+family, so a loop that does not stop has a witness and no run. A diagram is
+verified for its own specification, for each number of unrollings: over a
+witness of its precondition, it has the evidence of a diagram with a runtime,
+for the runs to each exit and to each stop. The form of the converse is open.
+The evidence of a diagram for each number of unrollings does not give one
+witness of the precondition, because the evidence at two numbers can have
+different witnesses at one call.
 
 ## D7: the frontend fragment
 
