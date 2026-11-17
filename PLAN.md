@@ -771,8 +771,10 @@ each admissible move, `Ready.pastListed` gives a list position and structural
 agreement of the residual diagrams at each output case.
 
 [The Figure 5.6 checks](Draft/Checks/BinaryBranch.lean) use the listed move
-to bring `h(x)` before the test. Both exits supply their result to the shared
-continuation `f` by the control equation. The checks cover static size, the
+to bring `h(x)` before the test. That move takes the diagram from seven steps
+to six. Both exits supply their result to the shared continuation `f` by the
+control equation, which takes the diagram to five steps. The check gives the
+derivation that shares `f`: the scheduler does not find it. The checks cover static size, the
 calls on each path, and transport of a witness-dependent specification through
 the derivation. Discovery of shared tails, coverage of sharing partitions,
 and the Figure 5.7 cost comparison remain open.

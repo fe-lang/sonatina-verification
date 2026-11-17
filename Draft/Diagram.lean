@@ -59,12 +59,6 @@ def Case (Q : Boundary Ty) : Type := (Δ : List Ty) × Elem Δ Q
 def At (Q : Boundary Ty) (X : Ty → Type) : Type :=
   (c : Q.Case) × All X c.1
 
-instance [DecEq Ty] {Q : Boundary Ty} : DecEq Q.Case :=
-  inferInstanceAs (DecEq ((Δ : List Ty) × Elem Δ Q))
-
-instance [DecEq Ty] {Q : Boundary Ty} {X : Ty → Type} [∀ t, DecEq (X t)] : DecEq (Q.At X) :=
-  inferInstanceAs (DecEq ((c : Q.Case) × All X c.1))
-
 /-- The boundary with one case. -/
 def one (Γ : List Ty) : Boundary Ty := [Γ]
 
@@ -359,9 +353,6 @@ namespace Exits
 /-- An exit with an `X` at each of its ports: a boundary of the exits, and a case of that
 boundary with its values. -/
 def At (Qs : Exits Ty) (X : Ty → Type) : Type := (Q : Boundary Ty) × Elem Q Qs × Q.At X
-
-instance [DecEq Ty] {Qs : Exits Ty} {X : Ty → Type} [∀ t, DecEq (X t)] : DecEq (Qs.At X) :=
-  inferInstanceAs (DecEq ((Q : Boundary Ty) × Elem Q Qs × Q.At X))
 
 /-- A map of exits: a position in `Qs'` for each boundary of `Qs`. -/
 abbrev Map (Qs Qs' : Exits Ty) : Type := (Q : Boundary Ty) → Elem Q Qs → Elem Q Qs'

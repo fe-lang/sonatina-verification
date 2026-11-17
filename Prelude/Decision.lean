@@ -183,9 +183,6 @@ def list [DecEq α] : (xs ys : List α) → Dec (xs ≡ ys)
 
 instance [DecEq α] : DecEq (List α) := ⟨list⟩
 
-instance {P : α → Type v} [DecEq α] [∀ a, DecEq (P a)] : DecEq (Sigma P) :=
-  ⟨Dec.sigma decideEq (fun _ => decideEq)⟩
-
 end DecEq
 
 end Prelude
