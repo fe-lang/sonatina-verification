@@ -320,16 +320,24 @@ and a morphism is an implementation with its verification
 gives the plain interface and the plain implementation. An operation has its
 specification as a part of its signature: a precondition, and a postcondition
 on each response that depends on the witness of the precondition. A diagram
-is an implementation of its own interface by calls of the interface of its
-signature, and a verified diagram is that implementation with its
-verification. A step takes the witness of the precondition of its operation
-from the context that the diagram holds, and its continuation receives the
-postcondition of the response. A lowering is a verified implementation. A
-pass maps a verified object to a verified object of the same specification.
-An agreement of the plain computations is the plain part of a pass, and the
-evidence moves along it. Composition keeps correctness (`thm:comp-dep`). A
-construction and its verification are built in the same manner, and no stage
-is complete with the plain part only.
+has a specification of its own interface, from the specification of its
+calls: a witness of its precondition has a witness of the precondition of
+each call that a run can make, and its postcondition has the runs over that
+witness. A verified diagram, for a specification of its interface, is a map
+into the specification of the diagram: a witness of the precondition of the
+diagram, and the postcondition at the result of each run. A step takes the
+witness of the precondition of its operation from the context that the
+diagram holds, and its continuation receives the postcondition of the
+response. With a number of unrollings of each loop, a diagram is an
+implementation of its interface by calls of the interface of its signature,
+and a verified diagram gives that implementation with its verification. A
+lowering is a verified implementation. A pass maps a verified object to a
+verified object of the same specification. An agreement of the plain
+computations is the plain part of a pass, and the evidence of a computation
+moves along it. A derivation gives a map between the specifications of its
+two diagrams, and a verified diagram moves along that map. Composition keeps
+correctness (`thm:comp-dep`). A construction and its verification are built
+in the same manner, and no stage is complete with the plain part only.
 
 All definitions and laws are constructive. Each representation is selected so
 that constructors and recursion build its evidence, and eliminators compute
@@ -822,11 +830,21 @@ is a first diagram and then the loop. The right side is that first diagram,
 then the body, and then the loop. The trace laws are consequences of the
 feedback equation set, because the trace is a derived operation of the loop.
 
-The two meanings of a diagram give two statements of soundness. For a rule
-of the interchange, copy, discard, or control equation set, the function
-meanings of the two diagrams agree for each number of unrollings. A rule of
-the feedback equation set changes the number of unrollings that a run needs.
-Its soundness is an equivalence of the run families of the two diagrams.
+The two meanings of a diagram give two statements of soundness. The first
+statement is for the function meaning: for a rule of the interchange, copy,
+discard, or control equation set, the function meanings of the two diagrams
+agree for each number of unrollings. The second statement is for the
+specification. A rule holds for a specification of the calls when it has a
+map between the specifications of its two diagrams, in each direction: a
+witness of the precondition of one diagram gives a witness of the
+precondition of the other, and each run over the second witness gives a run
+over the first witness to the same result. A derivation in a rule set that
+holds for a specification of the calls has these maps, and a verified diagram
+moves along them to a verified diagram of the same specification. The first
+statement is the plain part of that pass. A rule of the feedback equation set
+changes the number of unrollings that a run needs, so it has the second
+statement only. The condition on the specification of the calls for which a
+rule set holds is an obligation of the stage of that rule set.
 
 The thesis is the agreement test for the feedback equation set. The stage
 that constructs the equations derives each loop choice of §5.4 from them:
@@ -905,8 +923,8 @@ and execution environment contract; it does not inherit EVM gas semantics.
 Evaluator fuel is separate from target resources and is not an implicit
 counter in generated code.
 
-**Directions.** Agreement inside the IR is an equivalence of run families.
-Each boundary states its directions. The direction from target runs to source
+**Directions.** Agreement of two diagrams inside the IR is a map between
+their specifications in each direction. Each boundary states its directions. The direction from target runs to source
 runs is necessary for each pair. The direction from source runs to target
 runs has a resource sufficiency condition when the backend contract requires
 it. A source semantics with free choices, such as a read of the available
@@ -1157,8 +1175,8 @@ a port for each port of that case, and a port for each port of the context of
 its diagram. A loop has a body: a continuation from the boundary of the loop,
 whose exits are that boundary and then the exits of the loop.
 
-A diagram has two meanings: the function meaning and the run family. Each is
-a structural recursion on the diagram.
+A diagram has two meanings: the function meaning and the specification. Each
+is a structural recursion on the diagram.
 
 The function meaning is a recursion into the `Free`/`FreeDep` core, with
 the remaining computation as an argument. A step is a request of the
@@ -1198,26 +1216,63 @@ approximants (§2.7.2). The approximants of the thesis count the levels of its
 hierarchy, so a loop in a loop has a smaller number there, and they are a
 different family.
 
-The run family is the meaning of a diagram with a loop. It is a Type-valued
-relation between an input and a result, by a recursion on the diagram into
-the relations of [Prelude/Relation.lean](Prelude/Relation.lean). Its
-parameter is a relation of calls with a runtime: the runs of a request from a
-runtime to a response and a runtime. A run of a diagram goes from the values
-of the context and a runtime to an exit and a runtime. A run of an exit is
-the identity of that exit and the result. A run of a step is a run of its
-call and a run of the diagram of the response. A run of a composite has a run
-of the first diagram to a middle exit. At an exit to the boundary of the
-continuation, it then has a run of the continuation. At each other exit, the
-middle exit is the result. A run of a loop is an element of the inductive
-family of [Runtime and feedback](#runtime-and-feedback), for the body as a
-relation between an entrance and its result: an exit of the loop, or the next
-entrance. An exit is the graph of a function, and a composite is the
-composition of relations. The two exit equations of the run family are thus
-equivalences, each with its two round trips: the graph of a function and then
-a computation is the computation at the value of the function. The function
-meaning is the evaluator of the run family. For a
-function of the calls, soundness and completeness of the function meaning
-against the runs are obligations of the stage with feedback.
+The specification is the meaning of a diagram with a loop. Its parameter is
+a specification of the calls with a runtime: a precondition of a request at
+a runtime, and a postcondition on each response. A response of a call is a
+response with the next runtime, or a stop. The specification of a diagram is
+a dependent polynomial on the interface of the diagram with a runtime, by a
+recursion on the diagram. An input is the values of the context and a
+runtime. A result is an exit with a runtime, or a stop. A witness of the
+precondition has a witness of the precondition of each call that a run can
+make. The postcondition at a result is the type of the runs to that result
+over the witness, so a run is data.
+
+- The precondition of an exit has no content. A run of an exit is the
+  identity of that exit and the result.
+- A witness for a step has a witness of the precondition of its call and, for
+  each response with its postcondition, a witness for the diagram of that
+  response. A run of a step has a response of its call with the
+  postcondition. At a stop, the stop is the result. At each other response,
+  the run then has a run of the diagram of the response.
+- A witness for a composite has a witness for the first diagram and, for
+  each run of the first diagram to an exit to the boundary of the
+  continuation, a witness for the continuation. A run of a composite has a
+  run of the first diagram to a middle result. At an exit to the boundary of
+  the continuation, it then has a run of the continuation. At each other
+  exit and at a stop, the middle result is the result.
+- A copairing has the specification of the diagram of its case. A frame has
+  a witness for its diagram and, for each run of that diagram to its exit, a
+  witness for the continuation at the case of the bypass, the kept values,
+  and that exit.
+- The precondition of a loop is an invariant, and a run of a loop is an
+  element of the inductive family of
+  [Runtime and feedback](#runtime-and-feedback). One iteration has the runs
+  of the body at the result that the next entrance, an exit of the loop, or
+  a stop names.
+
+The graph of a machine is a specification of the calls, and its precondition
+has no content. A specification of the calls with no runtime is the case of
+the unit runtime with no stop.
+
+The function meaning is the evaluator of the specification, and the
+connection has two halves, for each specification of the calls. A witness of
+the precondition of a diagram gives the evidence of the function meaning
+with each number of unrollings, when the remaining computation has evidence
+at each result of a run. Completeness is the converse: a run of the diagram,
+and then a run of the remaining computation, is a run of the function
+meaning along that evidence, from a threshold of the number of unrollings.
+The two halves are obligations of the stage with feedback.
+
+A verified diagram, for a specification of the interface of the diagram with
+a runtime, is a map into the specification of the diagram. At each input
+with a witness of the precondition, it has a witness of the precondition of
+the diagram, and the postcondition at the result of each run over that
+witness. A verified diagram gives the function meaning with each number of
+unrollings as an implementation with its verification, when the computation
+at the limit has evidence. A bound is second evidence, for a number of
+unrollings: each run over the witness reaches the limit of a loop only at a
+runtime with a given condition. With the empty condition, the verification
+needs no evidence for the computation at the limit.
 
 An operation is pure when its implementation returns without a call. The
 `Free` computation of a diagram has one call for each step on a path, in the

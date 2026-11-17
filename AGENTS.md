@@ -89,16 +89,22 @@ implementation with its verification. The forgetful functor to her category
 of interfaces gives the plain interface and the plain implementation:
 
 - An operation has its specification as a part of its signature.
-- A verified computation is a computation with its `FreeDep`. A diagram is an
-  implementation of its own interface by calls of the interface of its
-  signature, and a verified diagram is that implementation with its
-  verification. A step takes the witness of the precondition of its operation
-  from the context that the diagram holds, and its continuation receives the
-  postcondition of the response.
+- A verified computation is a computation with its `FreeDep`. A diagram has a
+  specification of its own interface, a `DepPoly`, from the specification of
+  its calls. A verified diagram, for a specification of its interface, is a
+  map into the specification of the diagram: a witness of the precondition of
+  the diagram, and the postcondition at the result of each run. A step takes
+  the witness of the precondition of its operation from the context that the
+  diagram holds, and its continuation receives the postcondition of the
+  response. With a number of unrollings of each loop, a diagram is an
+  implementation of its interface by calls of the interface of its signature,
+  and a verified diagram gives that implementation with its `ImplDep`.
 - A verified implementation is an implementation with its `ImplDep`. A
   lowering is a verified implementation. A pass maps a verified object to a
   verified object of the same specification. An agreement of the plain
-  computations is the plain part of a pass, and the evidence moves along it.
+  computations is the plain part of a pass, and the evidence of a computation
+  moves along it. A derivation gives a map between the specifications of its
+  two diagrams, and a verified diagram moves along that map.
 
 Composition (`ImplDep.trans`, `ImplDep.copair`) keeps correctness. A
 construction and its verification are built in the same manner, and no stage

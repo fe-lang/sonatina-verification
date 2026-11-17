@@ -377,7 +377,8 @@ of a diagram from a specification of its calls with a runtime, the
 specification of an implementation, the evidence of the computation of a
 diagram with each number of unrollings from a witness of the precondition, the
 completeness of that evidence against the runs, the verified diagram as a map
-into the specification of the diagram, and the bound of a verified diagram.
+into the specification of the diagram, the bound of a verified diagram, the
+maps of specifications that a derivation gives, and the unit runtime.
 
 The text below describes the plain part.
 
@@ -817,9 +818,23 @@ unrollings. A bound is second evidence: each run over the witness reaches the
 limit of a loop only at a runtime with a given condition. With the empty
 condition, the lift needs no evidence for the computation at the limit.
 
+A specification of the calls with no runtime is the case of the unit runtime
+with no stop: the specification with a runtime that `DepPoly.invariant` gives
+for the invariant with no content. A verified diagram at the unit runtime
+gives the verified implementation of each approximant with no runtime.
+
+A rule set holds for a specification of the calls when each rule has a map
+between the specifications of its two sides, in each direction. A derivation
+in such a rule set has these maps, by a recursion on the derivation, and a
+verified diagram moves along them. The map of a loop is one application of
+the uniformity of the loop of
+[Prelude/Relation.lean](Prelude/Relation.lean).
+
 These parts are open: the least threshold of a run, the two round trips of the
-connection for each diagram, and independent universe levels for the
-specification of a whole diagram.
+connection for each diagram, independent universe levels for the
+specification of a whole diagram, the maps of specifications for each rule
+set of D2 and D3 with the condition on the specification of the calls, and
+the bound of a verified diagram along a derivation.
 
 ## D7: the frontend fragment
 

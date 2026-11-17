@@ -33,10 +33,18 @@ number of unrollings. A bound is second evidence: each run over the witness reac
 of a loop only at a runtime with a given condition. With the empty condition, the lift needs no
 evidence for the computation at the limit.
 
+A rule set holds for a specification of the calls when each rule has a map between the
+specifications of its two sides, in each direction. A derivation in such a rule set has these
+maps, by a recursion on the derivation, and a verified diagram moves along them.
+
+A specification of the calls with no runtime is the case of the unit runtime with no stop. A
+verified diagram at the unit runtime gives the verified implementation of each approximant with
+no runtime.
+
 The checks are on the countdown loop, for an arbitrary value and an arbitrary runtime: the
 round trip of a run through the computation with a number of unrollings, the same for a loop
-in a loop, and the run that the result of the function meaning on a machine has, for an
-arbitrary computation at the limit. -/
+in a loop, the run that the result of the function meaning on a machine has, for an arbitrary
+computation at the limit, and the map of a run over the witness that a derivation gives. -/
 
 namespace Prelude.Container
 
@@ -1654,3 +1662,442 @@ def roundTripNested (a s : Nat) :
 end Draft.Checks.Specification
 
 #print axioms Draft.Checks.Specification.roundTripNested
+
+/-! ### A derivation gives a map of specifications -/
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+
+/-- A map of specifications of one interface: a witness of the first precondition gives a
+witness of the second, and each run over the second witness gives a run over the first. -/
+abbrev Spec.Map {A B : Type} (P Q : Spec A B) : Type 1 :=
+  (a : A) → (pre : P.Pre a) → (w : Q.Pre a) × ((o : B) → Q.Post a w o → P.Post a pre o)
+
+/-- The identity map of a specification. -/
+def Spec.Map.id {A B : Type} (P : Spec A B) : Spec.Map P P := fun _ pre => ⟨pre, fun _ run => run⟩
+
+/-- The composite of two maps of specifications. -/
+def Spec.Map.comp {A B : Type} {P Q T : Spec A B} (f : Spec.Map P Q) (g : Spec.Map Q T) :
+    Spec.Map P T :=
+  fun a pre => ⟨(g a (f a pre).1).1, fun o run => (f a pre).2 o ((g a (f a pre).1).2 o run)⟩
+
+/-- A map in each direction. -/
+abbrev Spec.Equiv {A B : Type} (P Q : Spec A B) : Type 1 := Spec.Map P Q × Spec.Map Q P
+
+/-- The identity maps. -/
+def Spec.Equiv.refl {A B : Type} (P : Spec A B) : Spec.Equiv P P := ⟨.id P, .id P⟩
+
+/-- The two maps in the other order. -/
+def Spec.Equiv.symm {A B : Type} {P Q : Spec A B} (f : Spec.Equiv P Q) : Spec.Equiv Q P :=
+  ⟨f.2, f.1⟩
+
+/-- The composites of the maps of two pairs. -/
+def Spec.Equiv.trans {A B : Type} {P Q T : Spec A B} (f : Spec.Equiv P Q) (g : Spec.Equiv Q T) :
+    Spec.Equiv P T :=
+  ⟨f.1.comp g.1, g.2.comp f.2⟩
+
+section Resume
+
+variable {M B : Type} {P P' : M → Type 1}
+
+/-- A map of the witnesses after a response gives a map of the witnesses after a result with a
+stop. -/
+def Spec.resumeMapPre (f : (m : M) → P m → P' m) :
+    (x : E ⊕ M) → Spec.resumePre (E := E) P x → Spec.resumePre (E := E) P' x
+  | .inl _, p => p
+  | .inr m, p => f m p
+
+/-- A map of the runs after a response, over the map of the witnesses, gives a map of the runs
+after a result with a stop. -/
+def Spec.resumeMapPost {G : (m : M) → P m → E ⊕ B → Type} {G' : (m : M) → P' m → E ⊕ B → Type}
+    (f : (m : M) → P m → P' m)
+    (g : (m : M) → (p : P m) → (o : E ⊕ B) → G' m (f m p) o → G m p o) :
+    (x : E ⊕ M) → (p : Spec.resumePre (E := E) P x) → (o : E ⊕ B) →
+    Spec.resumePost G' x (Spec.resumeMapPre f x p) o → Spec.resumePost G x p o
+  | .inl _, _, _, e => e
+  | .inr m, p, o, t => g m p o t
+
+end Resume
+
+section Exit
+
+variable {K : Boundary Ty} {Qs : Exits Ty} {B : Type} {H H' : K.At X → Type 1}
+
+/-- A map of the witnesses at the first boundary gives a map of the witnesses at an exit. -/
+def Spec.exitMapPre (f : (k : K.At X) → H k → H' k) :
+    (x : Exits.At (K :: Qs) X) → Spec.exitPre H x → Spec.exitPre H' x :=
+  Exits.At.cases (motive := fun x => Spec.exitPre H x → Spec.exitPre H' x) f (fun _ p => p)
+
+/-- A map of the runs at the first boundary, over the map of the witnesses, gives a map of the
+runs at an exit. -/
+def Spec.exitMapPost {G : (k : K.At X) → H k → B → Type} {G' : (k : K.At X) → H' k → B → Type}
+    {T : Qs.At X → B → Type} (f : (k : K.At X) → H k → H' k)
+    (g : (k : K.At X) → (p : H k) → (o : B) → G' k (f k p) o → G k p o) :
+    (x : Exits.At (K :: Qs) X) → (p : Spec.exitPre H x) → (o : B) →
+    Spec.atExit H' G' T x (Spec.exitMapPre f x p) o → Spec.atExit H G T x p o :=
+  Exits.At.cases
+    (motive := fun x => (p : Spec.exitPre H x) → (o : B) →
+      Spec.atExit H' G' T x (Spec.exitMapPre f x p) o → Spec.atExit H G T x p o)
+    g (fun _ _ _ t => t)
+
+end Exit
+
+/-- A map of the bodies gives a map of the loops, with the same invariant. The map of the runs
+is one application of the uniformity of the loop. -/
+def Spec.loopMap {A B : Type} {F F' : Spec A (B ⊕ A)} (f : Spec.Map F F') :
+    Spec.Map F.loopInv F'.loopInv :=
+  fun _ w =>
+    let keeps' : F'.Keeps w.1 := fun a i =>
+      ⟨(f a (w.2.2 a i).1).1, fun a' post => (w.2.2 a i).2 a' ((f a (w.2.2 a i).1).2 (.inr a') post)⟩
+    ⟨⟨w.1, w.2.1, keeps'⟩, fun _ run =>
+      Loop.uniformTo (F := F.iterate w.2.2) (G := F'.iterate keeps') (fun y => y)
+        (fun y t =>
+          match t with
+          | .inl b => fun post => (f y.1 (w.2.2 y.1 y.2).1).2 (.inl b) post
+          | .inr y' => fun post => ⟨(f y.1 (w.2.2 y.1 y.2).1).2 (.inr y'.1) post.1, post.2⟩)
+        run⟩
+
+variable (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+
+section Forms
+
+variable {Γ : List Ty} {Qs : Exits Ty}
+
+/-- A map of the specifications of the diagram of each response gives a map of the
+specifications of the steps. -/
+def Diagram.stepMap (call : (S.interface (Port Γ)).Shape)
+    {rest rest' : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs}
+    (each : (c : (S.output call.1).Case) → Spec.Map ((rest c).spec r) ((rest' c).spec r)) :
+    Spec.Map ((Diagram.step call rest).spec r) ((Diagram.step call rest').spec r) :=
+  fun a pre =>
+    ⟨⟨pre.1, fun x post =>
+        Spec.resumeMapPre
+          (fun (y : (S.output call.1).At X × R) p => (each y.1.1 (y.1.2.append a.1, y.2) p).1)
+          x (pre.2 x post)⟩,
+      fun o run =>
+        ⟨run.1, run.2.1,
+          Spec.resumeMapPost
+            (fun (y : (S.output call.1).At X × R) p => (each y.1.1 (y.1.2.append a.1, y.2) p).1)
+            (fun y p o t => (each y.1.1 (y.1.2.append a.1, y.2) p).2 o t)
+            run.1 (pre.2 run.1 run.2.1) o run.2.2⟩⟩
+
+/-- A map for the first diagram and a map for the continuation give a map of the specifications
+of the composites. -/
+def Diagram.seqMap {K : Boundary Ty} {first first' : Diagram S Γ (K :: Qs)}
+    {next next' : Continuation S K Qs} (head : Spec.Map (first.spec r) (first'.spec r))
+    (tail : Spec.Map (next.spec r) (next'.spec r)) :
+    Spec.Map ((Diagram.seq first next).spec r) ((Diagram.seq first' next').spec r) :=
+  fun a pre =>
+    ⟨⟨(head a pre.1).1, fun m post =>
+        Spec.resumeMapPre
+          (fun (y : Exits.At (K :: Qs) X × R) p =>
+            Spec.exitMapPre (fun k p => (tail (k, y.2) p).1) y.1 p)
+          m (pre.2 m ((head a pre.1).2 m post))⟩,
+      fun o run =>
+        ⟨run.1, (head a pre.1).2 run.1 run.2.1,
+          Spec.resumeMapPost
+            (fun (y : Exits.At (K :: Qs) X × R) p =>
+              Spec.exitMapPre (fun k p => (tail (k, y.2) p).1) y.1 p)
+            (fun y p o t =>
+              Spec.exitMapPost (T := fun q o => (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) ≡ o)
+                (fun k p => (tail (k, y.2) p).1)
+                (fun k p o t => (tail (k, y.2) p).2 o t) y.1 p o t)
+            run.1 (pre.2 run.1 ((head a pre.1).2 run.1 run.2.1)) o run.2.2⟩⟩
+
+end Forms
+
+section Forms
+
+variable {P : Boundary Ty} {Qs : Exits Ty}
+
+/-- A map for the diagram of each case gives a map of the specifications of the copairings. -/
+def Continuation.copairMap {each each' : (c : P.Case) → Diagram S c.1 Qs}
+    (cases : (c : P.Case) → Spec.Map ((each c).spec r) ((each' c).spec r)) :
+    Spec.Map ((Continuation.copair each).spec r) ((Continuation.copair each').spec r) :=
+  fun a pre => cases a.1.1 (a.1.2, a.2) pre
+
+/-- A map for the body gives a map of the specifications of the loops. -/
+def Continuation.loopMap {body body' : Continuation S P (P :: Qs)}
+    (same : Spec.Map (body.spec r) (body'.spec r)) :
+    Spec.Map ((Continuation.loop body).spec r) ((Continuation.loop body').spec r) :=
+  Spec.loopMap (F := iterSpec r body) (F' := iterSpec r body')
+    fun a pre => ⟨(same a pre).1, fun t run => (same a pre).2 (unresult t) run⟩
+
+end Forms
+
+
+section Frame
+
+variable {M K : Boundary Ty} {Qs : Exits Ty} {Δ c : List Ty}
+
+/-- The precondition of a frame at the values of a case, with the kept ports and the port map
+of that case as arguments. -/
+abbrev FramePre (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs)
+    (vals : All X c) (s : R) (kp : M.At (Port c)) (ag : PortMap c Δ) : Type 1 :=
+  (p : (shared.spec r).Pre (vals.select ag, s)) ×
+    ((m : E ⊕ (Exits.At [K] X × R)) → (shared.spec r).Post (vals.select ag, s) p m →
+      Spec.resumePre (fun (y : Exits.At [K] X × R) =>
+        Spec.exitPre (fun out =>
+          (next.spec r).Pre
+            (⟨Boundary.pair kp.1 out.1, out.2.append (vals.select kp.2)⟩, y.2)) y.1) m)
+
+/-- The runs of a frame at the values of a case, over a witness. -/
+abbrev FramePost (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs)
+    (vals : All X c) (s : R) (kp : M.At (Port c)) (ag : PortMap c Δ)
+    (pre : FramePre r shared next vals s kp ag) (o : E ⊕ (Qs.At X × R)) : Type :=
+  (m : E ⊕ (Exits.At [K] X × R)) × (post : (shared.spec r).Post (vals.select ag, s) pre.1 m) ×
+    Spec.resumePost
+      (fun (y : Exits.At [K] X × R) p o =>
+        Spec.atExit
+          (fun out =>
+            (next.spec r).Pre
+              (⟨Boundary.pair kp.1 out.1, out.2.append (vals.select kp.2)⟩, y.2))
+          (fun out p o =>
+            (next.spec r).Post
+              (⟨Boundary.pair kp.1 out.1, out.2.append (vals.select kp.2)⟩, y.2) p o)
+          (fun q _ => Exits.At.ofNil q) y.1 p o)
+      m (pre.2 m post) o
+
+variable {shared shared' : Diagram S Δ [K]} {next next' : Continuation S (M.product K) Qs}
+
+/-- A map for the diagram of a frame and a map for its continuation give a map at the values of
+a case, for one choice of the kept ports and of the port map. -/
+def frameMapAt (body : Spec.Map (shared.spec r) (shared'.spec r))
+    (tail : Spec.Map (next.spec r) (next'.spec r)) (vals : All X c) (s : R) (kp : M.At (Port c))
+    (ag : PortMap c Δ) (pre : FramePre r shared next vals s kp ag) :
+    (w : FramePre r shared' next' vals s kp ag) ×
+      ((o : E ⊕ (Qs.At X × R)) → FramePost r shared' next' vals s kp ag w o →
+        FramePost r shared next vals s kp ag pre o) :=
+  ⟨⟨(body _ pre.1).1, fun m post =>
+      Spec.resumeMapPre
+        (fun (y : Exits.At [K] X × R) p =>
+          Spec.exitMapPre (fun _ p => (tail (_, y.2) p).1) y.1 p)
+        m (pre.2 m ((body _ pre.1).2 m post))⟩,
+    fun o run =>
+      ⟨run.1, (body _ pre.1).2 run.1 run.2.1,
+        Spec.resumeMapPost
+          (fun (y : Exits.At [K] X × R) p =>
+            Spec.exitMapPre (fun _ p => (tail (_, y.2) p).1) y.1 p)
+          (fun y p o t =>
+            Spec.exitMapPost (T := fun q _ => Exits.At.ofNil q)
+              (fun _ p => (tail (_, y.2) p).1)
+              (fun _ p o t => (tail (_, y.2) p).2 o t) y.1 p o t)
+          run.1 (pre.2 run.1 ((body _ pre.1).2 run.1 run.2.1)) o run.2.2⟩⟩
+
+/-- A map for the diagram of a frame and a map for its continuation give a map of the
+specifications of the frames. The kept ports and the port maps of the two frames are identical
+at each case. -/
+def Continuation.frameMap {P : Boundary Ty} {kept kept' : (c : P.Case) → M.At (Port c.1)}
+    {args args' : (c : P.Case) → PortMap c.1 Δ}
+    (keptSame : (c : P.Case) → kept c ≡ kept' c) (argsSame : (c : P.Case) → args c ≡ args' c)
+    (body : Spec.Map (shared.spec r) (shared'.spec r))
+    (tail : Spec.Map (next.spec r) (next'.spec r)) :
+    Spec.Map ((Continuation.frame kept args shared next).spec r)
+      ((Continuation.frame kept' args' shared' next').spec r) :=
+  fun a pre =>
+    Identity.transport
+      (fun kp' =>
+        (w : FramePre r shared' next' a.1.2 a.2 kp' (args' a.1.1)) ×
+          ((o : E ⊕ (Qs.At X × R)) → FramePost r shared' next' a.1.2 a.2 kp' (args' a.1.1) w o →
+            FramePost r shared next a.1.2 a.2 (kept a.1.1) (args a.1.1) pre o))
+      (keptSame a.1.1)
+      (Identity.transport
+        (fun ag' =>
+          (w : FramePre r shared' next' a.1.2 a.2 (kept a.1.1) ag') ×
+            ((o : E ⊕ (Qs.At X × R)) →
+              FramePost r shared' next' a.1.2 a.2 (kept a.1.1) ag' w o →
+              FramePost r shared next a.1.2 a.2 (kept a.1.1) (args a.1.1) pre o))
+        (argsSame a.1.1) (frameMapAt r body tail a.1.2 a.2 (kept a.1.1) (args a.1.1) pre))
+
+end Frame
+
+mutual
+
+/-- Two diagrams that agree have a map of their specifications in each direction. -/
+def Diagram.Agreement.spec : {Γ : List Ty} → {Qs : Exits Ty} → {d e : Diagram S Γ Qs} →
+    Diagram.Agreement d e → Spec.Equiv (d.spec r) (e.spec r)
+  | _, _, _, _, .exit _ => .refl _
+  | _, _, _, _, .step call each =>
+      ⟨Diagram.stepMap r call fun c => (Diagram.Agreement.spec (each c)).1,
+        Diagram.stepMap r call fun c => (Diagram.Agreement.spec (each c)).2⟩
+  | _, _, _, _, .seq head tail =>
+      ⟨Diagram.seqMap r (Diagram.Agreement.spec head).1 (Continuation.Agreement.spec tail).1,
+        Diagram.seqMap r (Diagram.Agreement.spec head).2 (Continuation.Agreement.spec tail).2⟩
+
+def Continuation.Agreement.spec : {P : Boundary Ty} → {Qs : Exits Ty} →
+    {k k' : Continuation S P Qs} → Continuation.Agreement k k' →
+    Spec.Equiv (k.spec r) (k'.spec r)
+  | _, _, _, _, .copair cases =>
+      ⟨Continuation.copairMap r fun c => (Diagram.Agreement.spec (cases c)).1,
+        Continuation.copairMap r fun c => (Diagram.Agreement.spec (cases c)).2⟩
+  | _, _, _, _, .frame keptSame argsSame body tail =>
+      ⟨Continuation.frameMap r keptSame argsSame (Diagram.Agreement.spec body).1
+          (Continuation.Agreement.spec tail).1,
+        Continuation.frameMap r (fun c => (keptSame c).symm) (fun c => (argsSame c).symm)
+          (Diagram.Agreement.spec body).2 (Continuation.Agreement.spec tail).2⟩
+  | _, _, _, _, .loop same =>
+      ⟨Continuation.loopMap r (Continuation.Agreement.spec same).1,
+        Continuation.loopMap r (Continuation.Agreement.spec same).2⟩
+
+end
+
+/-- Each rule of the set has a map of the specifications of its two sides, in each
+direction. -/
+structure Rules.SpecSound (T : Rules S) where
+  diagram : {Γ : List Ty} → {Qs : Exits Ty} → {d e : Diagram S Γ Qs} → T.diagram d e →
+    Spec.Equiv (d.spec r) (e.spec r)
+  continuation : {P : Boundary Ty} → {Qs : Exits Ty} → {k k' : Continuation S P Qs} →
+    T.continuation k k' → Spec.Equiv (k.spec r) (k'.spec r)
+
+variable {r} {T : Rules S}
+
+mutual
+
+/-- A derivation gives a map of the specifications of its two diagrams, in each direction. -/
+def Diagram.Derivation.spec (ok : T.SpecSound r) : {Γ : List Ty} → {Qs : Exits Ty} →
+    {d e : Diagram S Γ Qs} → Diagram.Derivation T d e → Spec.Equiv (d.spec r) (e.spec r)
+  | _, _, _, _, .agree same => same.spec r
+  | _, _, _, _, .rule x => ok.diagram x
+  | _, _, _, _, .symm h => (Diagram.Derivation.spec ok h).symm
+  | _, _, _, _, .trans h k => (Diagram.Derivation.spec ok h).trans (Diagram.Derivation.spec ok k)
+  | _, _, _, _, .step call each =>
+      ⟨Diagram.stepMap r call fun c => (Diagram.Derivation.spec ok (each c)).1,
+        Diagram.stepMap r call fun c => (Diagram.Derivation.spec ok (each c)).2⟩
+  | _, _, _, _, .seq head tail =>
+      ⟨Diagram.seqMap r (Diagram.Derivation.spec ok head).1
+          (Continuation.Derivation.spec ok tail).1,
+        Diagram.seqMap r (Diagram.Derivation.spec ok head).2
+          (Continuation.Derivation.spec ok tail).2⟩
+
+def Continuation.Derivation.spec (ok : T.SpecSound r) : {P : Boundary Ty} → {Qs : Exits Ty} →
+    {k k' : Continuation S P Qs} → Continuation.Derivation T k k' →
+    Spec.Equiv (k.spec r) (k'.spec r)
+  | _, _, _, _, .agree same => same.spec r
+  | _, _, _, _, .rule x => ok.continuation x
+  | _, _, _, _, .symm h => (Continuation.Derivation.spec ok h).symm
+  | _, _, _, _, .trans h j =>
+      (Continuation.Derivation.spec ok h).trans (Continuation.Derivation.spec ok j)
+  | _, _, _, _, .copair cases =>
+      ⟨Continuation.copairMap r fun c => (Diagram.Derivation.spec ok (cases c)).1,
+        Continuation.copairMap r fun c => (Diagram.Derivation.spec ok (cases c)).2⟩
+  | _, _, _, _, .frame _ _ body tail =>
+      ⟨Continuation.frameMap r (fun _ => .refl) (fun _ => .refl)
+          (Diagram.Derivation.spec ok body).1 (Continuation.Derivation.spec ok tail).1,
+        Continuation.frameMap r (fun _ => .refl) (fun _ => .refl)
+          (Diagram.Derivation.spec ok body).2 (Continuation.Derivation.spec ok tail).2⟩
+  | _, _, _, _, .loop same =>
+      ⟨Continuation.loopMap r (Continuation.Derivation.spec ok same).1,
+        Continuation.loopMap r (Continuation.Derivation.spec ok same).2⟩
+
+end
+
+/-- A verified diagram moves along a derivation. -/
+def Diagram.Derivation.verified (ok : T.SpecSound r) {Γ : List Ty} {Qs : Exits Ty}
+    {d e : Diagram S Γ Qs} (h : Diagram.Derivation T d e)
+    {q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)} (v : d.Verified r q) :
+    e.Verified r q :=
+  fun a pre =>
+    ⟨((h.spec ok).1 a (v a pre).1).1,
+      fun o run => (v a pre).2 o (((h.spec ok).1 a (v a pre).1).2 o run)⟩
+
+end Draft
+
+#print axioms Draft.Diagram.Derivation.verified
+
+/-! The check on the countdown loop: a run over the moved witness maps to the run over the first
+witness, for an arbitrary value and an arbitrary runtime. -/
+
+namespace Draft.Checks.Specification
+
+open Draft Draft.Checks.Countdown
+
+/-- The rule set with no rule. -/
+def noRule : Rules sig := ⟨fun _ _ => Empty, fun _ _ => Empty⟩
+
+/-- The rule set with no rule holds for each specification of the calls. -/
+def noRuleSound : noRule.SpecSound G := ⟨(fun x => nomatch x), (fun x => nomatch x)⟩
+
+/-- A derivation from the loop to the loop, with the forms of a loop, of transitivity, and of
+symmetry. -/
+def again : Continuation.Derivation noRule loop loop :=
+  .trans (.loop (.agree (Continuation.Agreement.refl body)))
+    (.symm (.loop (.agree (Continuation.Agreement.refl body))))
+
+/-- The witness of the loop along the derivation, with the map of its runs. -/
+def moved (c a s : Nat) := (again.spec noRuleSound).1 (entry c a, s) (wit c a s)
+
+/-- One iteration over the moved witness. -/
+abbrev StepM := (iterSpec G body).iterate (moved 0 0 0).1.2.2
+
+set_option smartUnfolding false in
+/-- One iteration over the moved witness that goes to the next entrance. -/
+def goesM (c a s : Nat) :
+    StepM ⟨(entry (c + 1) a, s), PUnit.unit⟩ (.inr ⟨(entry c (s + a), s + 1), PUnit.unit⟩) :=
+  ⟨⟨.inr (⟨⟨_, .there .here⟩, .nil⟩, s), .refl, .inr (value c, s), .refl,
+      .inr (value (s + a), s + 1), .refl, .refl⟩,
+    .refl⟩
+
+set_option smartUnfolding false in
+/-- One iteration over the moved witness that exits. -/
+def endsM (a s : Nat) : StepM ⟨(entry 0 a, s), PUnit.unit⟩ (.inl (.inr (out a, s))) :=
+  ⟨.inr (⟨⟨_, .here⟩, .nil⟩, s), .refl, .refl⟩
+
+/-- The run over the moved witness from each counter. -/
+def runsM : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) ×
+    Loop StepM ⟨(entry c a, s), PUnit.unit⟩ (.inr r)
+  | 0, a, s => ⟨(out a, s), .exit (endsM a s)⟩
+  | c + 1, a, s => ⟨(runsM c (s + a) (s + 1)).1, .next (goesM c a s) (runsM c (s + a) (s + 1)).2⟩
+
+set_option smartUnfolding false in
+/-- The run over the moved witness maps to the run over the first witness. -/
+def movedRun (a s : Nat) :
+    (moved 2 a s).2 (.inr (runsM 2 a s).1) (runsM 2 a s).2 ≡ (runsS 2 a s).2 := .refl
+
+end Draft.Checks.Specification
+
+#print axioms Draft.Checks.Specification.movedRun
+
+/-! ### The unit runtime -/
+
+namespace Prelude.Container
+
+variable {C : Container.{0, 0}} {α : Type}
+
+/-- The specification with the unit runtime and no stop, from a specification with no
+runtime. -/
+abbrev DepPoly.still (t : DepPoly.{0, 0, 0, 0} C) : DepPoly.{0, 0, 0, 0} (C.runtime PUnit Empty) :=
+  t.invariant (fun _ => PUnit) (fun _ => PUnit)
+
+/-- The evidence of a computation with the unit runtime is the evidence of the computation. -/
+def FreeDep.still {t : DepPoly.{0, 0, 0, 0} C} {Q : α → Type} :
+    (x : Free C α) →
+    FreeDep t.still (Outcome Q (fun _ => PUnit) (fun _ => PUnit)) (x.thread PUnit.unit) →
+    FreeDep t Q x
+  | .pure _, h => .pure h.result.1
+  | .request _ k, h =>
+      .request h.parts.1.2 fun i post =>
+        still (k i) (h.parts.2 (.inr (i, .unit)) (post, .unit))
+
+end Prelude.Container
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type}
+
+/-- A verified diagram for specifications with no runtime: the verified diagram at the unit
+runtime. It has the verified implementation of each approximant. -/
+def Diagram.Verified.lift {Γ : List Ty} {Qs : Exits Ty}
+    {r₀ : DepPoly.{0, 0, 0, 0} (S.interface X)}
+    {q₀ : DepPoly.{0, 0, 0, 0} (Diagram.interface X Γ Qs)} {d : Diagram S Γ Qs}
+    (v : d.Verified r₀.still q₀.still) {stop : Free (S.interface X) (Qs.At X)}
+    (limit : (env : All X Γ) → (pre : q₀.Pre env) → FreeDep r₀ (q₀.Post env pre) stop)
+    (n : Nat) : ImplDep q₀ r₀ (d.impl stop n) :=
+  fun env pre =>
+    FreeDep.still _
+      ((Diagram.Verified.stateLift _ v n).impl
+        (fun env _ pre s' _ => (limit env pre.2).thread s' .unit) (env, .unit) (.unit, pre))
+
+end Draft
+
+#print axioms Draft.Diagram.Verified.lift
