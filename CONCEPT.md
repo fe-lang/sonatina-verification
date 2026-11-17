@@ -835,14 +835,16 @@ The two meanings of a diagram give two statements of soundness. The first
 statement is for the function meaning: for a rule of the interchange, copy,
 discard, or control equation set, the function meanings of the two diagrams
 agree for each number of unrollings. The second statement is for the
-specification. A rule holds for a specification of the calls when it has a
+specification. A map of specifications gives a witness of the precondition
+of the second specification from a witness of the precondition of the first.
+For each result, it gives a run over the first witness from each run over
+the second witness. A verified diagram is such a map, into the specification
+of the diagram. A map is cartesian when its function on the runs over each
+witness is an equivalence, with its two round trips. It is then a cartesian
+map of polynomials: the witnesses are the positions, and the runs are the
+directions. A rule holds for a specification of the calls when it has a
 cartesian map between the specifications of its two diagrams, in each
-direction. A cartesian map gives a witness of the precondition of the second
-diagram from a witness of the precondition of the first. For each result, it
-gives an equivalence of the runs over the second witness and the runs over
-the first witness, with its two round trips. It is a cartesian map of
-polynomials: the witnesses are the positions, and the runs are the
-directions. A run is data, and the equivalence keeps the runs: a diagram
+direction. A run is data, and the equivalence keeps the runs: a diagram
 with one run to a result and a diagram with two runs to that result do not
 agree. A derivation in a rule set that holds for a specification of the calls
 has these maps, and a verified diagram moves along them to a verified diagram
@@ -931,12 +933,16 @@ Evaluator fuel is separate from target resources and is not an implicit
 counter in generated code.
 
 **Directions.** Agreement of two diagrams inside the IR is a cartesian map
-between their specifications in each direction. Each boundary states its
-directions. The direction from target runs to source
-runs is necessary for each pair. The direction from source runs to target
-runs has a resource sufficiency condition when the backend contract requires
-it. A source semantics with free choices, such as a read of the available
-resource, can give the first direction only.
+between their specifications in each direction. A boundary has maps of
+specifications, which are not cartesian in general, and each boundary states
+its directions. The direction from target runs to source runs is a map from
+the specification of the source to the specification of the target: each run
+of the target gives a run of the source. It is necessary for each pair. The
+direction from source runs to target runs is a map from the specification of
+the target to the specification of the source. It has a resource sufficiency
+condition when the backend contract requires it. A source semantics with free
+choices, such as a read of the available resource, can give the first
+direction only.
 
 **Costs.** The cost model of a comparison is the machine model of its
 backend. The register-machine counts of the thesis are the agreement test for
