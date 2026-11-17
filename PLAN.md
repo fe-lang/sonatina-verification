@@ -74,6 +74,20 @@ substitution and its laws for the stages that nest diagrams. D6 has the one
 feedback structure: the loop with its laws, and the trace as a derived
 operation. D5 and D6 address different termination questions.
 
+The correspondence of a diagram with a `W′` wiring diagram is a part of D5,
+and its compatibility with the loop is a part of D6. A wiring is a dependent
+polynomial on the container of its boxes. A box has an operation and a
+bypass. The precondition of a box is a case of its bypass, and the
+postcondition of an output case is the target of that case: an exit, the
+entrance of a box, or the undefined alternative. The wiring of a diagram is a
+recursion on the diagram. A step is one box with its context as the bypass. A
+composite gives the entrance of its continuation to each exit of its first
+diagram. A frame whiskers the boxes of its diagram by its bypass. A loop
+gives its entrance to each exit to that entrance, and the number of the cases
+of its boundary is the bound on the hops with no box. The runs of a wiring
+are over a specification of the calls, and their agreement with the
+specification of the diagram is the correspondence.
+
 Abstract categorical typeclasses are extracted only after the concrete
 constructors and their laws are usable. Abstraction must not change missing
 proofs into interface assumptions. The definition of done is the exit
@@ -365,14 +379,9 @@ the second value with the kept input, from the fact of the test. The frame
 equation moves the verified implementation to the other form, with the same
 payloads. The frame has 4 steps, and the other form has 7.
 
-The modules of [Probes](Probes) are explorations on the Draft. They are not
-parts of the implementation, and no module of `Draft` imports them.
-[Probes/Wiring.lean](Probes/Wiring.lean) has the wiring of a diagram as a map
-of `Int(Poly_*)` with a box for each step, and its runs.
-[Probes/DepPoly.lean](Probes/DepPoly.lean) has the relation of calls with a
-runtime as a specification, and the continuation of a frame at the pairs of a
-bypass case and an exit case.
-[Probes/Specification.lean](Probes/Specification.lean) has the specification
+[Probes/Specification.lean](Probes/Specification.lean) is an exploration on
+the Draft. It is not a part of the implementation, and no module of `Draft`
+imports it. It has the specification
 of a diagram from a specification of its calls with a runtime, the
 specification of an implementation, the evidence of the computation of a
 diagram with each number of unrollings from a witness of the precondition, the
