@@ -823,6 +823,14 @@ operation is effectful.
 These parts are open: the search of a shared continuation, the coverage of
 the sharing partitions, and the cost comparison of Figure 5.7.
 
+The form of the list is not decided for D4. The list is for a test with two
+cases and no test in a case, and Figure 5.6 does not need it: the evidence of
+a ready step gives the same derivation. The decision is due when the sharing
+partitions exist and the first realization of a reuse partition is built, or
+when the selection of a realization by cost starts, if that is earlier. At
+that point, a realization comes from the evidence of a ready step or from a
+list. A list for D4 accepts a test in a case and each number of cases.
+
 ## D6: generic definitions
 
 [Prelude/Relation.lean](Prelude/Relation.lean) has the generic definitions of
