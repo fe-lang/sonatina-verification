@@ -363,7 +363,6 @@ namespace Draft.Checks.Countdown
 open Container
 open Draft.Checks.Dependent (Admission Receipt expected)
 open Draft.Checks.Lift (valueOf ZeroCase)
-open Draft.Checks.Specification.Bound (Below)
 open Draft.Checks.Specification.Interchange (countdownLate swap returns)
 
 /-! The loop that counts down. -/
@@ -403,7 +402,7 @@ the precondition is an admission, with the evidence that the counter is less tha
 The exit has the receipts of the calls, and its value is the second input plus their
 responses. -/
 def countSpec (n : Nat) : DepPoly.{0, 0, 0, 0} (Diagram.interface Value [(), ()] [Out]) where
-  Pre env := Admission × Below (env.lookup .here) n
+  Pre env := Admission × PLift (env.lookup .here < n)
   Post env pre x := (tr : Trace pre.1) × (result x ≡ total tr (env.lookup (.there .here)))
 
 /-- The counter at an entrance of the loop. -/
@@ -422,7 +421,7 @@ abbrev Invariant (pre : Admission) (first : Nat) (a : Entry.At Value) : Type :=
 /-- The family with a count: the invariant, and the evidence that the counter at the entrance
 is less than the count. -/
 abbrev Counted (pre : Admission) (first : Nat) (m : Nat) (a : Entry.At Value) : Type :=
-  Invariant pre first a × Below (counterAt a) m
+  Invariant pre first a × PLift (counterAt a < m)
 
 /-- The lift of the body. At zero, the body exits with the invariant. At a successor, the
 effectful step takes the admission of the diagram, and the exit to the entrance has the
@@ -447,9 +446,11 @@ def bodyLift (n : Nat) (pre : Admission) (first : Nat) : (m : Nat) → (k : Entr
                             (⟨⟨receipt.1, receipt.2.2⟩ :: v.1.1,
                                 receipt.2.1.trans
                                   (Identity.cong (fun k => receipt.1 + k) v.1.2)⟩,
-                              Identity.transport (fun j => Below j m)
+                              Identity.transport (fun j => PLift (j < m))
                                 (isPred.trans (Identity.cong Nat.pred succ.2)).symm
-                                (Identity.transport (fun j => Below j (m + 1)) succ.2 v.2).pred))
+                                ⟨Nat.lt_of_succ_lt_succ
+                                  (Identity.transport (fun j => PLift (j < m + 1)) succ.2
+                                    v.2).down⟩))
 
 /-- The lift of the loop from the two inputs. The exit to the entrance has the invariant with
 no receipt, and the evidence of the precondition that the counter is less than the number of
@@ -460,7 +461,8 @@ def countdownLift (n : Nat) (env : All Value [(), ()]) (pre : (countSpec n).Pre 
     (Diagram.HoldsStill.exit _ (⟨[], .refl⟩, pre.2))
     fun _ start =>
       Continuation.HoldsStill.loopCounted (S := sig) (Counted pre.1 (env.lookup (.there .here)))
-        body (bodyLift n pre.1 (env.lookup (.there .here))) (fun _ v => v.2.zero) start
+        body (bodyLift n pre.1 (env.lookup (.there .here)))
+        (fun _ v => absurd v.2.down (Nat.not_lt_zero _)) start
 
 variable (stop : Free (sig.interface Value) (Exits.At [Out] Value))
 
@@ -471,7 +473,7 @@ def lowered (n : Nat) :
 
 /-- The evidence at the exit from the counter 2, with three or more unrollings. -/
 def evidence (n : Nat) (flag : Bool) (u v a : Nat) (pre : Admission) :=
-  ((lowered stop (n + 3)).run (Verified.verify flag u v)) (inputs 2 a) (pre, ⟨n, .refl⟩)
+  ((lowered stop (n + 3)).run (Verified.verify flag u v)) (inputs 2 a) (pre, ⟨Nat.le_add_left 3 n⟩)
 
 set_option smartUnfolding false in
 /-- The invariant has the responses of the two calls, for an arbitrary value and arbitrary
@@ -509,7 +511,8 @@ def loweredLate (n : Nat) :
 /-- The evidence at the exit of the second loop from the counter 2, with three or more
 unrollings. -/
 def evidenceLate (n : Nat) (flag : Bool) (u v a : Nat) (pre : Admission) :=
-  ((loweredLate stop (n + 3)).run (Verified.verify flag u v)) (inputs 2 a) (pre, ⟨n, .refl⟩)
+  ((loweredLate stop (n + 3)).run (Verified.verify flag u v)) (inputs 2 a)
+    (pre, ⟨Nat.le_add_left 3 n⟩)
 
 set_option smartUnfolding false in
 /-- After the derivation, each receipt has the payload of its admission constructor. -/

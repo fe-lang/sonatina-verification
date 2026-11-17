@@ -729,30 +729,16 @@ open Draft.Checks.Specification.Invariant (counter succAdd Final)
 number of unrollings is sufficient, and the verified implementation of the approximant needs no
 evidence for the computation at the limit. -/
 
-/-- A number that is not zero. -/
-def Positive : Nat → Type
-  | 0 => Empty
-  | _ + 1 => Unit
-
-/-- A number is less than a second number: the second number is the first plus one, plus a
-difference. -/
-abbrev Below (c m : Nat) : Type := (k : Nat) × (k + (c + 1) ≡ m)
-
-/-- No number is less than zero. -/
-def Below.zero {c : Nat} (h : Below c 0) : Empty := Identity.transport Positive h.2 ()
-
-/-- The predecessors of two numbers keep the order. -/
-def Below.pred {c m : Nat} (h : Below (c + 1) (m + 1)) : Below c m :=
-  ⟨h.1, Identity.cong Nat.pred h.2⟩
-
 variable (s₀ c₀ : Nat)
 
 /-- The family with a count: the sum of the runtime and the counter is the sum at the first
 entrance, and the counter is less than the count. -/
 abbrev Count (m : Nat) (x : Entry.At Value × Nat) : Type :=
-  (x.2 + counter x.1 ≡ s₀ + c₀) × Below (counter x.1) m
+  (x.2 + counter x.1 ≡ s₀ + c₀) × PLift (counter x.1 < m)
 
-def never (x : Entry.At Value × Nat) (v : Count s₀ c₀ 0 x) : Empty := v.2.zero
+/-- No entrance has the family at the count zero. -/
+def never (x : Entry.At Value × Nat) (v : Count s₀ c₀ 0 x) : Empty :=
+  absurd v.2.down (Nat.not_lt_zero _)
 
 def bodyHolds (n : Nat) : (m : Nat) → (x : Entry.At Value × Nat) → Count s₀ c₀ (m + 1) x →
     body.Holds G Never n
@@ -770,13 +756,14 @@ def bodyHolds (n : Nat) : (m : Nat) → (x : Entry.At Value × Nat) → Count s�
             (b := (value c, s)) .refl
             (Diagram.Holds.stepResponse machine ⟨.emit, .cons (.there (.there .here)) .nil⟩ _
               (b := (value (s + a), s + 1)) .refl
-              (Diagram.Holds.exit _ ((succAdd s c).trans v.1, v.2.pred)))))
+              (Diagram.Holds.exit _
+                ((succAdd s c).trans v.1, ⟨Nat.lt_of_succ_lt_succ v.2.down⟩)))))
 
 /-- The specification of the countdown with a number of unrollings. A witness of the
 precondition shows that the counter is less than that number. -/
 def bounded (n : Nat) :
     DepPoly.{0, 0, 0, 0} ((Diagram.interface Value [(), ()] [Out]).runtime Nat Unit) where
-  Pre x := Below (x.1.lookup .here) n
+  Pre x := PLift (x.1.lookup .here < n)
   Post x _ := Final x.2 (x.1.lookup .here)
 
 def countdownHolds (n : Nat) (env : All Value [(), ()]) (s : Nat)
@@ -797,7 +784,7 @@ set_option smartUnfolding false in
 /-- From the counter 2, with each number of unrollings that is three or more. -/
 def atExit (k a s : Nat) :
     Final s 2 (machine.run (countdown.run stop (k + 3) (inputs 2 a) .pure) s) :=
-  ((countdownImpl stop (k + 3)).run machine.graphEvidence) (inputs 2 a, s) ⟨k, .refl⟩
+  ((countdownImpl stop (k + 3)).run machine.graphEvidence) (inputs 2 a, s) ⟨Nat.le_add_left 3 k⟩
 
 set_option smartUnfolding false in
 def runtimeAtExit (k a s : Nat) :
@@ -809,7 +796,8 @@ set_option smartUnfolding false in
 unrollings. -/
 def atExitOne (k a s : Nat) :
     Final s 1 (machine.run (countdown.run stop (k + 3) (inputs 1 a) .pure) s) :=
-  ((countdownImpl stop (k + 3)).run machine.graphEvidence) (inputs 1 a, s) ⟨k + 1, .refl⟩
+  ((countdownImpl stop (k + 3)).run machine.graphEvidence) (inputs 1 a, s)
+    ⟨Nat.le_add_left 2 (k + 1)⟩
 
 set_option smartUnfolding false in
 def runtimeAtExitOne (k a s : Nat) :
@@ -819,7 +807,7 @@ def runtimeAtExitOne (k a s : Nat) :
 /-! A loop in a loop, with a real bound. The inner loop counts the value down. At the value
 zero, the outer step tests the counter: at zero it exits, and at a successor it exits to the
 outer entrance with the predecessor. One number of unrollings is for the two loops, so each
-family has a count with slack. -/
+count is a bound, and not the number of the iterations. -/
 
 /-- The body of the inner loop. Its exits are the inner entrance, the outer entrance, and the
 exit of the two loops. -/
@@ -847,9 +835,6 @@ def twoLoops : Diagram sig [(), ()] [Out] := .seq enter outer
 /-- The value of an entrance. -/
 def amount (k : Entry.At Value) : Nat := (Boundary.onlyValues k).lookup (.there .here)
 
-/-- A number that has a smaller number is not zero. -/
-def Below.positive {c n : Nat} (h : Below c n) : Below 0 n := ⟨h.1 + c, h.2⟩
-
 /-- The condition at a result of the two loops: no stop, and the first runtime at the exit. -/
 def Same (s₁ : Nat) : Unit ⊕ (Exits.At [Out] Value × Nat) → Type
   | .inl _ => Empty
@@ -860,7 +845,7 @@ variable (n s₁ : Nat)
 /-- The family of the outer loop: the counter is less than the count, and the value is less
 than the number of unrollings. -/
 abbrev Outer (m : Nat) (x : Entry.At Value × Nat) : Type :=
-  (x.2 ≡ s₁) × Below (counter x.1) m × Below (amount x.1) n
+  (x.2 ≡ s₁) × PLift (counter x.1 < m) × PLift (amount x.1 < n)
 
 /-- The condition at a result of the inner loop, for a count of the outer loop. -/
 abbrev AfterInner (mo : Nat) : Unit ⊕ (Exits.At [Entry, Out] Value × Nat) → Type :=
@@ -869,7 +854,7 @@ abbrev AfterInner (mo : Nat) : Unit ⊕ (Exits.At [Entry, Out] Value × Nat) →
 /-- The family of the inner loop, for a count of the outer loop: the value is less than the
 count, and the counter is less than the count of the outer loop plus one. -/
 abbrev Inner (mo m : Nat) (x : Entry.At Value × Nat) : Type :=
-  (x.2 ≡ s₁) × Below (amount x.1) m × Below (counter x.1) (mo + 1) × Below 0 n
+  (x.2 ≡ s₁) × PLift (amount x.1 < m) × PLift (counter x.1 < mo + 1) × PLift (0 < n)
 
 /-- The evidence of the body of the inner loop, by the constructors. -/
 def innerBodyHolds (mo : Nat) : (m : Nat) → (x : Entry.At Value × Nat) →
@@ -891,27 +876,30 @@ def innerBodyHolds (mo : Nat) : (m : Nat) → (x : Entry.At Value × Nat) →
             (b := (⟨⟨_, .there .here⟩, .nil⟩, s)) .refl
             (Diagram.Holds.stepResponse machine ⟨.pred, .cons .here .nil⟩ _
               (b := (value c, s)) .refl
-              (Diagram.Holds.exit _ (v.1, v.2.2.1.pred, v.2.2.2)))))
+              (Diagram.Holds.exit _
+                (v.1, ⟨Nat.lt_of_succ_lt_succ v.2.2.1.down⟩, v.2.2.2)))))
   | _, (⟨⟨_, .here⟩, .cons _ (.cons (a + 1) .nil)⟩, s), v =>
       Continuation.Holds.copair _
         (Diagram.Holds.stepResponse machine ⟨.isZero, .cons (.there .here) .nil⟩ _
           (b := (⟨⟨_, .there .here⟩, .nil⟩, s)) .refl
           (Diagram.Holds.stepResponse machine ⟨.pred, .cons (.there .here) .nil⟩ _
             (b := (value a, s)) .refl
-            (Diagram.Holds.exit _ (v.1, v.2.1.pred, v.2.2.1, v.2.2.2))))
+            (Diagram.Holds.exit _
+              (v.1, ⟨Nat.lt_of_succ_lt_succ v.2.1.down⟩, v.2.2.1, v.2.2.2))))
 
 /-- The evidence of the inner loop at each entrance of the outer loop: the body of the outer
 loop. The inner loop takes its family at the number of unrollings. -/
 def innerHolds (mo : Nat) (y : Entry.At Value × Nat) (v : Outer n s₁ (mo + 1) y) :
     inner.Holds G Never n (AfterInner n s₁ mo) y :=
   Continuation.Holds.loopCounted (Inner n s₁ mo) innerBody (innerBodyHolds n s₁ mo)
-    (fun _ w => w.2.1.zero) (x := y) (v.1, v.2.2, v.2.1, v.2.2.positive)
+    (fun _ w => absurd w.2.1.down (Nat.not_lt_zero _)) (x := y)
+    (v.1, v.2.2, v.2.1, ⟨Nat.lt_of_le_of_lt (Nat.zero_le _) v.2.2.down⟩)
 
 /-- The specification of the two loops with a number of unrollings: the counter and the value
 are less than that number. -/
 def twoLoopsBounded (n : Nat) :
     DepPoly.{0, 0, 0, 0} ((Diagram.interface Value [(), ()] [Out]).runtime Nat Unit) where
-  Pre x := Below (x.1.lookup .here) n × Below (x.1.lookup (.there .here)) n
+  Pre x := PLift (x.1.lookup .here < n) × PLift (x.1.lookup (.there .here) < n)
   Post x _ := Same x.2
 
 /-- The evidence of the two loops with the bound, by the constructors. -/
@@ -921,7 +909,7 @@ def twoLoopsHolds (env : All Value [(), ()]) (s : Nat) (pre : (twoLoopsBounded n
     (Diagram.Holds.exit _ (.refl, pre.1, pre.2))
     fun _ start =>
       Continuation.Holds.loopCounted (Outer n s) inner (innerHolds n s)
-        (fun _ w => w.2.1.zero) start
+        (fun _ w => absurd w.2.1.down (Nat.not_lt_zero _)) start
 
 /-- The verified implementation of the approximant of the two loops, with no evidence for the
 computation at the limit. -/
@@ -933,7 +921,8 @@ set_option smartUnfolding false in
 The inner loop has three iterations and then one, and the outer loop has two. -/
 def twoLoopsAtExit (k s : Nat) :
     Same s (machine.run (twoLoops.run stop (k + 3) (inputs 1 2) .pure) s) :=
-  ((twoLoopsImpl stop (k + 3)).run machine.graphEvidence) (inputs 1 2, s) (⟨k + 1, .refl⟩, ⟨k, .refl⟩)
+  ((twoLoopsImpl stop (k + 3)).run machine.graphEvidence) (inputs 1 2, s)
+    (⟨Nat.le_add_left 2 (k + 1)⟩, ⟨Nat.le_add_left 3 k⟩)
 
 set_option smartUnfolding false in
 /-- The evidence of the two loops is consumed through a dependent payload, for an arbitrary
@@ -1284,7 +1273,7 @@ set_option smartUnfolding false in
 /-- From the counter 2, with each number of unrollings that is three or more. -/
 def boundedLateAtExit (k a s : Nat) :
     Final s 2 (machine.run (countdownLate.run stop (k + 3) (inputs 2 a) .pure) s) :=
-  boundedLate stop (k + 3) (inputs 2 a, s) ⟨k, .refl⟩
+  boundedLate stop (k + 3) (inputs 2 a, s) ⟨Nat.le_add_left 3 k⟩
 
 set_option smartUnfolding false in
 /-- The moved evidence is consumed through a dependent payload, for an arbitrary value, an
@@ -1300,7 +1289,7 @@ namespace Draft.Checks.Specification.Peel
 open Draft Draft.Checks.Countdown Draft.Checks.Specification
 open Draft.Checks.Specification.Invariant (Inv Final Always loopHolds)
 open Draft.Checks.Specification.Optimize (unlimited)
-open Draft.Checks.Specification.Bound (Below Count never)
+open Draft.Checks.Specification.Bound (Count never)
 
 /-! The peel of the countdown loop. The peeled diagram has the exit to the entrance, one copy
 of the body, and then the loop. -/
@@ -1384,7 +1373,7 @@ precondition shows that the counter is less than that number plus one: the copy 
 is one iteration, and the loop has the others. -/
 def boundedPeeled (n : Nat) :
     DepPoly.{0, 0, 0, 0} ((Diagram.interface Value [(), ()] [Out]).runtime Nat Unit) where
-  Pre x := Below (x.1.lookup .here) (n + 1)
+  Pre x := PLift (x.1.lookup .here < n + 1)
   Post x _ := Final x.2 (x.1.lookup .here)
 
 /-- The evidence of the peeled diagram with a real bound, by the constructors. The copy of the
@@ -1415,7 +1404,7 @@ set_option smartUnfolding false in
 or more unrollings and the empty condition at the limit. -/
 def boundedAtExit (k a s : Nat) :
     Final s 2 (machine.run (countdownPeeled.run stop (k + 2) (inputs 2 a) .pure) s) :=
-  ((peeledBoundedImpl stop (k + 2)).run machine.graphEvidence) (inputs 2 a, s) ⟨k, .refl⟩
+  ((peeledBoundedImpl stop (k + 2)).run machine.graphEvidence) (inputs 2 a, s) ⟨Nat.le_add_left 3 k⟩
 
 set_option smartUnfolding false in
 /-- The evidence with the real bound is consumed through a dependent payload, for an arbitrary
