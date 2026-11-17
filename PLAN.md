@@ -813,6 +813,23 @@ family, so a loop that does not stop has a witness and no run. One iteration
 of a loop has the runs of the body at the result that the next entrance, the
 exit, or the stop names.
 
+The two exit equations hold for the specification. A witness for an exit to
+the boundary of a continuation, and then the continuation, gives a witness
+for the continuation at the case of the exit, and the converse. One composite
+of the two maps is the identity by computation. Over each witness, the runs
+of the composite are the runs of the continuation, as an equivalence with its
+two round trips. The runs of an exit past a continuation, and then the
+continuation, are the runs of that exit, as an equivalence with its two round
+trips. Each equivalence is one application of a law for
+[Prelude/Identity.lean](Prelude/Identity.lean): a family on the identities
+from one element is its value at the reflexivity. The runs of a loop over a
+witness are the loop of its iterations, by computation. The checks of the run
+family on the countdown loop pass on the specification: the first exit
+equation at the run of the whole diagram, with its round trip, and the
+unrolling law and the fixpoint law at the run from the counter 2, with their
+round trips. These laws and checks take the place of the laws and the checks
+of the run family in one change.
+
 The function meaning and the specification of a diagram are two recursions on
 the diagram, and their connection has two halves. A witness of the
 precondition of a diagram gives the evidence of the computation of the diagram

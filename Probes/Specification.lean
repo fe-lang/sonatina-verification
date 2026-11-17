@@ -33,6 +33,13 @@ number of unrollings. A bound is second evidence: each run over the witness reac
 of a loop only at a runtime with a given condition. With the empty condition, the lift needs no
 evidence for the computation at the limit.
 
+The two exit equations hold for the specification. A witness for an exit to the boundary of a
+continuation, and then the continuation, gives a witness for the continuation at the case of
+the exit, and the converse. Over each witness, the runs of the composite are the runs of the
+continuation, as an equivalence with its two round trips. The runs of an exit past a
+continuation, and then the continuation, are the runs of that exit. The runs of a loop over a
+witness are the loop of its iterations, by computation.
+
 A rule set holds for a specification of the calls when each rule has a map between the
 specifications of its two sides, in each direction. A derivation in such a rule set has these
 maps, by a recursion on the derivation, and a verified diagram moves along them.
@@ -51,7 +58,9 @@ loop with an invariant.
 The checks are on the countdown loop, for an arbitrary value and an arbitrary runtime: the
 round trip of a run through the computation with a number of unrollings, the same for a loop
 in a loop, the run that the result of the function meaning on a machine has, for an arbitrary
-computation at the limit, the map of a run over the witness that a derivation gives, and the
+computation at the limit, the two exit equations and the laws of the loop at a run of the
+specification, with their round trips, the map of a run over the witness that a derivation
+gives, and the
 condition at the result of a run over the witness that the constructors give, through the
 invariant of each iteration. -/
 
@@ -1671,6 +1680,165 @@ def roundTripNested (a s : Nat) :
 end Draft.Checks.Specification
 
 #print axioms Draft.Checks.Specification.roundTripNested
+
+/-! ### The exit equations and the loop law -/
+
+namespace Prelude
+
+universe u w
+
+/-- A family on the identities from one element is its value at the reflexivity. -/
+def Identity.contract {α : Type u} {x₀ : α} (H : (m : α) → x₀ ≡ m → Type w) :
+    Iso ((m : α) × (e : x₀ ≡ m) × H m e) (H x₀ .refl) where
+  to t := Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) t.2.1 t.2.2
+  inv h := ⟨x₀, .refl, h⟩
+  invTo t :=
+    Identity.ind
+      (fun m e => (h : H m e) →
+        (⟨x₀, .refl, Identity.ind (fun m e => H m e → H x₀ .refl) (fun h => h) e h⟩ :
+          (m : α) × (e : x₀ ≡ m) × H m e) ≡ ⟨m, e, h⟩)
+      (fun _ => .refl) t.2.1 t.2.2
+  toInv _ := .refl
+
+end Prelude
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+  {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty}
+
+/-- The first exit equation, for the witnesses: a witness of the composite of an exit to the
+boundary of a continuation and that continuation gives a witness of the continuation at the
+case of the exit. -/
+def Diagram.exitSeqPre (out : K.At (Port Γ)) (next : Continuation S K Qs) (a : All X Γ × R)
+    (pre : ((Diagram.seq (.exit (Exits.At.here out)) next).spec r).Pre a) :
+    (next.spec r).Pre (⟨out.1, a.1.select out.2⟩, a.2) :=
+  pre.2 (.inr ((Exits.At.here out).select a.1, a.2)) .refl
+
+/-- A witness of the continuation at the case of the exit gives a witness of the composite. -/
+def Diagram.exitSeqPreInv (out : K.At (Port Γ)) (next : Continuation S K Qs) (a : All X Γ × R)
+    (w : (next.spec r).Pre (⟨out.1, a.1.select out.2⟩, a.2)) :
+    ((Diagram.seq (.exit (Exits.At.here out)) next).spec r).Pre a :=
+  ⟨PUnit.unit, fun m e =>
+    Identity.transport
+      (fun m => Spec.resumePre (fun (y : Exits.At (K :: Qs) X × R) =>
+        Spec.exitPre (fun k => (next.spec r).Pre (k, y.2)) y.1) m) e w⟩
+
+/-- A witness of the continuation, as a witness of the composite and then as a witness of the
+continuation, is the first witness. The identity holds by computation. -/
+def Diagram.exitSeqPreRound (out : K.At (Port Γ)) (next : Continuation S K Qs)
+    (a : All X Γ × R) (w : (next.spec r).Pre (⟨out.1, a.1.select out.2⟩, a.2)) :
+    Diagram.exitSeqPre r out next a (Diagram.exitSeqPreInv r out next a w) ≡ w := .refl
+
+/-- The first exit equation, for the runs over a witness: the runs of the composite are the
+runs of the continuation at the case of the exit, with the two round trips. -/
+def Diagram.exitSeqSpecRuns (out : K.At (Port Γ)) (next : Continuation S K Qs) (a : All X Γ × R)
+    (pre : ((Diagram.seq (.exit (Exits.At.here out)) next).spec r).Pre a)
+    (o : E ⊕ (Qs.At X × R)) :
+    Iso (((Diagram.seq (.exit (Exits.At.here out)) next).spec r).Post a pre o)
+      ((next.spec r).Post (⟨out.1, a.1.select out.2⟩, a.2) (Diagram.exitSeqPre r out next a pre)
+        o) :=
+  Identity.contract
+    (x₀ := (Sum.inr ((Exits.At.here out).select a.1, a.2) : E ⊕ (Exits.At (K :: Qs) X × R)))
+    (fun m e =>
+      Spec.resumePost
+        (fun (y : Exits.At (K :: Qs) X × R) p o =>
+          Spec.atExit (fun k => (next.spec r).Pre (k, y.2))
+            (fun k p o => (next.spec r).Post (k, y.2) p o)
+            (fun q o => (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) ≡ o) y.1 p o)
+        m (pre.2 m e) o)
+
+/-- The second exit equation, for the runs over a witness: the runs of the composite of an exit
+past a continuation and that continuation are the runs of that exit, with the two round
+trips. -/
+def Diagram.exitPastSpecRuns (out : Qs.At (Port Γ)) (next : Continuation S K Qs) (a : All X Γ × R)
+    (pre : ((Diagram.seq (.exit (out.there K)) next).spec r).Pre a) (o : E ⊕ (Qs.At X × R)) :
+    Iso (((Diagram.seq (.exit (out.there K)) next).spec r).Post a pre o)
+      (((Diagram.exit (S := S) out).spec r).Post a PUnit.unit o) :=
+  Identity.contract
+    (x₀ := (Sum.inr ((out.there K).select a.1, a.2) : E ⊕ (Exits.At (K :: Qs) X × R)))
+    (fun m e =>
+      Spec.resumePost
+        (fun (y : Exits.At (K :: Qs) X × R) p o =>
+          Spec.atExit (fun k => (next.spec r).Pre (k, y.2))
+            (fun k p o => (next.spec r).Post (k, y.2) p o)
+            (fun q o => (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) ≡ o) y.1 p o)
+        m (pre.2 m e) o)
+
+/-- The runs of a loop over a witness are the runs of the loop of its iterations on the
+entrances with the invariant. The identity holds by computation. -/
+def Continuation.loopSpecRuns (body : Continuation S K (K :: Qs)) (a : K.At X × R)
+    (w : ((Continuation.loop body).spec r).Pre a) (o : E ⊕ (Qs.At X × R)) :
+    ((Continuation.loop body).spec r).Post a w o ≡
+      Loop ((iterSpec r body).iterate w.2.2) ⟨a, w.2.1⟩ o :=
+  .refl
+
+end Draft
+
+#print axioms Draft.Diagram.exitSeqSpecRuns
+#print axioms Draft.Diagram.exitPastSpecRuns
+
+/-! The checks on the countdown loop, for an arbitrary value and an arbitrary runtime: the first
+exit equation at the run of the whole diagram, and the unrolling law and the fixpoint law of the
+loop at the run from the counter 2. -/
+
+namespace Draft.Checks.Specification.ExitEquations
+
+open Draft Draft.Checks.Countdown Draft.Checks.Specification
+
+/-- The witness of the whole diagram from the counter 2, from the witness of the loop. -/
+def whole (a s : Nat) : (countdown.spec G).Pre (inputs 2 a, s) :=
+  Diagram.exitSeqPreInv G ⟨Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩ loop
+    (inputs 2 a, s) (wit 2 a s)
+
+/-- The run of the whole diagram over that witness: the exit to the entrance, and the run of
+the loop. -/
+def fromTwo (a s : Nat) : (countdown.spec G).Post (inputs 2 a, s) (whole a s)
+    (.inr (runsS 2 a s).1) :=
+  ⟨.inr (Exits.At.here (entry 2 a), s), .refl, (runsS 2 a s).2⟩
+
+set_option smartUnfolding false in
+/-- The first exit equation gives the run of the loop from the run of the whole diagram. -/
+def loopOfWhole (a s : Nat) :
+    (Diagram.exitSeqSpecRuns G ⟨Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩ loop
+      (inputs 2 a, s) (whole a s) _).to (fromTwo a s) ≡ (runsS 2 a s).2 :=
+  .refl
+
+set_option smartUnfolding false in
+/-- The round trip of the first exit equation at that run is the reflexivity. -/
+def loopOfWholeBack (a s : Nat) :
+    (Diagram.exitSeqSpecRuns G ⟨Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩ loop
+      (inputs 2 a, s) (whole a s) _).invTo (fromTwo a s) ≡ .refl :=
+  .refl
+
+set_option smartUnfolding false in
+/-- The run from the counter 2 has three runs of the body. -/
+def runsLength (a s : Nat) : (runsS 2 a s).2.length ≡ 3 := .refl
+
+set_option smartUnfolding false in
+/-- The unrolling law gives two runs of the body run twice. -/
+def unrolledLength (a s : Nat) :
+    ((Loop.unrolling StepS _ _).to (runsS 2 a s).2).length ≡ 2 := .refl
+
+set_option smartUnfolding false in
+/-- The inverse of the unrolling gives the first run. -/
+def unrolledBack (a s : Nat) :
+    (Loop.unrolling StepS _ _).inv ((Loop.unrolling StepS _ _).to (runsS 2 a s).2) ≡
+      (runsS 2 a s).2 :=
+  .refl
+
+set_option smartUnfolding false in
+/-- The round trip of the fixpoint law at the run is the reflexivity. -/
+def fixpointBack (a s : Nat) : (Loop.fixpoint StepS _ _).invTo (runsS 2 a s).2 ≡ .refl := .refl
+
+end Draft.Checks.Specification.ExitEquations
+
+#print axioms Draft.Checks.Specification.ExitEquations.loopOfWhole
+#print axioms Draft.Checks.Specification.ExitEquations.loopOfWholeBack
+#print axioms Draft.Checks.Specification.ExitEquations.unrolledLength
+#print axioms Draft.Checks.Specification.ExitEquations.unrolledBack
+#print axioms Draft.Checks.Specification.ExitEquations.fixpointBack
 
 /-! ### A derivation gives a map of specifications -/
 

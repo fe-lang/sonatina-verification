@@ -1250,6 +1250,16 @@ over the witness, so a run is data.
   of the body at the result that the next entrance, an exit of the loop, or
   a stop names.
 
+The two exit equations hold for the specification. A witness for an exit to
+the boundary of a continuation, and then the continuation, gives a witness
+for the continuation at the case of the exit, and a witness for the
+continuation gives a witness for the composite. Over each witness for the
+composite, the runs of the composite are the runs of the continuation, as an
+equivalence with its two round trips. The runs of an exit past a
+continuation, and then the continuation, are the runs of that exit, as an
+equivalence with its two round trips. Each equivalence is one law: a family
+on the identities from one element is its value at the reflexivity.
+
 The graph of a machine is a specification of the calls, and its precondition
 has no content. A specification of the calls with no runtime is the case of
 the unit runtime with no stop.
