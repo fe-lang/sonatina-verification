@@ -40,6 +40,13 @@ of a step before it, because the call of that step is not done, and one of each 
 pure, because the effectful call before the step is done. An admissible order of the
 occurrences is thus the word of an order: the order has the ready step of each run.
 
+A derivation of the interchange equation set keeps the fragment and the occurrences: the two
+diagrams have the same occurrences, each the same number of times. The statement is a
+correspondence of the positions of each occurrence in the two lists, with the two round trips.
+The interchange rule gives the first two occurrences in the other order, an agreement gives the
+same occurrences, and the correspondence has the symmetry, the composition, and the congruence
+of a derivation.
+
 The list of the orders of a diagram of the fragment is complete: each order of the diagram
 agrees with an order of the list. The evidence of an order has functions of the output cases,
 and the list has the functions that the value at the center of the cases gives, so the
@@ -379,6 +386,106 @@ def Diagram.Ready.moved {Γ₀ : List Ty} {b : S.Op} {Γ : List Ty} {Qs : Exits 
             ((Call.at a first env last).next last)))
         ((inner h.1).moved h.2.2 ((Call.at a first env last).outputs h.1 env)
           ((Call.at a first env last).next last)))
+
+/-! The occurrences along a derivation of the interchange equation set. -/
+
+section Kept
+
+variable {Γ₀ : List Ty}
+
+/-- Two diagrams are in the fragment together, and they have the same occurrences, each the
+same number of times, for each evidence of the fragment. -/
+abbrev Diagram.Kept (Γ₀ : List Ty) {Γ : List Ty} {Qs : Exits Ty} (d e : Diagram S Γ Qs) : Type :=
+  (d.Straight → e.Straight) × ((e.Straight → d.Straight) ×
+    ((h : d.Straight) → (h' : e.Straight) → (env : All (History S Γ₀) Γ) →
+      (last : Option (Effect S Γ₀)) →
+      Elem.Same (d.occurrences h env last) (e.occurrences h' env last)))
+
+namespace Diagram.Kept
+
+variable {Γ₀ : List Ty} {Γ : List Ty} {Qs : Exits Ty}
+
+def symm {d e : Diagram S Γ Qs} (k : Diagram.Kept Γ₀ d e) : Diagram.Kept Γ₀ e d :=
+  ⟨k.2.1, k.1, fun h h' env last => (k.2.2 h' h env last).symm⟩
+
+def trans {d m e : Diagram S Γ Qs} (k : Diagram.Kept Γ₀ d m) (l : Diagram.Kept Γ₀ m e) :
+    Diagram.Kept Γ₀ d e :=
+  ⟨fun h => l.1 (k.1 h), fun h => k.2.1 (l.2.1 h),
+    fun h h' env last => (k.2.2 h (k.1 h) env last).trans (l.2.2 (k.1 h) h' env last)⟩
+
+/-- A step with the same call, and a rest that keeps the occurrences at each case. -/
+def step (call : (S.interface (Port Γ)).Shape)
+    {rest rest' : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs}
+    (each : (c : (S.output call.1).Case) → Diagram.Kept Γ₀ (rest c) (rest' c)) :
+    Diagram.Kept Γ₀ (.step call rest) (.step call rest') :=
+  ⟨fun h => ⟨h.1, h.2.1, (each h.1).1 h.2.2⟩, fun h => ⟨h.1, h.2.1, (each h.1).2.1 h.2.2⟩,
+    fun h h' env last =>
+      Elem.Same.cons _
+        (Identity.ind
+          (fun (c : (S.output call.1).Case) (_ : h.1 ≡ c) => (t : (rest' c).Straight) →
+            Elem.Same
+              ((rest h.1).occurrences h.2.2 ((Call.at call.1 call.2 env last).outputs h.1 env)
+                ((Call.at call.1 call.2 env last).next last))
+              ((rest' c).occurrences t ((Call.at call.1 call.2 env last).outputs c env)
+                ((Call.at call.1 call.2 env last).next last)))
+          (fun t => (each h.1).2.2 h.2.2 t _ _) (h.2.1 h'.1) h'.2.2)⟩
+
+end Diagram.Kept
+
+
+/-- Two diagrams that agree have the same occurrences. -/
+def Diagram.Kept.ofAgreement : {Γ : List Ty} → {Qs : Exits Ty} → {d e : Diagram S Γ Qs} →
+    Diagram.Agreement d e → Diagram.Kept Γ₀ d e
+  | _, _, _, _, .exit _ => ⟨fun h => h, fun h => h, fun _ _ _ _ => Elem.Same.refl _⟩
+  | _, _, _, _, .step call each => Diagram.Kept.step call fun c => ofAgreement (each c)
+  | _, _, _, _, .seq _ _ =>
+      ⟨fun h => (nomatch h), fun h => (nomatch h), fun h _ _ _ => (nomatch h)⟩
+
+/-- The interchange rule keeps the occurrences: the two steps have the other order. -/
+def Diagram.Kept.ofInterchange {Γ : List Ty} {Qs : Exits Ty} :
+    {d e : Diagram S Γ Qs} → Diagram.Interchange d e → Diagram.Kept Γ₀ d e
+  | _, _, .swap a b central first second rest =>
+      let fwd (h : (Diagram.step ⟨a, first⟩ fun ca =>
+          Diagram.step ⟨b, second.weaken _⟩ fun cb => rest ca cb).Straight) :
+          (Diagram.step ⟨b, second⟩ fun cb => Diagram.step ⟨a, first.weaken _⟩ fun ca =>
+            Diagram.rename (PortMap.exchange _ _ Γ) (rest ca cb)).Straight :=
+        ⟨h.2.2.1, h.2.2.2.1, h.1, h.2.1,
+          Diagram.Straight.rename (PortMap.exchange _ _ Γ) (rest h.1 h.2.2.1) h.2.2.2.2⟩
+      ⟨fwd,
+        fun h => ⟨h.2.2.1, h.2.2.2.1, h.1, h.2.1,
+          Diagram.Straight.ofRename (PortMap.exchange _ _ Γ) (rest h.2.2.1 h.1) h.2.2.2.2⟩,
+        fun h h' env last =>
+          let moved :=
+            Identity.someInject
+              (Diagram.movedPast a b central first second h.1 h.2.2.1 (rest h.1 h.2.2.1)
+                h.2.2.2.2 env last _ .refl)
+          ((Elem.Same.swap _ _ _).trans
+              (Elem.Same.ofIdentity
+                (Identity.cong
+                  (fun (r : S.Occurrence Γ₀ × List (S.Occurrence Γ₀)) => r.1 :: r.2) moved))).trans
+            ((Diagram.Kept.ofAgreement (Γ₀ := Γ₀) (Diagram.Agreement.refl _)).2.2 (fwd h) h'
+              env last)⟩
+
+/-- A derivation of the interchange equation set keeps the fragment and the occurrences, each
+the same number of times. -/
+def Diagram.Derivation.kept : {Γ : List Ty} → {Qs : Exits Ty} → {d e : Diagram S Γ Qs} →
+    Diagram.Derivation (Rules.interchange S) d e → Diagram.Kept Γ₀ d e
+  | _, _, _, _, .agree a => Diagram.Kept.ofAgreement a
+  | _, _, _, _, .rule r => Diagram.Kept.ofInterchange r
+  | _, _, _, _, .symm h => (Diagram.Derivation.kept h).symm
+  | _, _, _, _, .trans h k => (Diagram.Derivation.kept h).trans (Diagram.Derivation.kept k)
+  | _, _, _, _, .step call each => Diagram.Kept.step call fun c => Diagram.Derivation.kept (each c)
+  | _, _, _, _, .seq _ _ =>
+      ⟨fun h => (nomatch h), fun h => (nomatch h), fun h _ _ _ => (nomatch h)⟩
+
+/-- The graphs of the two diagrams of a derivation of the interchange equation set have the
+same occurrences, each the same number of times. -/
+def Diagram.Derivation.graphKept {Γ : List Ty} {Qs : Exits Ty} {d e : Diagram S Γ Qs}
+    (der : Diagram.Derivation (Rules.interchange S) d e) (h : d.Straight) (h' : e.Straight) :
+    Elem.Same (d.graph h) (e.graph h') :=
+  (Diagram.Derivation.kept (Γ₀ := Γ) der).2.2 h h' (S.inputs Γ) none
+
+end Kept
 
 section Admissible
 

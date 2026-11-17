@@ -36,6 +36,11 @@ evidence that the word of the order `C A B` is an admissible order comes from th
 runs on the machine of the runs, and a check consumes the identity that no occurrence remains.
 The done occurrences at the end are the occurrences of the order, with the last run first. A
 word that starts with `B` has no evidence, because the call of an operand of `B` is not done.
+The derivation from the source diagram to the order `C A B` keeps the occurrences: the
+occurrence of `C` has the third position in the graph of the source diagram and the first
+position in the graph of the order, the derivation in the other direction gives the position in
+the source diagram, and a check consumes the round trip of a position through a dependent
+payload.
 No two of the three occurrences are equal, so an admissible order of the graph is the word of
 an order. From the evidence of the word of the order `C A B`, the theorem gives an order with
 the steps `C A B`, and a check consumes the identity of its word through a dependent payload.
@@ -485,6 +490,37 @@ def sourceDistinct : Elem.Distinct sourceOccurrences :=
     | _, .here, .here => .refl
     | _, .there .here, .there .here => .refl
     | _, .there (.there .here), .there (.there .here) => .refl
+
+/-- The derivation from the source diagram to the order `C A B`. -/
+def frontDerivation : Diagram.Derivation (Rules.interchange sig) source front :=
+  Diagram.Order.derivation (Rules.Map.id _) front source frontOrder
+
+/-- The order `C A B` is a diagram of the fragment. -/
+def frontStraight : front.Straight := Diagram.Order.straight front source frontOrder straight
+
+set_option smartUnfolding false in
+/-- The occurrence of `C` has the third position in the graph of the source diagram and the
+first position in the graph of the order. -/
+def keptC :
+    (((frontDerivation.graphKept straight frontStraight) ⟨Op.emit, firstC⟩).to
+      (.there (.there .here))).toFin.val ≡ 0 := .refl
+
+set_option smartUnfolding false in
+/-- The derivation in the other direction gives the position in the source diagram. -/
+def keptBack :
+    ((((Diagram.Derivation.symm frontDerivation).graphKept frontStraight straight)
+      ⟨Op.emit, firstC⟩).to .here).toFin.val ≡ 2 := .refl
+
+set_option smartUnfolding false in
+/-- The round trip of a position is the identity, and it is consumed through a dependent
+payload. -/
+def keptRound :
+    (Identity.transport
+      (fun (i : Elem (⟨Op.emit, firstC⟩ : sig.Occurrence [(), ()]) (source.graph straight)) =>
+        Fin (i.toFin.val + 1))
+      (((frontDerivation.graphKept straight frontStraight) ⟨Op.emit, firstC⟩).invTo
+        (.there (.there .here))).symm
+      ⟨2, Nat.lt_succ_self _⟩).val ≡ 2 := .refl
 
 /-- The theorem gives an order of the first source diagram from the evidence that the word of
 the order `C A B` is an admissible order of the graph. -/
@@ -938,6 +974,18 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.frontReceipt' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.frontReceipt
+
+/-- info: 'Draft.Checks.Dependency.keptC' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.keptC
+
+/-- info: 'Draft.Checks.Dependency.keptBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.keptBack
+
+/-- info: 'Draft.Checks.Dependency.keptRound' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.keptRound
 
 /-- info: 'Draft.Checks.Dependency.notAdmissible' does not depend on any axioms -/
 #guard_msgs in

@@ -133,6 +133,59 @@ def ofFlatMap {f : α → List β} {x : α} {y : β} : {xs : List α} → Elem x
   | _ :: _, .here, j => j.left
   | b :: _, .there i, j => (ofFlatMap i j).right (f b)
 
+/-- Two lists have the same elements, each the same number of times: the positions of each
+element in the two lists correspond. -/
+abbrev Same (xs ys : List α) : Type u := (x : α) → Iso (Elem x xs) (Elem x ys)
+
+namespace Same
+
+protected def refl (xs : List α) : Same xs xs := fun _ => Iso.refl _
+
+def symm {xs ys : List α} (s : Same xs ys) : Same ys xs := fun x => (s x).symm
+
+def trans {xs ys zs : List α} (s : Same xs ys) (t : Same ys zs) : Same xs zs :=
+  fun x => (s x).trans (t x)
+
+def ofIdentity {xs ys : List α} (p : xs ≡ ys) : Same xs ys :=
+  Identity.ind (fun ys _ => Same xs ys) (Same.refl xs) p
+
+/-- A map of the positions of the tails, as a map of the positions of the lists with one more
+element at the front. -/
+def consTo {xs ys : List α} (p : α) (f : (x : α) → Elem x xs → Elem x ys) {x : α}
+    (i : Elem x (p :: xs)) : Elem x (p :: ys) :=
+  consCases (motive := fun c _ => Elem c (p :: ys)) i .here (fun c j => .there (f c j))
+
+def consRound {xs ys : List α} (p : α) (f : (x : α) → Elem x xs → Elem x ys)
+    (g : (x : α) → Elem x ys → Elem x xs) (round : (x : α) → (i : Elem x xs) → g x (f x i) ≡ i)
+    {x : α} (i : Elem x (p :: xs)) : consTo p g (consTo p f i) ≡ i :=
+  consCases (motive := fun _ i => consTo p g (consTo p f i) ≡ i) i .refl
+    (fun c j => Identity.cong Elem.there (round c j))
+
+/-- One more element at the front of the two lists. -/
+def cons {xs ys : List α} (p : α) (s : Same xs ys) : Same (p :: xs) (p :: ys) := fun _ =>
+  ⟨consTo p (fun x => (s x).to), consTo p (fun x => (s x).inv),
+    consRound p (fun x => (s x).to) (fun x => (s x).inv) (fun x => (s x).invTo),
+    consRound p (fun x => (s x).inv) (fun x => (s x).to) (fun x => (s x).toInv)⟩
+
+/-- A position of a list, in the list with its first two elements in the other order. -/
+def swapTo (p q : α) (t : List α) {x : α} (i : Elem x (p :: q :: t)) : Elem x (q :: p :: t) :=
+  consCases (motive := fun c _ => Elem c (q :: p :: t)) i (.there .here)
+    (fun _ j =>
+      consCases (motive := fun c _ => Elem c (q :: p :: t)) j .here (fun _ k => .there (.there k)))
+
+def swapRound (p q : α) (t : List α) {x : α} (i : Elem x (p :: q :: t)) :
+    swapTo q p t (swapTo p q t i) ≡ i :=
+  consCases (motive := fun _ i => swapTo q p t (swapTo p q t i) ≡ i) i .refl
+    (fun _ j =>
+      consCases (motive := fun _ j => swapTo q p t (swapTo p q t (.there j)) ≡ .there j) j .refl
+        (fun _ _ => .refl))
+
+/-- The first two elements in the other order. -/
+def swap (p q : α) (t : List α) : Same (p :: q :: t) (q :: p :: t) := fun _ =>
+  ⟨swapTo p q t, swapTo q p t, swapRound p q t, swapRound q p t⟩
+
+end Same
+
 /-- A position of an element in a list, or the evidence that the list has no such position. -/
 def find [DecEq α] (a : α) : (xs : List α) → Dec (Elem a xs)
   | [] => .no (fun i => ofNil i)

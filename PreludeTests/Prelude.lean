@@ -204,6 +204,16 @@ def flatPosition (n m : Nat) :
     (Elem.ofFlatMap (f := fun (x : Nat) => [x, x]) (xs := [n, m]) (.there .here)
       (.there .here)).toFin.val ≡ 3 := .refl
 
+/-- The first two elements in the other order, under one more element: the position of the
+third element of the list is the second position, with arbitrary elements. -/
+def swappedPosition (n m k : Nat) :
+    (((Elem.Same.cons n (Elem.Same.swap m k [])) k).to (.there (.there .here))).toFin.val ≡ 1 :=
+  .refl
+
+/-- The round trip of that correspondence is the reflexivity proof. -/
+def swappedRound (n m k : Nat) :
+    ((Elem.Same.cons n (Elem.Same.swap m k [])) k).invTo (.there (.there .here)) ≡ .refl := .refl
+
 /-- A selection is a table of its values, with arbitrary values. -/
 def selectionIsTable (n m : Nat) (b : Bool) :
     All.selectValues (arbitrary n m b) positions
@@ -261,6 +271,14 @@ def sameThird : Elem.sameNumber third third .refl ≡ .refl := .refl
 /-- info: 'PreludeTests.flatPosition' does not depend on any axioms -/
 #guard_msgs in
 #print axioms flatPosition
+
+/-- info: 'PreludeTests.swappedPosition' does not depend on any axioms -/
+#guard_msgs in
+#print axioms swappedPosition
+
+/-- info: 'PreludeTests.swappedRound' does not depend on any axioms -/
+#guard_msgs in
+#print axioms swappedRound
 
 /-- info: 'PreludeTests.oneProof' does not depend on any axioms -/
 #guard_msgs in

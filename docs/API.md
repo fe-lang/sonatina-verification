@@ -109,6 +109,11 @@ decision of the identity of two positions of one element, and
 one position. `Elem.Distinct xs`
 is the evidence that no element of `xs` has two positions, with
 `Elem.Distinct.tail`, `Elem.Distinct.fresh`, and `Elem.Distinct.cons`.
+`Elem.Same xs ys` is the evidence that two lists have the same elements, each
+the same number of times: a correspondence of the positions of each element,
+with the two round trips. It has `refl`, `symm`, `trans`, `ofIdentity`,
+`cons` for one more element at the front, and `swap` for the first two
+elements in the other order.
 `Elem.consCases` is the case analysis of a position of a nonempty
 list, and `Elem.ofNil` gives a value of each type from a position of the
 empty list. `All.select env positions` gives the values of `env` at a list of

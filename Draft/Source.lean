@@ -87,6 +87,13 @@ def Diagram.Straight.rename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : Po
   | _, _, _, ρ, .step _ rest, h => ⟨h.1, h.2.1, rename (ρ.lift h.1.1) (rest h.1) h.2.2⟩
   | _, _, _, _, .seq _ _, h => nomatch h
 
+/-- A diagram is a diagram of the fragment when its diagram with renamed ports is. -/
+def Diagram.Straight.ofRename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap Γ Δ) →
+    (d : Diagram S Δ Qs) → (d.rename ρ).Straight → d.Straight
+  | _, _, _, _, .exit _, _ => ()
+  | _, _, _, ρ, .step _ rest, h => ⟨h.1, h.2.1, ofRename (ρ.lift h.1.1) (rest h.1) h.2.2⟩
+  | _, _, _, _, .seq _ _, h => nomatch h
+
 /-- The operations of a diagram of the fragment, in the order of its steps. -/
 def Diagram.ops : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) → d.Straight →
     List S.Op
