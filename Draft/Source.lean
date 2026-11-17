@@ -22,7 +22,9 @@ occurrence in the list of the remaining occurrences. It is admitted when the cal
 operand is done, and the effectful call before it is done. The response has the remaining list
 without the occurrence and the done list with it. A word of runs is an admissible order when it
 has evidence of this specification, with no remaining occurrence at its end. Each occurrence
-thus has one run.
+thus has one run. The element of a take and each other element are elements of the list. For a
+list with no element at two positions, the other elements have no element at two positions, and
+the element of the take is not one of them.
 
 Two calls of a pure operation at the same ports are one call in the merged diagram. The merge
 goes through the steps one time, from the first step. It has the list of the available calls:
@@ -253,6 +255,72 @@ def takeAt {α : Type} : Nat → List α → Option (α × List α)
   | _, [] => none
   | 0, a :: rest => some (a, rest)
   | k + 1, a :: rest => (takeAt k rest).map fun found => (found.1, a :: found.2)
+
+section Take
+
+variable {α : Type}
+
+/-- The element of a take is an element of the list, and each other element of the take is an
+element of the list. -/
+def takeAt.elems : (k : Nat) → (xs : List α) → {y : α} → {ys : List α} →
+    takeAt k xs ≡ some (y, ys) → Elem y xs × ((x : α) → Elem x ys → Elem x xs)
+  | 0, [], _, _, p => (Identity.noneNotSome p).elim
+  | _ + 1, [], _, _, p => (Identity.noneNotSome p).elim
+  | 0, z :: rest, _, _, p =>
+      Identity.ind (a := (z, rest))
+        (fun (r : α × List α) _ =>
+          Elem r.1 (z :: rest) × ((x : α) → Elem x r.2 → Elem x (z :: rest)))
+        (.here, fun _ i => .there i) (Identity.someInject p)
+  | k + 1, z :: rest, _, _, p =>
+      let m := Identity.ofMapSome (takeAt k rest) p
+      let ih := takeAt.elems k rest (y := m.1.1) (ys := m.1.2) m.2.1
+      Identity.ind (a := (m.1.1, z :: m.1.2))
+        (fun (r : α × List α) _ =>
+          Elem r.1 (z :: rest) × ((x : α) → Elem x r.2 → Elem x (z :: rest)))
+        (.there ih.1, fun x i =>
+          match Elem.uncons i with
+          | .inl same => Identity.transport (fun w => Elem w (z :: rest)) same.symm .here
+          | .inr j => .there (ih.2 x j))
+        m.2.2
+
+/-- The other elements of a take of a list with no element at two positions have no element at
+two positions, and the element of the take is not one of them. -/
+def takeAt.distinct : (k : Nat) → (xs : List α) → {y : α} → {ys : List α} →
+    takeAt k xs ≡ some (y, ys) → Elem.Distinct xs → Elem.Distinct ys × (Elem y ys → Empty)
+  | 0, [], _, _, p, _ => (Identity.noneNotSome p).elim
+  | _ + 1, [], _, _, p, _ => (Identity.noneNotSome p).elim
+  | 0, z :: rest, _, _, p, d =>
+      Identity.ind (a := (z, rest))
+        (fun (r : α × List α) _ => Elem.Distinct r.2 × (Elem r.1 r.2 → Empty))
+        (d.tail, d.fresh) (Identity.someInject p)
+  | k + 1, z :: rest, _, _, p, d =>
+      let m := Identity.ofMapSome (takeAt k rest) p
+      let e := takeAt.elems k rest (y := m.1.1) (ys := m.1.2) m.2.1
+      let ih := takeAt.distinct k rest (y := m.1.1) (ys := m.1.2) m.2.1 d.tail
+      Identity.ind (a := (m.1.1, z :: m.1.2))
+        (fun (r : α × List α) _ => Elem.Distinct r.2 × (Elem r.1 r.2 → Empty))
+        (Elem.Distinct.cons ih.1 (fun i => d.fresh (e.2 z i)), fun i =>
+          match Elem.uncons i with
+          | .inl same => d.fresh (Identity.transport (fun w => Elem w rest) same e.1)
+          | .inr j => ih.2 j)
+        m.2.2
+
+/-- No element of the first list has two positions, and no element has a position in each of
+the two lists. -/
+def Separate (xs done : List α) : Type :=
+  Elem.Distinct xs × ((x : α) → Elem x xs → Elem x done → Empty)
+
+/-- The lists after a take are separate: the other elements, and the done elements with the
+element of the take. -/
+def Separate.take {k : Nat} {xs done : List α} {y : α} {ys : List α}
+    (p : takeAt k xs ≡ some (y, ys)) (s : Separate xs done) : Separate ys (y :: done) :=
+  ((takeAt.distinct k xs p s.1).1, fun x i j =>
+    match Elem.uncons j with
+    | .inl same =>
+        (takeAt.distinct k xs p s.1).2 (Identity.transport (fun z => Elem z ys) same i)
+    | .inr j' => s.2 x ((takeAt.elems k xs p).2 x i) j')
+
+end Take
 
 /-- A history is produced for a list of done occurrences: it is an input, or its call is in the
 list. -/

@@ -106,6 +106,11 @@ def Kind.central : (k l : Kind) → Option ((k ≡ .pure) ⊕ (l ≡ .pure))
   | .effectful, .pure => some (.inr .refl)
   | .effectful, .effectful => none
 
+/-- A kind is the pure kind or the effectful kind. -/
+def Kind.cases : (k : Kind) → (k ≡ .pure) ⊕ (k ≡ .effectful)
+  | .pure => .inl .refl
+  | .effectful => .inr .refl
+
 /-- Operations with a product of typed input ports and an output boundary. A test is an
 operation whose output boundary has two or more cases. -/
 structure Signature (Ty : Type) where
@@ -161,6 +166,20 @@ def strengthen (Ξ : List Ty) {Γ : List Ty} : {Δ : List Ty} → (ports : PortM
           | some inner =>
               some ⟨.cons found.1 inner.1,
                 Identity.cong₂ (fun q qs => All.cons q qs) found.2 inner.2⟩
+
+/-- A port map into a context with more ports is a weakened port map, when none of its ports is
+one of those ports. -/
+def strengthenBy (Ξ : List Ty) {Γ : List Ty} : {Δ : List Ty} →
+    (ports : PortMap (Ξ ++ Γ) Δ) →
+    ((t : Ty) → (i : Port Δ t) → (j : Elem t Ξ) → All.lookup ports i ≡ j.left → Empty) →
+    (inner : PortMap Γ Δ) × (ports ≡ inner.weaken Ξ)
+  | _, .nil, _ => ⟨.nil, .refl⟩
+  | _, .cons p ps, absent =>
+      match Elem.split Ξ p with
+      | .inl found => (absent _ .here found.1 found.2).elim
+      | .inr found =>
+          let inner := strengthenBy Ξ ps (fun t i j => absent t (.there i) j)
+          ⟨.cons found.1 inner.1, Identity.cong₂ (fun q qs => All.cons q qs) found.2 inner.2⟩
 
 variable {X : Ty → Type}
 

@@ -152,6 +152,12 @@ def inrNotInl {x : β} {y : α} (p : (Sum.inr x : Sum α β) ≡ .inl y) : Empty
 def noneNotSome {x : α} (p : (none : Option α) ≡ some x) : Empty :=
   transport (fun o => match o with | none => Unit | some _ => Empty) p ()
 
+/-- The value of an option under a function, when the result has a value. -/
+def ofMapSome {f : α → β} {y : β} : (o : Option α) → o.map f ≡ some y →
+    (x : α) × ((o ≡ some x) × (f x ≡ y))
+  | none, p => (noneNotSome p).elim
+  | some x, p => ⟨x, .refl, someInject p⟩
+
 /-- Transport along `p.symm` and then along `p`. -/
 def symmTransport (P : α → Type v) (p : a ≡ b) (y : P b) :
     transport P p (transport P p.symm y) ≡ y :=

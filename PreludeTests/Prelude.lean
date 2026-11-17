@@ -182,6 +182,31 @@ def imageValues (n m : Nat) (b : Bool) :
     All.image (T := fun (_ : Unit) => Nat) (fun _ => ()) (fun _ _ => n + m) (arbitrary n m b) ≡
       .cons (n + m) (.cons (n + m) (.cons (n + m) .nil)) := .refl
 
+/-- A list with no element at two positions, from its tail and the evidence that its first
+element has no position in the tail. -/
+def distinctTypes : Elem.Distinct [Ty.nat, Ty.bool] :=
+  Elem.Distinct.cons (Elem.Distinct.cons (fun _ i _ => i.ofNil) (fun i => i.ofNil)) fun i =>
+    match Elem.uncons i with
+    | .inl p =>
+        Identity.transport (fun t => match t with | Ty.nat => Unit | Ty.bool => Empty) p ()
+    | .inr j => j.ofNil
+
+def distinctHere : distinctTypes Ty.nat .here .here ≡ .refl := .refl
+
+def distinctTail : distinctTypes.tail Ty.bool .here .here ≡ .refl := .refl
+
+/-- The value of an option under a function, with an arbitrary value. -/
+def mappedValue (n : Nat) :
+    (Identity.ofMapSome (f := Nat.succ) (some n) (y := n + 1) .refl).1 ≡ n := .refl
+
+/-- info: 'PreludeTests.distinctTail' does not depend on any axioms -/
+#guard_msgs in
+#print axioms distinctTail
+
+/-- info: 'PreludeTests.mappedValue' does not depend on any axioms -/
+#guard_msgs in
+#print axioms mappedValue
+
 /-- info: 'PreludeTests.decidedSelection' does not depend on any axioms -/
 #guard_msgs in
 #print axioms decidedSelection

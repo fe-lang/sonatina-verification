@@ -612,6 +612,17 @@ A source diagram with two equal calls keeps the two calls in each of its
 orders, and each order has an interchange derivation. The theorem of its
 graph is for its merged diagram, which has one occurrence for the two calls.
 
+[Draft/Sequentialization.lean](Draft/Sequentialization.lean) has the other
+direction of the theorem of the graph, for a diagram of the fragment whose
+occurrences have no element at two positions. The step of an admitted run is
+a ready step. No operand of it is an output port of a step before it, because
+the call of that step is not done. One of each two steps is pure, because the
+effectful call before the step is done. An admissible order of the
+occurrences is thus the word of an order, which has the ready step of each
+run, and that order has an interchange derivation.
+[Prelude/Indexed.lean](Prelude/Indexed.lean) has the lists with no element at
+two positions.
+
 [Draft/Checks/Dependency.lean](Draft/Checks/Dependency.lean) has the three
 required checks. The first source diagram has three steps. `A` and `B` are
 pure, and `B` uses the output of `A`. `C` is effectful and uses one input
@@ -638,7 +649,11 @@ word of the order `C A B` is an admissible order comes from the theorem. It
 runs on the machine of the runs, and a check consumes the identity that no
 occurrence remains. The done occurrences at the end are the occurrences of
 the order, with the last run first. A word that starts with `B` has no
-evidence, because the call of an operand of `B` is not done.
+evidence, because the call of an operand of `B` is not done. No two of the
+three occurrences are equal. From the evidence of the word of the order
+`C A B`, the theorem of the other direction gives an order with the steps
+`C A B`, and a check consumes the identity of its word through a dependent
+payload.
 
 The second source diagram has a shared operand and a repeated operand: `B`
 has the output of `A` as its two operands, the effectful `C` has that output
@@ -670,14 +685,10 @@ These parts are open:
 
 - The completeness of the list of the orders: each order of a diagram of the
   fragment is in the list.
-- The other direction of the theorem of the dependency graph, for the merged
-  diagram. Two parts are open:
-  - The merged diagram is a diagram of the fragment with no two equal
-    occurrences, and its occurrences are the occurrences of the source diagram
-    without each later equal occurrence.
-  - For a diagram of the fragment with no two equal occurrences, each
-    admissible order of the occurrences is the word of an order, with the
-    interchange rule only.
+- The merged diagram is a diagram of the fragment with no two equal
+  occurrences, and its occurrences are the occurrences of the source diagram
+  without each later equal occurrence. The theorem of the other direction
+  then applies to each merged diagram.
 - The decision of the identity of two histories, which the decision of the
   precondition of a run needs.
 - The check that reads the receipt of the order `C A B` through its

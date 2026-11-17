@@ -32,6 +32,9 @@ evidence that the word of the order `C A B` is an admissible order comes from th
 runs on the machine of the runs, and a check consumes the identity that no occurrence remains.
 The done occurrences at the end are the occurrences of the order, with the last run first. A
 word that starts with `B` has no evidence, because the call of an operand of `B` is not done.
+No two of the three occurrences are equal, so an admissible order of the graph is the word of
+an order. From the evidence of the word of the order `C A B`, the theorem gives an order with
+the steps `C A B`, and a check consumes the identity of its word through a dependent payload.
 
 The second group has a shared operand and a repeated operand. `A` is pure. `B` is pure and has
 the output of `A` as its two operands. `C` is effectful and has the output of `A` as its
@@ -416,6 +419,52 @@ def notAdmissible (rest : List Nat)
     (h : FreeDep (sig.admissible [(), ()]) (sig.Finished [(), ()])
       ((word (1 :: rest)).thread (E := Empty) (graph, []))) : Empty :=
   Identity.transport Blocked h.parts.1.2.1 blocked h.parts.1.2.2.1
+
+/-- The call of the first `A` of the first source diagram, at the histories of the inputs. -/
+def firstA : Call sig [(), ()] Op.add :=
+  .mk (.cons (.input .here) (.cons (.input (.there .here)) .nil)) none
+
+/-- The call of `B`: the output of `A` and the second input. -/
+def firstB : Call sig [(), ()] Op.add :=
+  .mk (.cons (.output firstA center .here) (.cons (.input (.there .here)) .nil)) none
+
+/-- The call of `C`: the first input. -/
+def firstC : Call sig [(), ()] Op.emit := .mk (.cons (.input .here) .nil) none
+
+/-- The occurrences of the first source diagram. -/
+def sourceOccurrences : List (sig.Occurrence [(), ()]) :=
+  [⟨Op.add, firstA⟩, ⟨Op.add, firstB⟩, ⟨Op.emit, firstC⟩]
+
+set_option smartUnfolding false in
+/-- The graph of the first source diagram has these occurrences. -/
+def sourceGraph : graph ≡ sourceOccurrences := .refl
+
+/-- No two of the three occurrences are equal. -/
+def sourceDistinct : Elem.Distinct sourceOccurrences :=
+  fun x i j =>
+    match x, i, j with
+    | _, .here, .here => .refl
+    | _, .there .here, .there .here => .refl
+    | _, .there (.there .here), .there (.there .here) => .refl
+
+/-- The theorem gives an order of the first source diagram from the evidence that the word of
+the order `C A B` is an admissible order of the graph. -/
+def frontAgain :=
+  Diagram.Order.ofGraph source straight
+    (Identity.transport Elem.Distinct sourceGraph.symm sourceDistinct)
+    (Diagram.Order.depths front source frontOrder straight) frontAdmissible
+
+set_option smartUnfolding false in
+/-- That order has the steps of the order `C A B`. -/
+def frontAgainOps :
+    Diagram.ops frontAgain.1 (Diagram.Order.straight frontAgain.1 source frontAgain.2.1 straight) ≡
+      [Op.emit, Op.add, Op.add] := .refl
+
+set_option smartUnfolding false in
+/-- The identity of the word of that order is consumed through a dependent payload. -/
+def frontAgainWord :
+    (Identity.transport (fun (w : List Nat) => Fin (w.length + 1)) frontAgain.2.2
+      ⟨3, Nat.lt_succ_self _⟩).val ≡ 3 := .refl
 
 /-! A shared operand and a repeated operand. -/
 
@@ -807,3 +856,11 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.apartPayload' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.apartPayload
+
+/-- info: 'Draft.Checks.Dependency.frontAgainOps' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.frontAgainOps
+
+/-- info: 'Draft.Checks.Dependency.frontAgainWord' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.frontAgainWord

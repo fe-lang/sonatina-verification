@@ -32,7 +32,13 @@ diagram have the occurrence of the ready step at the number of the steps that it
 the other occurrences are the occurrences of the diagram after the step. The word of an order
 has that number for each of its steps. It is an admissible order of the occurrences of the
 source diagram: the evidence of the specification of the runs follows the steps of the order,
-with the theorem of the move as the witness of each precondition. -/
+with the theorem of the move as the witness of each precondition.
+
+The other direction holds for a diagram of the fragment whose occurrences have no element at
+two positions. The step of an admitted run is a ready step: no operand of it is an output port
+of a step before it, because the call of that step is not done, and one of each two steps is
+pure, because the effectful call before the step is done. An admissible order of the
+occurrences is thus the word of an order: the order has the ready step of each run. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -460,6 +466,215 @@ def Diagram.Order.admissible : {Γ : List Ty} → {Qs : Exits Ty} → (e d : Dia
           (Signature.Known.outputs (Call.at call.1 call.2 env last) (o.2.1.single h).1 known)
           (Effect.Produced.last (Call.at call.1 call.2 env last) before (S.kind call.1)))
   | _, _, .seq _ _, _, o, _, _, _, _, _, _ => nomatch o
+
+/-- The number of the steps that a ready step passes is the same for each evidence that the
+diagram is a diagram of the fragment. -/
+def Diagram.Ready.depthSame {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    {args : PortMap Γ (S.input b)}
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
+    (r : Diagram.Ready b d args after) : (s s' : d.Straight) → r.depth s ≡ r.depth s' :=
+  Diagram.Ready.casesOn
+    (motive := @fun _ _ d _ _ r => (s s' : d.Straight) → r.depth s ≡ r.depth s') r
+    (fun _ _ _ _ => .refl)
+    (@fun _ _ _ _ _ _ rest _ inner s s' =>
+      Identity.cong Nat.succ
+        (Identity.ind
+          (fun (c : _) (_ : s.1 ≡ c) => (sc : (rest c).Straight) →
+            (inner s.1).depth s.2.2 ≡ (inner c).depth sc)
+          (fun sc => (inner s.1).depthSame s.2.2 sc) (s.2.1 s'.1) s'.2.2))
+
+/-- A ready step of a diagram of the fragment that passes a given number of steps. -/
+abbrev Diagram.ReadyAt {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (h : d.Straight)
+    (k : Nat) : Type :=
+  (b : S.Op) × ((args : PortMap Γ (S.input b)) ×
+    ((after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs) ×
+      ((r : Diagram.Ready b d args after) × (r.depth h ≡ k))))
+
+/-- A step that is ready in the rest of a first step is ready in the diagram, when the call of
+the first step is not done, the call of each operand of the step is done, and the effectful
+call before it is done. No operand is an output port of the first step, and one of the two
+steps is pure. -/
+def Diagram.readyPast {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap Γ (S.input a))
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs)
+    (h : (Diagram.step ⟨a, first⟩ rest).Straight) (env : All (History S Γ₀) Γ)
+    (last : Option (Effect S Γ₀)) (done : List (S.Occurrence Γ₀))
+    (fresh : Elem (⟨a, Call.at a first env last⟩ : S.Occurrence Γ₀) done → Empty)
+    (k : Nat) (found : S.Occurrence Γ₀ × List (S.Occurrence Γ₀))
+    (taken : takeAt k
+        ((rest h.1).occurrences h.2.2 ((Call.at a first env last).outputs h.1 env)
+          ((Call.at a first env last).next last)) ≡ some found)
+    (operands : (t : Ty) → (p : Port (S.input found.1.1) t) →
+      History.Produced done (found.1.2.args.lookup p))
+    (effect : Effect.Produced done found.1.2.before)
+    (ih : (rest h.1).ReadyAt h.2.2 k) :
+    (Diagram.step ⟨a, first⟩ rest).ReadyAt h (k + 1) :=
+  let A : Call S Γ₀ a := Call.at a first env last
+  let env' : All (History S Γ₀) (h.1.1 ++ Γ) := A.outputs h.1 env
+  let last' : Option (Effect S Γ₀) := A.next last
+  let b : S.Op := ih.1
+  let args' : PortMap (h.1.1 ++ Γ) (S.input b) := ih.2.1
+  let r' := ih.2.2.2.1
+  let sameOcc : found.1 ≡ (⟨b, Call.at b args' env' last'⟩ : S.Occurrence Γ₀) :=
+    Identity.cong Prod.fst
+      (Identity.someInject
+        (taken.symm.trans
+          ((Identity.cong
+              (fun n => takeAt n ((rest h.1).occurrences h.2.2 env' last')) ih.2.2.2.2).symm.trans
+            (r'.moved h.2.2 env' last'))))
+  let ops : (t : Ty) → (p : Port (S.input b) t) →
+      History.Produced done (All.lookup (env'.select args') p) :=
+    Identity.transport
+      (fun (x : S.Occurrence Γ₀) => (t : Ty) → (p : Port (S.input x.1) t) →
+        History.Produced done (x.2.args.lookup p))
+      sameOcc operands
+  let eff : Effect.Produced done (Kind.before (S.kind b) last') :=
+    Identity.transport (fun (x : S.Occurrence Γ₀) => Effect.Produced done x.2.before) sameOcc
+      effect
+  let strong := PortMap.strengthenBy h.1.1 args' fun t i j e =>
+    fresh
+      (Identity.transport (History.Produced done)
+        ((All.lookupMap (fun _ q => env'.lookup q) args' i).trans
+          ((Identity.cong (fun q => env'.lookup q) e).trans
+            ((All.lookupLeft (All.tabulate h.1.1 fun _ q => History.output A h.1 q) env j).trans
+              (All.lookupTabulate (fun _ q => History.output A h.1 q) j))))
+        (ops t i))
+  let central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure) :=
+    match Kind.cases (S.kind a) with
+    | .inl pa => .inl pa
+    | .inr ea =>
+        match Kind.cases (S.kind b) with
+        | .inl pb => .inr pb
+        | .inr eb =>
+            (fresh
+              (Identity.transport
+                (fun k => Effect.Produced done (Kind.last k last (.after A))) ea
+                (Identity.transport (fun k => Effect.Produced done (Kind.before k last')) eb
+                  eff))).elim
+  let r'' : Diagram.Ready b (rest h.1) (PortMap.weaken h.1.1 strong.1) ih.2.2.1 :=
+    Identity.transport (fun x => Diagram.Ready b (rest h.1) x ih.2.2.1) strong.2 r'
+  let sameDepth : r''.depth h.2.2 ≡ r'.depth h.2.2 :=
+    Identity.ind (a := args')
+      (fun (x : PortMap (h.1.1 ++ Γ) (S.input b)) (q : args' ≡ x) =>
+        (Identity.transport (fun x => Diagram.Ready b (rest h.1) x ih.2.2.1) q r').depth h.2.2 ≡
+          r'.depth h.2.2)
+      .refl strong.2
+  ⟨b, strong.1, _, (Diagram.Ready.pastOne a central first strong.1 h.1 h.2.1 r'').2,
+    Identity.cong Nat.succ
+      (Identity.ind (a := h.1)
+        (fun (c : (S.output a).Case) (p : h.1 ≡ c) => (s' : (rest c).Straight) →
+          ((Identity.transport
+            (fun (c : (S.output a).Case) =>
+              (aft : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) ×
+                Diagram.Ready b (rest c) (PortMap.weaken c.1 strong.1) aft)
+            p ⟨ih.2.2.1, r''⟩).2).depth s' ≡ k)
+        (fun s' => (r''.depthSame s' h.2.2).trans (sameDepth.trans ih.2.2.2.2))
+        (h.2.1 h.1) h.2.2)⟩
+
+/-- The step of a diagram of the fragment at a number is ready, when no occurrence of the
+diagram is done, the call of each operand of the step is done, and the effectful call before
+it is done. -/
+def Diagram.readyAt : (k : Nat) → {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (h : d.Straight) → (env : All (History S Γ₀) Γ) → (last : Option (Effect S Γ₀)) →
+    (done : List (S.Occurrence Γ₀)) →
+    ((x : S.Occurrence Γ₀) → Elem x (d.occurrences h env last) → Elem x done → Empty) →
+    (found : S.Occurrence Γ₀ × List (S.Occurrence Γ₀)) →
+    takeAt k (d.occurrences h env last) ≡ some found →
+    ((t : Ty) → (p : Port (S.input found.1.1) t) →
+      History.Produced done (found.1.2.args.lookup p)) →
+    Effect.Produced done found.1.2.before → d.ReadyAt h k
+  | 0, _, _, .exit _, _, _, _, _, _, _, p, _, _ => (Identity.noneNotSome p).elim
+  | _ + 1, _, _, .exit _, _, _, _, _, _, _, p, _, _ => (Identity.noneNotSome p).elim
+  | 0, _, _, .seq _ _, h, _, _, _, _, _, _, _, _ => nomatch h
+  | _ + 1, _, _, .seq _ _, h, _, _, _, _, _, _, _, _ => nomatch h
+  | 0, _, _, .step ⟨b, args⟩ rest, _, _, _, _, _, _, _, _, _ =>
+      ⟨b, args, rest, .here args rest, .refl⟩
+  | k + 1, _, _, .step ⟨a, first⟩ rest, h, env, last, done, fresh, _, taken, operands,
+      effect =>
+      let m := Identity.ofMapSome
+        (takeAt k ((rest h.1).occurrences h.2.2 ((Call.at a first env last).outputs h.1 env)
+          ((Call.at a first env last).next last))) taken
+      let operands' := Identity.transport
+        (fun (f : S.Occurrence Γ₀ × List (S.Occurrence Γ₀)) => (t : Ty) →
+          (p : Port (S.input f.1.1) t) → History.Produced done (f.1.2.args.lookup p))
+        m.2.2.symm operands
+      let effect' := Identity.transport
+        (fun (f : S.Occurrence Γ₀ × List (S.Occurrence Γ₀)) =>
+          Effect.Produced done f.1.2.before)
+        m.2.2.symm effect
+      Diagram.readyPast a first rest h env last done (fresh _ .here) k m.1 m.2.1 operands'
+        effect'
+        (Diagram.readyAt k (rest h.1) h.2.2 ((Call.at a first env last).outputs h.1 env)
+          ((Call.at a first env last).next last) done (fun x i j => fresh x (.there i) j) m.1
+          m.2.1 operands' effect')
+
+/-- The type with a value at each list that has an element. -/
+def HasElement {α : Type} : List α → Type
+  | [] => Empty
+  | _ :: _ => Unit
+
+/-- An admissible order of the occurrences of a diagram of the fragment is the word of an order
+of the diagram, when no occurrence has two positions and no occurrence is done. The step of
+each run is ready, and the order has the ready steps of the runs. -/
+def Diagram.Order.ofAdmissible : (w : List Nat) → {Γ : List Ty} → {Qs : Exits Ty} →
+    (d : Diagram S Γ Qs) → (h : d.Straight) → (env : All (History S Γ₀) Γ) →
+    (last : Option (Effect S Γ₀)) → (done : List (S.Occurrence Γ₀)) →
+    Separate (d.occurrences h env last) done →
+    FreeDep (S.admissible Γ₀) (S.Finished Γ₀)
+      ((word w).thread (E := Empty) (d.occurrences h env last, done)) →
+    (e : Diagram S Γ Qs) × ((o : Diagram.Order e d) × (Diagram.Order.depths e d o h ≡ w))
+  | [], _, _, .exit out, _, _, _, _, _, _ => ⟨.exit out, .refl, .refl⟩
+  | [], _, _, .step _ _, _, _, _, _, _, ev =>
+      (Identity.transport HasElement (FreeDep.result ev) ()).elim
+  | [], _, _, .seq _ _, h, _, _, _, _, _ => nomatch h
+  | k :: w, Γ, Qs, d, h, env, last, done, sep, ev =>
+      let pre := (FreeDep.parts ev).1
+      let ra := Diagram.readyAt k d h env last done sep.2 pre.1 pre.2.1 pre.2.2.1 pre.2.2.2
+      let b : S.Op := ra.1
+      let r := ra.2.2.2.1
+      let B : Call S Γ₀ b := Call.at b ra.2.1 env last
+      let c : (S.output b).Case := (r.single h).1
+      let taken : takeAt k (d.occurrences h env last) ≡
+          some ((⟨b, B⟩ : S.Occurrence Γ₀),
+            (ra.2.2.1 c).occurrences (r.straight h c) (B.outputs c env) (B.next last)) :=
+        (Identity.cong (fun n => takeAt n (d.occurrences h env last)) ra.2.2.2.2).symm.trans
+          (r.moved h env last)
+      let rec' := Diagram.Order.ofAdmissible w (ra.2.2.1 c) (r.straight h c) (B.outputs c env)
+        (B.next last) (⟨b, B⟩ :: done) (Separate.take taken sep)
+        (Identity.transport
+          (fun (f : S.Occurrence Γ₀ × List (S.Occurrence Γ₀)) =>
+            FreeDep (S.admissible Γ₀) (S.Finished Γ₀)
+              ((word w).thread (E := Empty) (f.2, f.1 :: done)))
+          (Identity.someInject (pre.2.1.symm.trans taken))
+          ((FreeDep.parts ev).2 (.inr ((), (pre.1.2, pre.1.1 :: done))) .refl))
+      let tail : (e : Diagram S (c.1 ++ Γ) Qs) × Diagram.Order e (ra.2.2.1 c) :=
+        ⟨rec'.1, rec'.2.1⟩
+      let picked := Diagram.Order.pick b r c (r.single h).2 tail
+      ⟨picked.1, picked.2,
+        Identity.cong₂ List.cons ra.2.2.2.2
+          ((Identity.ind (a := c)
+              (fun (c' : (S.output b).Case) (p : c ≡ c') =>
+                Diagram.Order.depths
+                    (Identity.transport
+                      (fun (c : (S.output b).Case) =>
+                        (e : Diagram S (c.1 ++ Γ) Qs) × Diagram.Order e (ra.2.2.1 c))
+                      p tail).1
+                    (ra.2.2.1 c')
+                    (Identity.transport
+                      (fun (c : (S.output b).Case) =>
+                        (e : Diagram S (c.1 ++ Γ) Qs) × Diagram.Order e (ra.2.2.1 c))
+                      p tail).2
+                    (r.straight h c') ≡
+                  Diagram.Order.depths tail.1 (ra.2.2.1 c) tail.2 (r.straight h c))
+              .refl ((r.single h).2 c)).trans
+            rec'.2.2)⟩
+
+/-- An admissible order of the dependency graph of a diagram of the fragment with no two equal
+occurrences is the word of an order of the diagram. -/
+def Diagram.Order.ofGraph {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (h : d.Straight)
+    (distinct : Elem.Distinct (d.graph h)) (w : List Nat)
+    (ev : FreeDep (S.admissible Γ) (S.Finished Γ) ((word w).thread (E := Empty) (d.graph h, []))) :
+    (e : Diagram S Γ Qs) × ((o : Diagram.Order e d) × (Diagram.Order.depths e d o h ≡ w)) :=
+  Diagram.Order.ofAdmissible w d h (S.inputs Γ) none [] (distinct, fun _ _ j => j.ofNil) ev
 
 end Admissible
 

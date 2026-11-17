@@ -96,7 +96,10 @@ position of `xs` or a position of `ys`, with the identity of `i` with its
 image. `Elem.uncons i` gives the first position or a position of the tail for a
 position of a nonempty list. `Elem.find a xs` is the decision of a position
 of `a` in `xs`, for a type with decidable identity. `Elem.decide i j` is the
-decision of the identity of two positions of one element. `Elem.consCases` is the case analysis of a position of a nonempty
+decision of the identity of two positions of one element. `Elem.Distinct xs`
+is the evidence that no element of `xs` has two positions, with
+`Elem.Distinct.tail`, `Elem.Distinct.fresh`, and `Elem.Distinct.cons`.
+`Elem.consCases` is the case analysis of a position of a nonempty
 list, and `Elem.ofNil` gives a value of each type from a position of the
 empty list. `All.select env positions` gives the values of `env` at a list of
 positions, which can repeat a position and omit a position.

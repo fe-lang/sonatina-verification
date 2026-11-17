@@ -124,6 +124,29 @@ def decide : {xs : List α} → (i j : Elem a xs) → Dec (i ≡ j)
       (decide i j).map (Identity.cong Elem.there)
         (fun p => Identity.someInject (Identity.cong back p))
 
+/-- No element of a list has two positions. -/
+def Distinct (xs : List α) : Type u := (x : α) → (i j : Elem x xs) → i ≡ j
+
+/-- The tail of a list with no element at two positions has no element at two positions. -/
+def Distinct.tail {b : α} {xs : List α} (d : Distinct (b :: xs)) : Distinct xs :=
+  fun x i j => Identity.someInject (Identity.cong back (d x (.there i) (.there j)))
+
+/-- The first element of a list with no element at two positions has no position in the
+tail. -/
+def Distinct.fresh {b : α} {xs : List α} (d : Distinct (b :: xs)) (i : Elem b xs) : Empty :=
+  Identity.transport IsHere (d b .here (.there i)) ()
+
+/-- A list with one more first element has no element at two positions, when its tail has none
+and the first element has no position in the tail. -/
+def Distinct.cons {b : α} {xs : List α} (tail : Distinct xs) (fresh : Elem b xs → Empty) :
+    Distinct (b :: xs) :=
+  fun x i j =>
+    match x, i, j with
+    | _, .here, .here => .refl
+    | _, .here, .there j => (fresh j).elim
+    | _, .there i, .here => (fresh i).elim
+    | _, .there i, .there j => Identity.cong Elem.there (tail _ i j)
+
 end Elem
 
 /-- One value of `P a` for each element `a` of a list. -/
