@@ -1,10 +1,10 @@
 # Sonatina v2 design proposal
 
 This repository contains the design of a proposed architecutre for Sonatina v2
-formalized in Lean 4. The proposed architecture is derived from a continuation
-of the research pursued in _FY24-1818: Enhancing Security, Efficiency, and
-Robustness of Sonatina IR Design through Formal Verification_ research grant
-awarded by the Ethereum Foundation in Q4 2024.
+formalized in Lean 4. The proposed architecture is a continuation of the
+research pursued in _FY24-1818: Enhancing Security, Efficiency, and Robustness
+of Sonatina IR Design through Formal Verification_ research grant awarded by
+the Ethereum Foundation in Q4 2024.
 
 The proposal revisits Value State Dependence Graphs (VSDGs) through polynomial
 interfaces and premonoidal string diagrams. Its central problem is
