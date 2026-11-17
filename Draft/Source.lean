@@ -50,7 +50,16 @@ those calls with an effectful operation has less effectful calls before it than 
 effectful call has, and no history is at two ports. The call of a step that the search does not
 find is thus not one of those calls. The search finds an available call for its own operation
 and ports, because the type of the operations has one identity proof for each two
-operations. -/
+operations.
+
+The graph of the merged diagram has a link to the graph of the source diagram. A position of an
+occurrence in the graph of the source diagram gives a position of that occurrence in the graph
+of the merged diagram, and a position in the graph of the merged diagram gives a position in
+the graph of the source diagram. The proof has a link for each available call: its call is a
+call of a step before, and its output ports have the histories of the output ports of that
+call. A step of the merged diagram has the occurrence of the step of the source diagram. A step
+that the search finds has the occurrence of the available call, and the rest has the histories
+of the source diagram at the output ports of that call. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -1195,6 +1204,302 @@ def Diagram.mergeStraight [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagr
 def Diagram.mergeDistinct [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
     (h : d.Straight) (hM : (d.merge h).Straight) : Elem.Distinct ((d.merge h).graph hM) :=
   (Diagram.mergeWithSeparate [] (PortMap.id Γ) d h (S.inputs Γ) none [] (Merged.start Γ) hM).1
+
+/-- A link of two lists for a third list: each element of the first list is an element of the
+second list or of the third list, and each element of the second list is an element of the
+first list. -/
+abbrev Link {α : Type} (source merged prior : List α) : Type :=
+  ((x : α) → Elem x source → Elem x merged ⊕ Elem x prior) ×
+    ((x : α) → Elem x merged → Elem x source)
+
+/-- The link of two lists with one more first element each, when the two elements are one
+element. -/
+def Link.cons {α : Type} {source merged prior : List α} {y y' : α} (same : y ≡ y')
+    (rest : Link source merged (y' :: prior)) : Link (y :: source) (y' :: merged) prior :=
+  (fun x i =>
+    match Elem.uncons i with
+    | .inl e =>
+        .inl (Identity.transport (fun z => Elem z (y' :: merged)) (e.trans same).symm .here)
+    | .inr j =>
+        match rest.1 x j with
+        | .inl m => .inl (.there m)
+        | .inr k =>
+            match Elem.uncons k with
+            | .inl e => .inl (Identity.transport (fun z => Elem z (y' :: merged)) e.symm .here)
+            | .inr k' => .inr k',
+    fun x i =>
+      match Elem.uncons i with
+      | .inl e =>
+          Identity.transport (fun z => Elem z (y :: source)) (e.trans same.symm).symm .here
+      | .inr j => .there (rest.2 x j))
+
+/-- The link of a list with one more first element, when that element is an element of the
+third list. -/
+def Link.skip {α : Type} {source merged prior : List α} {y : α} (known : Elem y prior)
+    (rest : Link source merged prior) : Link (y :: source) merged prior :=
+  (fun x i =>
+    match Elem.uncons i with
+    | .inl e => .inr (Identity.transport (fun z => Elem z prior) e.symm known)
+    | .inr j => rest.1 x j,
+    fun x i => .there (rest.2 x i))
+
+section
+
+variable {Γ : List Ty}
+
+/-- The output ports of the data of a call have the histories of the output ports of the call
+of the pure operation at the ports. -/
+abbrev Used.Sound (env : All (History S Γ₀) Γ) (k : Used S Γ) : Type :=
+  (t : Ty) → (q : Port k.2.2.1.1 t) →
+    env.lookup (All.lookup (P := Port Γ) k.2.2.2 q) ≡
+      History.output (Call.mk (env.select k.2.1) none : Call S Γ₀ k.1) k.2.2.1 q
+
+/-- An available call with its link: its call is a call of a step before, and its output ports
+have the histories of the output ports of that call. -/
+abbrev Available.Linked (env : All (History S Γ₀) Γ) (prior : List (S.Occurrence Γ₀))
+    (e : Available S Γ) : Type :=
+  Elem (S.pureAt env ⟨e.op, e.args⟩) prior × Used.Sound env e.used
+
+/-- An available call keeps its link in a context with more ports and with one more call. -/
+def Available.Linked.weaken {env : All (History S Γ₀) Γ} {prior : List (S.Occurrence Γ₀)}
+    {e : Available S Γ} (l : e.Linked env prior) {Ξ : List Ty} (outs : All (History S Γ₀) Ξ)
+    (x : S.Occurrence Γ₀) : (e.weaken Ξ).Linked (outs.append env) (x :: prior) :=
+  (.there
+      (Identity.transport (fun y => Elem y prior)
+        (Identity.cong (fun a => (⟨e.op, Call.mk a none⟩ : S.Occurrence Γ₀))
+          (PortMap.selectWeaken outs env e.args)).symm
+        l.1),
+    fun t q =>
+      (Identity.cong (fun p => All.lookup (outs.append env) p)
+          (All.lookupMap (fun (t : Ty) (i : Port Γ t) => (i.right Ξ : Port (Ξ ++ Γ) t)) e.outs
+            q)).trans
+        ((All.lookupRight outs env (All.lookup (P := Port Γ) e.outs q)).trans
+          ((l.2 t q).trans
+            (Identity.cong
+              (fun a => History.output (Call.mk a none : Call S Γ₀ e.op) e.center q)
+              (PortMap.selectWeaken outs env e.args).symm))))
+
+/-- The call of a step with a pure operation has its link after the step. -/
+def Available.Linked.ofStep (f : S.Op) (pure : S.kind f ≡ .pure) (args : PortMap Γ (S.input f))
+    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c)
+    (env : All (History S Γ₀) Γ) (last : Option (Effect S Γ₀))
+    (prior : List (S.Occurrence Γ₀)) :
+    (Available.ofStep f pure args center only).Linked
+      ((Call.at f args env last).outputs center env)
+      (⟨f, Call.at f args env last⟩ :: prior) :=
+  let A : Call S Γ₀ f := Call.at f args env last
+  let outs : All (History S Γ₀) center.1 :=
+    All.tabulate center.1 fun _ q => History.output A center q
+  let pureEq :
+      (Call.mk (All.select (outs.append env) (args.weaken center.1)) none : Call S Γ₀ f) ≡ A :=
+    (Identity.cong (fun a => (Call.mk a none : Call S Γ₀ f))
+        (PortMap.selectWeaken outs env args)).trans
+      (Identity.cong (fun k => (Call.mk (env.select args) (Kind.before k last) : Call S Γ₀ f))
+        pure).symm
+  (Identity.transport (fun y => Elem y ((⟨f, A⟩ : S.Occurrence Γ₀) :: prior))
+      (Identity.cong (fun a => (⟨f, a⟩ : S.Occurrence Γ₀)) pureEq).symm .here,
+    fun _ q =>
+      (Identity.cong (fun p => All.lookup (outs.append env) p)
+          (All.lookupTabulate (fun (t : Ty) (i : Elem t center.1) =>
+            (i.left : Port (center.1 ++ Γ) t)) q)).trans
+        ((All.lookupLeft outs env q).trans
+          ((All.lookupTabulate (fun _ q => History.output A center q) q).trans
+            (Identity.cong (fun a => History.output a center q) pureEq.symm))))
+
+/-- Each available call after a step has its link. -/
+def Available.Linked.after {env : All (History S Γ₀) Γ} {prior : List (S.Occurrence Γ₀)}
+    (table : List (Available S Γ)) (linked : All (fun e => e.Linked env prior) table)
+    (f : S.Op) (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
+    (only : (c : (S.output f).Case) → center ≡ c) (last : Option (Effect S Γ₀)) :
+    All
+      (fun e =>
+        e.Linked ((Call.at f args env last).outputs center env)
+          (⟨f, Call.at f args env last⟩ :: prior))
+      (Available.after table f args center only) :=
+  Sum.casesOn
+    (motive := fun kind =>
+      All
+        (fun e =>
+          e.Linked ((Call.at f args env last).outputs center env)
+            (⟨f, Call.at f args env last⟩ :: prior))
+        (Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) kind
+          (fun pure =>
+            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))
+          (fun _ => table.map (Available.weaken center.1))))
+    (Kind.cases (S.kind f))
+    (fun pure =>
+      .cons (Available.Linked.ofStep f pure args center only env last prior)
+        (All.image (Available.weaken center.1) (fun _ l => l.weaken _ _) linked))
+    (fun _ => All.image (Available.weaken center.1) (fun _ l => l.weaken _ _) linked)
+
+end
+
+/-- The link of the occurrences of a diagram of the fragment and of its merged diagram, for the
+calls of the steps before. Each occurrence of the diagram is an occurrence of the merged
+diagram or one of those calls, and each occurrence of the merged diagram is an occurrence of
+the diagram. -/
+def Diagram.mergeWithLink [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} →
+    (table : List (Available S Γ)) → (ρ : PortMap Γ Δ) → (d : Diagram S Δ Qs) →
+    (h : d.Straight) → (env : All (History S Γ₀) Γ) → (last : Option (Effect S Γ₀)) →
+    (prior : List (S.Occurrence Γ₀)) → All (fun e => e.Linked env prior) table →
+    (hM : (Diagram.mergeWith table ρ d h).Straight) →
+    Link (d.occurrences h (env.select ρ) last)
+      ((Diagram.mergeWith table ρ d h).occurrences hM env last) prior
+  | _, _, _, _, _, .exit _, _, _, _, _, _, _ => (fun _ i => i.ofNil, fun _ i => i.ofNil)
+  | Γ, _, Qs, table, ρ, .step call rest, h, env, last, prior, linked, hM =>
+      let Ad : Call S Γ₀ call.1 := Call.at call.1 call.2 (env.select ρ) last
+      let A' : Call S Γ₀ call.1 := Call.at call.1 (ρ.select call.2) env last
+      let sameCall : A' ≡ Ad :=
+        Identity.cong
+          (fun a => (Call.mk a (Kind.before (S.kind call.1) last) : Call S Γ₀ call.1))
+          (All.selectSelect env ρ call.2)
+      Option.casesOn
+        (motive := fun o =>
+          (hM : (Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
+            (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
+              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                (ρ.lift h.1.1) (rest h.1) h.2.2))
+            (fun found =>
+              Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                  h.2.2))).Straight) →
+          Link
+            ((⟨call.1, Ad⟩ : S.Occurrence Γ₀) ::
+              (rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last))
+            ((Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
+              (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
+                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                  (ρ.lift h.1.1) (rest h.1) h.2.2))
+              (fun found =>
+                Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                    h.2.2))).occurrences hM env last)
+            prior)
+        (Available.find call.1 (ρ.select call.2) table)
+        (fun hM =>
+          let sourceSame :
+              (rest h.1).occurrences h.2.2 ((A'.outputs h.1 env).select (ρ.lift h.1.1))
+                  (A'.next last) ≡
+                (rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last) :=
+            (Identity.cong (fun vals => (rest h.1).occurrences h.2.2 vals (A'.next last))
+                (PortMap.selectLift (All.tabulate h.1.1 fun _ q => History.output A' h.1 q) env
+                  ρ)).trans
+              (Identity.cong
+                (fun (a : Call S Γ₀ call.1) =>
+                  (rest h.1).occurrences h.2.2 (a.outputs h.1 (env.select ρ)) (a.next last))
+                sameCall)
+          Link.cons
+            (Identity.cong (fun a => (⟨call.1, a⟩ : S.Occurrence Γ₀)) sameCall.symm)
+            (Identity.ind (a := h.1)
+              (fun (c : (S.output call.1).Case) (p : h.1 ≡ c) =>
+                (s : (Identity.transport
+                  (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                  (Diagram.mergeWith
+                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                    (ρ.lift h.1.1) (rest h.1) h.2.2)).Straight) →
+                Link
+                  ((rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last))
+                  ((Identity.transport
+                    (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                    (Diagram.mergeWith
+                      (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                      (ρ.lift h.1.1) (rest h.1) h.2.2)).occurrences s (A'.outputs c env)
+                    (A'.next last))
+                  ((⟨call.1, A'⟩ : S.Occurrence Γ₀) :: prior))
+              (fun s =>
+                Identity.transport
+                  (fun (L : List (S.Occurrence Γ₀)) =>
+                    Link L
+                      ((Diagram.mergeWith
+                        (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                        (ρ.lift h.1.1) (rest h.1) h.2.2).occurrences s (A'.outputs h.1 env)
+                        (A'.next last))
+                      ((⟨call.1, A'⟩ : S.Occurrence Γ₀) :: prior))
+                  sourceSame
+                  (Diagram.mergeWithLink
+                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1) (ρ.lift h.1.1)
+                    (rest h.1) h.2.2 (A'.outputs h.1 env) (A'.next last)
+                    ((⟨call.1, A'⟩ : S.Occurrence Γ₀) :: prior)
+                    (Available.Linked.after table linked call.1 (ρ.select call.2) h.1 h.2.1 last)
+                    s))
+              (h.2.1 hM.1) hM.2.2))
+        (fun found hM =>
+          let l := All.lookup linked found.mem
+          let pure : S.kind call.1 ≡ .pure :=
+            Identity.transport (fun (k : Used S Γ) => S.kind k.1 ≡ .pure) found.same
+              found.entry.pure
+          let pureCall :
+              (Call.mk (env.select (ρ.select call.2)) none : Call S Γ₀ call.1) ≡ Ad :=
+            (Identity.cong
+                (fun k =>
+                  (Call.mk (env.select (ρ.select call.2)) (Kind.before k last) :
+                    Call S Γ₀ call.1))
+                pure).symm.trans sameCall
+          let known : Elem (⟨call.1, Ad⟩ : S.Occurrence Γ₀) prior :=
+            Identity.transport (fun (a : Call S Γ₀ call.1) => Elem (⟨call.1, a⟩ : S.Occurrence Γ₀) prior)
+              pureCall
+              (Identity.transport
+                (fun (k : Used S Γ) => Elem (S.pureAt env ⟨k.1, k.2.1⟩) prior) found.same l.1)
+          let sound : Used.Sound env ⟨call.1, ρ.select call.2, found.center, found.outs⟩ :=
+            Identity.transport (Used.Sound env) found.same l.2
+          let outsSame :
+              Ad.outputs found.center (env.select ρ) ≡ env.select (found.outs.append ρ) :=
+            (Identity.cong (fun o => All.append o (env.select ρ))
+                (All.selectValues env found.outs
+                  (fun _ q => History.output Ad found.center q)
+                  (fun t q =>
+                    (sound t q).trans
+                      (Identity.cong (fun a => History.output a found.center q)
+                        pureCall))).symm).trans
+              (All.selectAppend env found.outs ρ).symm
+          let lastSame : Ad.next last ≡ last :=
+            Identity.cong (fun k => Kind.last k last (.after Ad)) pure
+          let sourceSame :
+              (rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last) ≡
+                (rest found.center).occurrences
+                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2)
+                  (env.select (found.outs.append ρ)) last :=
+            (Diagram.occurrencesCase rest (h.2.1 found.center) h.2.2 Ad (env.select ρ)
+                (Ad.next last)).trans
+              (Identity.cong₂
+                (fun vals l =>
+                  (rest found.center).occurrences
+                    (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                      h.2.2)
+                    vals l)
+                outsSame lastSame)
+          Link.skip known
+            (Identity.transport
+              (fun (L : List (S.Occurrence Γ₀)) =>
+                Link L
+                  ((Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+                    (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                      h.2.2)).occurrences hM env last)
+                  prior)
+              sourceSame.symm
+              (Diagram.mergeWithLink table (found.outs.append ρ) (rest found.center)
+                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2)
+                env last prior linked hM)))
+        hM
+  | _, _, _, _, _, .seq _ _, h, _, _, _, _, _ => nomatch h
+
+/-- A position of an occurrence in the graph of a diagram of the fragment gives a position of
+that occurrence in the graph of its merged diagram, and a position in the graph of the merged
+diagram gives a position in the graph of the diagram. -/
+def Diagram.mergeLink [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (h : d.Straight) (hM : (d.merge h).Straight) :
+    ((x : S.Occurrence Γ) → Elem x (d.graph h) → Elem x ((d.merge h).graph hM)) ×
+      ((x : S.Occurrence Γ) → Elem x ((d.merge h).graph hM) → Elem x (d.graph h)) :=
+  let link :=
+    Identity.transport
+      (fun vals => Link (d.occurrences h vals none) ((d.merge h).graph hM) [])
+      (PortMap.selectId (S.inputs Γ))
+      (Diagram.mergeWithLink [] (PortMap.id Γ) d h (S.inputs Γ) none [] .nil hM)
+  (fun x i =>
+    match link.1 x i with
+    | .inl m => m
+    | .inr k => k.ofNil,
+    link.2)
 
 end Merged
 

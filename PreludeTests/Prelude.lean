@@ -177,6 +177,12 @@ def decidedPayload : Dec (positions ≡ positions) → Nat
 def decidedSelection :
     decidedPayload (All.decide (fun _ => Elem.decide) positions positions) ≡ 2 := .refl
 
+/-- A selection is a table of its values, with arbitrary values. -/
+def selectionIsTable (n m : Nat) (b : Bool) :
+    All.selectValues (arbitrary n m b) positions
+      (fun (_ : Ty) (i : Elem _ [Ty.nat, Ty.nat]) => (arbitrary n m b).lookup (positions.lookup i))
+      (fun _ _ => .refl) ≡ .refl := .refl
+
 /-- The values at the image of a list, with arbitrary values. -/
 def imageValues (n m : Nat) (b : Bool) :
     All.image (T := fun (_ : Unit) => Nat) (fun _ => ()) (fun _ _ => n + m) (arbitrary n m b) ≡

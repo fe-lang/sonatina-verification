@@ -342,6 +342,22 @@ def selectTabulate {xs : List α} (env : All P xs) {ys : List α} (y : All P ys)
         (selectTabulate env rest (fun b i => f b (.there i)) (fun b i => same b (.there i))))
     f same
 
+/-- A selection is a table, when the value at each of its positions is the value of the
+table. -/
+def selectValues {xs : List α} (env : All P xs) {ys : List α}
+    (positions : All (fun a => Elem a xs) ys) (f : (a : α) → Elem a ys → P a) :
+    ((a : α) → (i : Elem a ys) → env.lookup (positions.lookup i) ≡ f a i) →
+    env.select positions ≡ tabulate ys f :=
+  All.casesOn
+    (motive := fun ys positions => (f : (a : α) → Elem a ys → P a) →
+      ((a : α) → (i : Elem a ys) → env.lookup (positions.lookup i) ≡ f a i) →
+      env.select positions ≡ tabulate ys f)
+    positions (fun _ _ => .refl)
+    (fun _ rest f same =>
+      Identity.cong₂ All.cons (same _ .here)
+        (selectValues env rest (fun b i => f b (.there i)) (fun b i => same b (.there i))))
+    f
+
 /-- The values at the image of a list, from a function of the values over the function of the
 elements. -/
 def image {β : Type u} {T : β → Type v} (f : α → β) (g : (a : α) → P a → T (f a))

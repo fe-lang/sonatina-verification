@@ -620,6 +620,15 @@ a decision of identity has one identity proof for each two elements, which
 [Prelude/Decision.lean](Prelude/Decision.lean) has. The theorem of the other
 direction thus applies to each merged diagram.
 
+The graph of the merged diagram has a link to the graph of the source
+diagram. A position of an occurrence in the graph of the source diagram gives
+a position of that occurrence in the graph of the merged diagram, and a
+position in the graph of the merged diagram gives a position in the graph of
+the source diagram. The occurrences of the merged diagram are thus the
+occurrences of the source diagram, each one time. The proof has a link for
+each available call: its call is a call of a step before, and its output
+ports have the histories of the output ports of that call.
+
 A source diagram with two equal calls keeps the two calls in each of its
 orders, and each order has an interchange derivation. The theorem of its
 graph is for its merged diagram, which has one occurrence for the two calls.
@@ -691,7 +700,9 @@ has one call of `A`. It gives the same values, and a check consumes the
 soundness of its derivation through a dependent payload. Its graph has the
 occurrence of `A` one time. With the evidence of the merge that no two of its
 occurrences are equal, the theorem of the other direction gives an order of
-the merged diagram from the evidence of the word of its two runs. One more diagram has
+the merged diagram from the evidence of the word of its two runs. The link
+gives each occurrence of the fourth source diagram its position in the graph
+of the merged diagram, and the two calls of `A` have one position. One more diagram has
 the effectful `C` between the two calls of `A`. The derivation of its merged
 diagram has one interchange and the copy rule, and a check consumes its
 soundness through a dependent payload that has the response of the store.
@@ -700,11 +711,6 @@ These parts are open:
 
 - The completeness of the list of the orders: each order of a diagram of the
   fragment is in the list.
-- The link from the graph of the merged diagram to the graph of the source
-  diagram: the occurrences of the merged diagram are the occurrences of the
-  source diagram, without each later equal occurrence. A position of an
-  occurrence in one of the two graphs gives a position of that occurrence in
-  the other graph.
 - The decision of the identity of two histories, which the decision of the
   precondition of a run needs.
 - The check that reads the receipt of the order `C A B` through its

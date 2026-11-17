@@ -116,6 +116,8 @@ part. `All.selectAppend` gives the selection at a
 concatenation of two lists of positions. `All.selectTabulate` gives the
 selection at a table of positions, from the value at each position of the
 table. `All.selectSelect` gives the selection at selected positions.
+`All.selectValues` shows that a selection is a table, from the value at each
+of its positions.
 `All.image f g` gives the values at the image of a list under `f`, from a
 function `g` of the values. `All.decide` is the decision of the identity of
 two environments, from the decision at each element.

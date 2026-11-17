@@ -58,7 +58,10 @@ remains. The merged diagram of the diagram with two calls has one call of `A`. I
 same values, and a check consumes the soundness of its derivation through a dependent payload.
 Its graph has the occurrence of `A` one time, and the merge gives the evidence that no two of
 its occurrences are equal. With that evidence, the theorem of the other direction gives an
-order of the merged diagram from the evidence of the word of its two runs.
+order of the merged diagram from the evidence of the word of its two runs. The link gives each
+occurrence of the diagram with two calls its position in the graph of the merged diagram: the
+two calls of `A` have one position. The occurrence of `A` in the graph of the merged diagram
+has the position of the first call in the graph of the diagram.
 A last diagram has the effectful `C` between the two calls of `A`. Its merged diagram has one
 call of `A`: the derivation moves the second call before `C` by one interchange, and then it
 uses the copy rule. A check consumes its soundness through a dependent payload that has the
@@ -723,6 +726,29 @@ set_option smartUnfolding false in
 /-- The evidence of the merge gives the reflexivity proof at one position. -/
 def mergedDistinctHere : mergedDistinct occA .here .here ≡ .refl := .refl
 
+/-- A position in the graph of the diagram with two calls, from a position in the list of its
+occurrences. -/
+def inTwice {x : sig.Occurrence [(), ()]} (i : Elem x twiceOccurrences) :
+    Elem x (twice.graph twiceStraight) :=
+  Identity.transport (fun g => Elem x g) twiceGraph.symm i
+
+set_option smartUnfolding false in
+/-- The link gives each occurrence of the diagram with two calls its position in the graph of
+the merged diagram. The two calls of `A` have one position. -/
+def linkPositions :
+    ((((twice.mergeLink twiceStraight mergedStraight).1 occA (inTwice .here)).toFin.val,
+        ((twice.mergeLink twiceStraight mergedStraight).1 occA
+          (inTwice (.there .here))).toFin.val),
+      ((twice.mergeLink twiceStraight mergedStraight).1 occD
+        (inTwice (.there (.there .here)))).toFin.val) ≡ ((0, 0), 1) := .refl
+
+set_option smartUnfolding false in
+/-- The occurrence of `A` in the graph of the merged diagram has the position of the first call
+of `A` in the graph of the diagram. -/
+def linkBack :
+    ((twice.mergeLink twiceStraight mergedStraight).2 occA
+      (Identity.transport (fun g => Elem occA g) mergedGraph.symm .here)).toFin.val ≡ 0 := .refl
+
 /-- `A` at the two inputs, then the effectful `C` at the first input, and then `A` at the two
 inputs again. The exit has the output of the second call of `A` and the response of `C`. -/
 def apart : Diagram sig [(), ()] Two :=
@@ -928,3 +954,11 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.mergedDistinctHere' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.mergedDistinctHere
+
+/-- info: 'Draft.Checks.Dependency.linkPositions' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.linkPositions
+
+/-- info: 'Draft.Checks.Dependency.linkBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.linkBack
