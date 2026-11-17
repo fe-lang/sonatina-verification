@@ -888,7 +888,12 @@ the agreement of the loops of two bodies that agree. The two laws are in
 [Prelude/Identity.lean](Prelude/Identity.lean) and
 [Prelude/Relation.lean](Prelude/Relation.lean). The checks on the countdown
 loop have the two maps of the equivalence at a run, and its two round
-trips.
+trips. These checks have a derivation from a loop to the same loop, with no
+rule. The second exit equation is a rule with a cartesian map in each
+direction, for each specification of the calls. One more check has that rule
+under a step, a copairing, and a loop, between two different loops: a loop
+whose exit is an exit past a continuation, and then that continuation, and
+the countdown loop. It has the two maps and the two round trips at a run.
 
 In the form of the Prelude, a verified diagram is the verified implementation
 with one call, from a specification of the interface of the diagram to the

@@ -42,7 +42,8 @@ of the first, and an equivalence of the runs over the second witness and the run
 first, with its two round trips. A rule set holds for a specification of the calls when each
 rule has a cartesian map between the specifications of its two sides, in each direction. A
 derivation in such a rule set has these maps, by a recursion on the derivation, and a verified
-diagram moves along them.
+diagram moves along them. The second exit equation is a rule with these maps, for each
+specification of the calls.
 
 A specification of the calls with no runtime is the case of the unit runtime with no stop. A
 verified diagram at the unit runtime gives the verified implementation of each approximant with
@@ -60,7 +61,8 @@ round trip of a run through the computation with a number of unrollings, the sam
 in a loop, the run that the result of the function meaning on a machine has, for an arbitrary
 computation at the limit, the two exit equations and the laws of the loop at a run of the
 specification, with their round trips, the equivalence of the runs over the witness that a
-derivation gives, with its two round trips, and the
+derivation gives, with its two round trips, the same for a derivation with the second exit
+equation between two different loops, and the
 condition at the result of a run over the witness that the constructors give, through the
 invariant of each iteration. -/
 
@@ -2252,6 +2254,163 @@ end Draft.Checks.Specification
 #print axioms Draft.Checks.Specification.wholeBack
 #print axioms Draft.Checks.Specification.wholeRound
 #print axioms Draft.Checks.Specification.wholeRoundBack
+
+/-! ### The second exit equation as a rule -/
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+  {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty}
+
+/-- A witness of the composite of an exit past a continuation and that continuation. No run
+reaches the continuation, so the witness has no witness of the continuation. -/
+def Diagram.exitPastPre (out : Qs.At (Port Γ)) (next : Continuation S K Qs) (a : All X Γ × R) :
+    ((Diagram.seq (.exit (out.there K)) next).spec r).Pre a :=
+  ⟨PUnit.unit, fun m e =>
+    Identity.transport
+      (fun m => Spec.resumePre (fun (y : Exits.At (K :: Qs) X × R) =>
+        Spec.exitPre (fun k => (next.spec r).Pre (k, y.2)) y.1) m) e PUnit.unit⟩
+
+/-- The rule set with the second exit equation. -/
+def Rules.exitPast (S : Signature Ty) : Rules S :=
+  ⟨fun d e => Diagram.ExitPast d e, fun _ _ => Empty⟩
+
+/-- The second exit equation has a cartesian map in each direction, for each specification of
+the calls. -/
+def Rules.exitPastSound : (Rules.exitPast S).SpecSound r where
+  diagram x :=
+    match x with
+    | .exit out next =>
+        ⟨fun a pre => ⟨PUnit.unit, fun o => (Diagram.exitPastSpecRuns r out next a pre o).symm⟩,
+          fun a _ =>
+            ⟨Diagram.exitPastPre r out next a,
+              fun o => Diagram.exitPastSpecRuns r out next a (Diagram.exitPastPre r out next a) o⟩⟩
+  continuation x := nomatch x
+
+end Draft
+
+#print axioms Draft.Rules.exitPastSound
+
+/-! The check of a rule on two different loops, for an arbitrary value and an arbitrary runtime.
+The first loop has the exit from the loop as an exit past a continuation, and then that
+continuation. The second loop is the countdown loop. The derivation has the second exit
+equation under a step, a copairing, and a loop. The checks have the two maps of the
+equivalence of the runs, and its two round trips. -/
+
+namespace Draft.Checks.Specification
+
+open Draft Draft.Checks.Countdown
+
+/-- A continuation that the exit from the loop goes past. -/
+def skipped : Continuation sig Out [Entry, Out] :=
+  .one (.exit ⟨_, .there .here, Boundary.only _, .cons .here .nil⟩)
+
+/-- The rest after the test, with the exit from the loop as an exit past the continuation, and
+then the continuation. -/
+def afterTestPast : (c : (sig.output .isZero).Case) → Diagram sig (c.1 ++ [(), ()]) [Entry, Out]
+  | ⟨_, .here⟩ =>
+      .seq (.exit (Exits.At.there Out ⟨_, .there .here, Boundary.only _, .cons (.there .here) .nil⟩))
+        skipped
+  | ⟨_, .there .here⟩ => .step ⟨.pred, .cons .here .nil⟩ afterPred
+
+def bodyPast : Continuation sig Entry [Entry, Out] :=
+  .one (.step ⟨.isZero, .cons .here .nil⟩ afterTestPast)
+
+def loopPast : Continuation sig Entry [Out] := .loop bodyPast
+
+/-- The derivation of the rests after the test: the second exit equation at the exit from the
+loop, and the agreement of the other rest with itself. -/
+def afterTestToExit : (c : (sig.output .isZero).Case) →
+    Diagram.Derivation (Rules.exitPast sig) (afterTestPast c) (afterTest c)
+  | ⟨_, .here⟩ => .rule (.exit _ _)
+  | ⟨_, .there .here⟩ => .agree (Diagram.Agreement.refl _)
+
+/-- The derivation of the diagram of the one case of the entrance. -/
+def bodyToExit : (c : Entry.Case) →
+    Diagram.Derivation (Rules.exitPast sig)
+      (Boundary.family (F := fun Δ => Diagram sig Δ [Entry, Out])
+        (.cons (.step ⟨.isZero, .cons .here .nil⟩ afterTestPast) .nil) c)
+      (Boundary.family (F := fun Δ => Diagram sig Δ [Entry, Out])
+        (.cons (.step ⟨.isZero, .cons .here .nil⟩ afterTest) .nil) c)
+  | ⟨_, .here⟩ => .step _ afterTestToExit
+
+/-- The derivation from that loop to the countdown loop. -/
+def pastToExit : Continuation.Derivation (Rules.exitPast sig) loopPast loopN :=
+  .loop (.copair bodyToExit)
+
+/-- One iteration of the countdown loop over its witness. -/
+abbrev StepN := (iterSpec G bodyN).iterate keepsN
+
+set_option smartUnfolding false in
+def goesN (c a s : Nat) :
+    StepN ⟨(entry (c + 1) a, s), PUnit.unit⟩ (.inr ⟨(entry c (s + a), s + 1), PUnit.unit⟩) :=
+  ⟨⟨.inr (⟨⟨_, .there .here⟩, .nil⟩, s), .refl, .inr (value c, s), .refl,
+      .inr (value (s + a), s + 1), .refl, .refl⟩,
+    .refl⟩
+
+set_option smartUnfolding false in
+def endsN (a s : Nat) : StepN ⟨(entry 0 a, s), PUnit.unit⟩ (.inl (.inr (out a, s))) :=
+  ⟨.inr (⟨⟨_, .here⟩, .nil⟩, s), .refl, .refl⟩
+
+/-- The run of the countdown loop from each counter. -/
+def runsN : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) ×
+    Loop StepN ⟨(entry c a, s), PUnit.unit⟩ (.inr r)
+  | 0, a, s => ⟨(out a, s), .exit (endsN a s)⟩
+  | c + 1, a, s => ⟨(runsN c (s + a) (s + 1)).1, .next (goesN c a s) (runsN c (s + a) (s + 1)).2⟩
+
+/-- The witness of the first loop from the witness of the countdown loop, with the equivalence
+of the runs. -/
+def movedPast (c a s : Nat) :=
+  (pastToExit.spec (Rules.exitPastSound G)).2 (entry c a, s) (witN c a s)
+
+/-- One iteration of the first loop over the moved witness. -/
+abbrev StepP := (iterSpec G bodyPast).iterate (movedPast 0 0 0).1.2.2
+
+set_option smartUnfolding false in
+def goesP (c a s : Nat) :
+    StepP ⟨(entry (c + 1) a, s), PUnit.unit⟩ (.inr ⟨(entry c (s + a), s + 1), PUnit.unit⟩) :=
+  ⟨⟨.inr (⟨⟨_, .there .here⟩, .nil⟩, s), .refl, .inr (value c, s), .refl,
+      .inr (value (s + a), s + 1), .refl, .refl⟩,
+    .refl⟩
+
+set_option smartUnfolding false in
+/-- The iteration that exits has the run of the exit past the continuation. -/
+def endsP (a s : Nat) : StepP ⟨(entry 0 a, s), PUnit.unit⟩ (.inl (.inr (out a, s))) :=
+  ⟨.inr (⟨⟨_, .here⟩, .nil⟩, s), .refl, _, .refl, .refl⟩
+
+/-- The run of the first loop from each counter. -/
+def runsP : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) ×
+    Loop StepP ⟨(entry c a, s), PUnit.unit⟩ (.inr r)
+  | 0, a, s => ⟨(out a, s), .exit (endsP a s)⟩
+  | c + 1, a, s => ⟨(runsP c (s + a) (s + 1)).1, .next (goesP c a s) (runsP c (s + a) (s + 1)).2⟩
+
+set_option smartUnfolding false in
+/-- The run of the first loop maps to the run of the countdown loop. -/
+def pastRun (a s : Nat) :
+    ((movedPast 2 a s).2 (.inr (runsP 2 a s).1)).to (runsP 2 a s).2 ≡ (runsN 2 a s).2 := .refl
+
+set_option smartUnfolding false in
+/-- The run of the countdown loop maps back to the run of the first loop. -/
+def pastBack (a s : Nat) :
+    ((movedPast 2 a s).2 (.inr (runsN 2 a s).1)).inv (runsN 2 a s).2 ≡ (runsP 2 a s).2 := .refl
+
+set_option smartUnfolding false in
+/-- The round trip at the run of the countdown loop is the reflexivity. -/
+def pastRound (a s : Nat) :
+    ((movedPast 2 a s).2 (.inr (runsN 2 a s).1)).toInv (runsN 2 a s).2 ≡ .refl := .refl
+
+set_option smartUnfolding false in
+/-- The round trip at the run of the first loop is the reflexivity. -/
+def pastRoundBack (a s : Nat) :
+    ((movedPast 2 a s).2 (.inr (runsP 2 a s).1)).invTo (runsP 2 a s).2 ≡ .refl := .refl
+
+end Draft.Checks.Specification
+
+#print axioms Draft.Checks.Specification.pastRun
+#print axioms Draft.Checks.Specification.pastBack
+#print axioms Draft.Checks.Specification.pastRound
+#print axioms Draft.Checks.Specification.pastRoundBack
 
 /-! ### The unit runtime -/
 
