@@ -56,6 +56,9 @@ and it is not the word of an order: `D` runs when one of the two calls is done. 
 runs on the machine of the runs, and a check consumes the identity that no occurrence
 remains. The merged diagram of the diagram with two calls has one call of `A`. It gives the
 same values, and a check consumes the soundness of its derivation through a dependent payload.
+Its graph has the occurrence of `A` one time, and the merge gives the evidence that no two of
+its occurrences are equal. With that evidence, the theorem of the other direction gives an
+order of the merged diagram from the evidence of the word of its two runs.
 A last diagram has the effectful `C` between the two calls of `A`. Its merged diagram has one
 call of `A`: the derivation moves the second call before `C` by one interchange, and then it
 uses the copy rule. A check consumes its soundness through a dependent payload that has the
@@ -671,6 +674,55 @@ def mergedPayload (flag : Bool) (u v x y : Nat) :
         ((mergedSound stop count x y).run (f := provider flag u v) (fun _ => .refl)))
       ⟨x + y + (x + y), Nat.lt_succ_self _⟩).val ≡ x + y + (x + y) := .refl
 
+/-- The merged diagram of the diagram with two calls is a diagram of the fragment. -/
+def mergedStraight : (twice.merge twiceStraight).Straight := twice.mergeStraight twiceStraight
+
+set_option smartUnfolding false in
+/-- The graph of the merged diagram has the occurrence of `A` one time. -/
+def mergedGraph : (twice.merge twiceStraight).graph mergedStraight ≡ [occA, occD] := .refl
+
+/-- No two occurrences of the graph of the merged diagram are equal. -/
+def mergedDistinct : Elem.Distinct ((twice.merge twiceStraight).graph mergedStraight) :=
+  Diagram.mergeDistinct twice twiceStraight mergedStraight
+
+/-- The first run of the merged graph is the call of `A`. -/
+def mergedFirst : (sig.admissible [(), ()]).Pre ((0 : Nat), ([occA, occD], [])) :=
+  ⟨(occA, [occD]), .refl, fun | _, .here => () | _, .there .here => (), ()⟩
+
+/-- The second run is `D`. -/
+def mergedSecond : (sig.admissible [(), ()]).Pre ((0 : Nat), ([occD], [occA])) :=
+  ⟨(occD, []), .refl, fun | _, .here => .here | _, .there .here => .here, ()⟩
+
+/-- The word `[0, 0]` is an admissible order of the merged graph. -/
+def mergedWord :
+    FreeDep (sig.admissible [(), ()]) (sig.Finished [(), ()])
+      ((word [0, 0]).thread (E := Empty) ([occA, occD], [])) :=
+  Signature.ran (rest := word [0]) 0 ([occA, occD], []) mergedFirst
+    (Signature.ran (rest := word []) 0 ([occD], [occA]) mergedSecond
+      (.pure (Identity.refl : ([] : List (sig.Occurrence [(), ()])) ≡ [])))
+
+/-- The theorem of the other direction gives an order of the merged diagram from that
+evidence, with the evidence of the merge that no two occurrences are equal. -/
+def mergedOrder :=
+  Diagram.Order.ofGraph (twice.merge twiceStraight) mergedStraight mergedDistinct [0, 0]
+    (Identity.transport
+      (fun (g : List (sig.Occurrence [(), ()])) =>
+        FreeDep (sig.admissible [(), ()]) (sig.Finished [(), ()])
+          ((word [0, 0]).thread (E := Empty) (g, [])))
+      mergedGraph.symm mergedWord)
+
+set_option smartUnfolding false in
+/-- That order has the two steps of the merged diagram. -/
+def mergedOrderOps :
+    Diagram.ops mergedOrder.1
+        (Diagram.Order.straight mergedOrder.1 (twice.merge twiceStraight) mergedOrder.2.1
+          mergedStraight) ≡
+      [Op.add, Op.add] := .refl
+
+set_option smartUnfolding false in
+/-- The evidence of the merge gives the reflexivity proof at one position. -/
+def mergedDistinctHere : mergedDistinct occA .here .here ≡ .refl := .refl
+
 /-- `A` at the two inputs, then the effectful `C` at the first input, and then `A` at the two
 inputs again. The exit has the output of the second call of `A` and the response of `C`. -/
 def apart : Diagram sig [(), ()] Two :=
@@ -864,3 +916,15 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.frontAgainWord' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.frontAgainWord
+
+/-- info: 'Draft.Checks.Dependency.mergedGraph' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.mergedGraph
+
+/-- info: 'Draft.Checks.Dependency.mergedOrderOps' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.mergedOrderOps
+
+/-- info: 'Draft.Checks.Dependency.mergedDistinctHere' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.mergedDistinctHere

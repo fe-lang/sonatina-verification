@@ -40,7 +40,17 @@ interchange rule and the copy rule. The proof is one recursion on the diagram, f
 diagrams that absorbs each available call: in the context, a step at the ports of the call is
 the rest with the output ports of the call. The context under a step absorbs the call of that
 step by the copy rule. It absorbs each earlier call by one interchange and the absorption of
-the context before. -/
+the context before.
+
+The merged diagram is a diagram of the fragment, and its occurrences have no element at two
+positions. The proof has a state of the merge at each point: the calls of the steps before, the
+histories of the context, and the last effectful call. Each call of a history of the context is
+one of those calls, each of those calls with a pure operation is an available call, each of
+those calls with an effectful operation has less effectful calls before it than the last
+effectful call has, and no history is at two ports. The call of a step that the search does not
+find is thus not one of those calls. The search finds an available call for its own operation
+and ports, because the type of the operations has one identity proof for each two
+operations. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -394,11 +404,6 @@ def Signature.ran {Q : Empty ⊕ (Unit × S.Progress Γ₀) → Type} (k : Nat)
 
 /-! The merge of the equal calls. -/
 
-/-- The identity of a kind with the pure kind, when the kind is the pure kind. -/
-def Kind.isPure : (k : Kind) → Option (k ≡ .pure)
-  | .pure => some .refl
-  | .effectful => none
-
 /-- An available call: a call of a pure operation in the steps before a point, with its ports,
 the one case of its output boundary, and its output ports. -/
 structure Available (S : Signature Ty) (Γ : List Ty) where
@@ -437,32 +442,38 @@ then the calls before the step. -/
 def after (table : List (Available S Γ)) (f : S.Op) (args : PortMap Γ (S.input f))
     (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c) :
     List (Available S (center.1 ++ Γ)) :=
-  Option.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ)))
-    (Kind.isPure (S.kind f))
-    (table.map (weaken center.1))
+  Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ)))
+    (Kind.cases (S.kind f))
     (fun pure => ofStep f pure args center only :: table.map (weaken center.1))
+    (fun _ => table.map (weaken center.1))
 
-/-- The case and the output ports of an available call, when it is a call of the operation at
-the ports. -/
-def use [DecEq S.Op] (e : Available S Γ) (f : S.Op) (args : PortMap Γ (S.input f)) :
-    Option ((c : (S.output f).Case) × ((outs : PortMap Γ c.1) × (e.used ≡ ⟨f, args, c, outs⟩))) :=
-  match decideEq e.op f with
+/-- The case and the output ports of an available call, as a call of an operation at given
+ports. -/
+abbrev Use (e : Available S Γ) (f : S.Op) (args : PortMap Γ (S.input f)) : Type :=
+  (c : (S.output f).Case) × ((outs : PortMap Γ c.1) × (e.used ≡ ⟨f, args, c, outs⟩))
+
+/-- The use of an available call at given ports, for a decision that its ports are those
+ports. -/
+def usePorts (e : Available S Γ) (args : PortMap Γ (S.input e.op)) :
+    Dec (e.args ≡ args) → Option (e.Use e.op args)
   | .no _ => none
+  | .yes samePorts =>
+      Identity.ind (fun (args : PortMap Γ (S.input e.op)) _ => Option (e.Use e.op args))
+        (some ⟨e.center, e.outs, .refl⟩) samePorts
+
+/-- The use of an available call for an operation, for a decision that its operation is that
+operation, and then the decision of the identity of the ports. -/
+def useOp (e : Available S Γ) (f : S.Op) :
+    Dec (e.op ≡ f) → (args : PortMap Γ (S.input f)) → Option (e.Use f args)
+  | .no _ => fun _ => none
   | .yes sameOp =>
-      Identity.ind
-        (fun (f : S.Op) _ => (args : PortMap Γ (S.input f)) →
-          Option ((c : (S.output f).Case) ×
-            ((outs : PortMap Γ c.1) × (e.used ≡ ⟨f, args, c, outs⟩))))
-        (fun args =>
-          match All.decide (fun _ => Elem.decide) e.args args with
-          | .no _ => none
-          | .yes samePorts =>
-              Identity.ind
-                (fun (args : PortMap Γ (S.input e.op)) _ =>
-                  Option ((c : (S.output e.op).Case) ×
-                    ((outs : PortMap Γ c.1) × (e.used ≡ ⟨e.op, args, c, outs⟩))))
-                (some ⟨e.center, e.outs, .refl⟩) samePorts)
-        sameOp args
+      Identity.ind (fun (f : S.Op) _ => (args : PortMap Γ (S.input f)) → Option (e.Use f args))
+        (fun args => e.usePorts args (All.decide (fun _ => Elem.decide) e.args args)) sameOp
+
+/-- The use of an available call, when it is a call of the operation at the ports. -/
+def use [DecEq S.Op] (e : Available S Γ) (f : S.Op) (args : PortMap Γ (S.input f)) :
+    Option (e.Use f args) :=
+  e.useOp f (decideEq e.op f) args
 
 /-- An available call of a list that is a call of an operation at given ports, with its case
 and its output ports. -/
@@ -473,15 +484,24 @@ structure Found (table : List (Available S Γ)) (f : S.Op) (args : PortMap Γ (S
   outs : PortMap Γ center.1
   same : entry.used ≡ ⟨f, args, center, outs⟩
 
+/-- A found call of a list, in the list with one more first call. -/
+def Found.there {table : List (Available S Γ)} {f : S.Op} {args : PortMap Γ (S.input f)}
+    (e : Available S Γ) (found : Found table f args) : Found (e :: table) f args :=
+  ⟨found.entry, .there found.mem, found.center, found.outs, found.same⟩
+
+/-- The first call of a list as the found call, from its use. -/
+def Found.here {table : List (Available S Γ)} {f : S.Op} {args : PortMap Γ (S.input f)}
+    (e : Available S Γ) (m : e.Use f args) : Found (e :: table) f args :=
+  ⟨e, .here, m.1, m.2.1, m.2.2⟩
+
 /-- The first available call of a list that is a call of the operation at the ports. -/
 def find [DecEq S.Op] (f : S.Op) (args : PortMap Γ (S.input f)) :
     (table : List (Available S Γ)) → Option (Found table f args)
   | [] => none
   | e :: rest =>
       Option.casesOn (motive := fun _ => Option (Found (e :: rest) f args)) (e.use f args)
-        ((find f args rest).map fun found =>
-          ⟨found.entry, .there found.mem, found.center, found.outs, found.same⟩)
-        (fun m => some ⟨e, .here, m.1, m.2.1, m.2.2⟩)
+        ((find f args rest).map (Found.there e))
+        (fun m => some (Found.here e m))
 
 end Available
 
@@ -660,20 +680,21 @@ def Absorbed.after (inter : Rules.Map (Rules.interchange S) R)
     (absorbed : All (fun e => Absorbed R K e.used) table) :
     All (fun e => Absorbed R (fun D => K (Diagram.under f args center only D)) e.used)
       (Available.after table f args center only) :=
-  Option.casesOn
-    (motive := fun pure =>
+  Sum.casesOn
+    (motive := fun kind =>
       All (fun e => Absorbed R (fun D => K (Diagram.under f args center only D)) e.used)
-        (Option.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) pure
-          (table.map (Available.weaken center.1))
+        (Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) kind
           (fun pure =>
-            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))))
-    (Kind.isPure (S.kind f))
-    (All.image (Available.weaken center.1)
-      (fun e a => Absorbed.under cong f args center only inter e a) absorbed)
+            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))
+          (fun _ => table.map (Available.weaken center.1))))
+    (Kind.cases (S.kind f))
     (fun pure =>
       .cons (Absorbed.ofStep cong f args center only copy pure)
         (All.image (Available.weaken center.1)
           (fun e a => Absorbed.under cong f args center only inter e a) absorbed))
+    (fun _ =>
+      All.image (Available.weaken center.1)
+        (fun e a => Absorbed.under cong f args center only inter e a) absorbed)
 
 end
 
@@ -729,5 +750,452 @@ def Diagram.mergeDerivation [DecEq S.Op] (inter : Rules.Map (Rules.interchange S
   .trans (.symm (.agree d.renameId))
     (Diagram.mergeWithDerivation inter copy (fun D => D) (fun der => der) [] .nil
       (PortMap.id Γ) d h)
+
+/-! The occurrences of the merged diagram. -/
+
+section Merged
+
+variable {Γ₀ : List Ty}
+
+/-- The occurrence of the call of a history, for an output port of a call. -/
+def History.source : {t : Ty} → History S Γ₀ t → Option (S.Occurrence Γ₀)
+  | _, .input _ => none
+  | _, .output (o := o) call _ _ => some ⟨o, call⟩
+
+/-- The number of the port of a history: the input port, or the output port of the call. -/
+def History.number : {t : Ty} → History S Γ₀ t → Nat
+  | _, .input p => p.toFin.val
+  | _, .output _ _ q => q.toFin.val
+
+mutual
+
+/-- The number of the effectful calls before a call. -/
+def Call.rank : {o : S.Op} → Call S Γ₀ o → Nat
+  | _, .mk _ before => Effect.rank before
+
+/-- The number of the effectful calls of a state edge. -/
+def Effect.rank : Option (Effect S Γ₀) → Nat
+  | none => 0
+  | some (.after call) => Call.rank call + 1
+
+end
+
+section
+
+variable {Γ : List Ty}
+
+/-- The occurrence of a call of a pure operation at ports, for the histories of a context. -/
+def Signature.pureAt (env : All (History S Γ₀) Γ) (x : (S.interface (Port Γ)).Shape) :
+    S.Occurrence Γ₀ :=
+  ⟨x.1, Call.mk (env.select x.2) none⟩
+
+/-- Two calls of pure operations with one occurrence have one operation and the same ports,
+when no history of the context is at two ports. -/
+def Signature.pureAtInjective (env : All (History S Γ₀) Γ)
+    (apart : (t : Ty) → (p q : Port Γ t) → env.lookup p ≡ env.lookup q → p ≡ q)
+    (x y : (S.interface (Port Γ)).Shape) (same : S.pureAt env x ≡ S.pureAt env y) : x ≡ y :=
+  let code :
+      (q : x.1 ≡ y.1) ×
+        (Identity.transport (fun o => All (History S Γ₀) (S.input o)) q (env.select x.2) ≡
+          env.select y.2) :=
+    Identity.ind (a := S.pureAt env x)
+      (fun (z : S.Occurrence Γ₀) _ =>
+        (q : x.1 ≡ z.1) ×
+          (Identity.transport (fun o => All (History S Γ₀) (S.input o)) q (env.select x.2) ≡
+            z.2.args))
+      ⟨.refl, .refl⟩ same
+  Identity.ind (a := x.1)
+    (fun (f : S.Op) (q : x.1 ≡ f) => (a : PortMap Γ (S.input f)) →
+      Identity.transport (fun o => All (History S Γ₀) (S.input o)) q (env.select x.2) ≡
+        env.select a → x ≡ (⟨f, a⟩ : (S.interface (Port Γ)).Shape))
+    (fun a same =>
+      Identity.cong (fun a => (⟨x.1, a⟩ : (S.interface (Port Γ)).Shape))
+        (PortMap.selectInjective env apart x.2 a same))
+    code.1 y.2 code.2
+
+namespace Available
+
+/-- An available call has a use at its own ports, for each decision. -/
+def usePortsSelf (e : Available S Γ) :
+    (d : Dec (e.args ≡ e.args)) → (m : e.Use e.op e.args) × (e.usePorts e.args d ≡ some m)
+  | .no refute => (refute .refl).elim
+  | .yes same =>
+      Identity.ind (a := e.args)
+        (fun (args : PortMap Γ (S.input e.op)) (q : e.args ≡ args) =>
+          (m : e.Use e.op args) ×
+            (Identity.ind (fun (args : PortMap Γ (S.input e.op)) _ => Option (e.Use e.op args))
+              (some ⟨e.center, e.outs, .refl⟩) q ≡ some m))
+        ⟨⟨e.center, e.outs, .refl⟩, .refl⟩ same
+
+/-- An available call has a use at its own operation and ports, for each decision. The proof of
+the decision is the reflexivity proof, because the type of the operations has one identity
+proof for each two operations. -/
+def useOpSelf [DecEq S.Op] (e : Available S Γ) :
+    (d : Dec (e.op ≡ e.op)) → (m : e.Use e.op e.args) × (e.useOp e.op d e.args ≡ some m)
+  | .no refute => (refute .refl).elim
+  | .yes same =>
+      Identity.transport
+        (fun (q : e.op ≡ e.op) =>
+          (m : e.Use e.op e.args) ×
+            (Identity.ind
+              (fun (f : S.Op) _ => (args : PortMap Γ (S.input f)) → Option (e.Use f args))
+              (fun args => e.usePorts args (All.decide (fun _ => Elem.decide) e.args args))
+              q e.args ≡ some m))
+        (Dec.unique (fun (x y : S.Op) => decideEq x y) .refl same)
+        (e.usePortsSelf (All.decide (fun _ => Elem.decide) e.args e.args))
+
+/-- An available call has a use at each operation and ports that are its operation and its
+ports. -/
+def useSame [DecEq S.Op] (e : Available S Γ) (x : (S.interface (Port Γ)).Shape)
+    (same : (⟨e.op, e.args⟩ : (S.interface (Port Γ)).Shape) ≡ x) :
+    (m : e.Use x.1 x.2) × (e.use x.1 x.2 ≡ some m) :=
+  Identity.ind (a := (⟨e.op, e.args⟩ : (S.interface (Port Γ)).Shape))
+    (fun (x : (S.interface (Port Γ)).Shape) _ => (m : e.Use x.1 x.2) × (e.use x.1 x.2 ≡ some m))
+    (e.useOpSelf (decideEq e.op e.op)) same
+
+/-- The search finds an available call for the operation and the ports of each available call
+of the list. -/
+def findSame [DecEq S.Op] (x : (S.interface (Port Γ)).Shape) :
+    (table : List (Available S Γ)) → (e : Available S Γ) → Elem e table →
+    (⟨e.op, e.args⟩ : (S.interface (Port Γ)).Shape) ≡ x →
+    (found : Found table x.1 x.2) × (find x.1 x.2 table ≡ some found)
+  | [], _, i, _ => i.ofNil
+  | e' :: rest, e, i, same =>
+      Option.casesOn
+        (motive := fun o => (e'.use x.1 x.2 ≡ o) →
+          (found : Found (e' :: rest) x.1 x.2) ×
+            (Option.casesOn (motive := fun _ => Option (Found (e' :: rest) x.1 x.2)) o
+              ((find x.1 x.2 rest).map (Found.there e'))
+              (fun m => some (Found.here e' m)) ≡ some found))
+        (e'.use x.1 x.2)
+        (fun none' =>
+          match Elem.uncons i with
+          | .inl isHead =>
+              (Identity.noneNotSome
+                (none'.symm.trans
+                  (e'.useSame x
+                    (Identity.transport
+                      (fun (y : Available S Γ) =>
+                        (⟨y.op, y.args⟩ : (S.interface (Port Γ)).Shape) ≡ x)
+                      isHead same)).2)).elim
+          | .inr j =>
+              let inner := findSame x rest e j same
+              ⟨Found.there e' inner.1, Identity.cong (Option.map (Found.there e')) inner.2⟩)
+        (fun m _ => ⟨Found.here e' m, .refl⟩)
+        .refl
+
+end Available
+
+/-- The state of the merge at a point of the merged diagram, for the histories of its context,
+the last effectful call, and the calls of the steps before the point. Each call of a history of
+the context is one of those calls. Each of those calls with a pure operation is an available
+call of the list. Each of those calls with an effectful operation has less effectful calls
+before it than the last effectful call has. No history is at two ports. -/
+structure Merged (table : List (Available S Γ)) (env : All (History S Γ₀) Γ)
+    (last : Option (Effect S Γ₀)) (prior : List (S.Occurrence Γ₀)) : Type where
+  known : (t : Ty) → (p : Port Γ t) → (x : S.Occurrence Γ₀) →
+    History.source (env.lookup p) ≡ some x → Elem x prior
+  listed : (x : S.Occurrence Γ₀) → Elem x prior → S.kind x.1 ≡ .pure →
+    (e : Available S Γ) × (Elem e table × (S.pureAt env ⟨e.op, e.args⟩ ≡ x))
+  ranked : (x : S.Occurrence Γ₀) → Elem x prior → S.kind x.1 ≡ .effectful →
+    Call.rank x.2 < Effect.rank last
+  apart : (t : Ty) → (p q : Port Γ t) → env.lookup p ≡ env.lookup q → p ≡ q
+
+/-- The state at the start: the histories of the inputs, and no call. -/
+def Merged.start (Γ : List Ty) :
+    Merged (S := S) ([] : List (Available S Γ)) (S.inputs Γ) none [] where
+  known _ p _ src :=
+    (Identity.noneNotSome
+      ((Identity.cong History.source
+          (All.lookupTabulate (fun _ q => (History.input q : History S Γ _)) p)).symm.trans
+        src)).elim
+  listed _ i _ := i.ofNil
+  ranked _ i _ := (Elem.ofNil i : Empty).elim
+  apart _ p q same :=
+    Elem.sameNumber p q
+      (Identity.cong History.number
+        ((All.lookupTabulate (fun _ q => (History.input q : History S Γ _)) p).symm.trans
+          (same.trans (All.lookupTabulate (fun _ q => (History.input q : History S Γ _)) q))))
+
+variable {table : List (Available S Γ)} {env : All (History S Γ₀) Γ}
+  {last : Option (Effect S Γ₀)} {prior : List (S.Occurrence Γ₀)}
+
+/-- The call of a step that the search does not find is not a call of a step before. A pure
+call of a step before is an available call with other ports or another operation. An effectful
+call of a step before has less effectful calls before it. -/
+def Merged.fresh [DecEq S.Op] (m : Merged table env last prior) (f : S.Op)
+    (args : PortMap Γ (S.input f)) (missing : Available.find f args table ≡ none)
+    (i : Elem (⟨f, Call.at f args env last⟩ : S.Occurrence Γ₀) prior) : Empty :=
+  match Kind.cases (S.kind f) with
+  | .inl pure =>
+      let e := m.listed _ i pure
+      Identity.noneNotSome
+        (missing.symm.trans
+          (Available.findSame ⟨f, args⟩ table e.1 e.2.1
+            (S.pureAtInjective env m.apart ⟨e.1.op, e.1.args⟩ ⟨f, args⟩
+              (e.2.2.trans
+                (Identity.cong
+                  (fun k =>
+                    (⟨f, Call.mk (env.select args) (Kind.before k last)⟩ : S.Occurrence Γ₀))
+                  pure)))).2)
+  | .inr effectful =>
+      (Nat.lt_irrefl _
+        (Identity.transport
+          (fun k => Effect.rank (Kind.before k last) < Effect.rank last) effectful
+          (m.ranked _ i effectful))).elim
+
+/-- The state after a step of the merged diagram whose call is not a call of a step before. -/
+def Merged.after (m : Merged table env last prior) (f : S.Op) (args : PortMap Γ (S.input f))
+    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c)
+    (fresh : Elem (⟨f, Call.at f args env last⟩ : S.Occurrence Γ₀) prior → Empty) :
+    Merged (Available.after table f args center only)
+      ((Call.at f args env last).outputs center env) ((Call.at f args env last).next last)
+      (⟨f, Call.at f args env last⟩ :: prior) :=
+  let A : Call S Γ₀ f := Call.at f args env last
+  let outs : All (History S Γ₀) center.1 :=
+    All.tabulate center.1 fun _ q => History.output A center q
+  let newAt {t : Ty} (p : Port (center.1 ++ Γ) t) (j : Elem t center.1) (e : p ≡ j.left) :
+      All.lookup (outs.append env) p ≡ History.output A center j :=
+    (Identity.cong (fun q => All.lookup (outs.append env) q) e).trans
+      ((All.lookupLeft outs env j).trans
+        (All.lookupTabulate (fun _ q => History.output A center q) j))
+  let oldAt {t : Ty} (p : Port (center.1 ++ Γ) t) (j : Port Γ t) (e : p ≡ j.right center.1) :
+      All.lookup (outs.append env) p ≡ env.lookup j :=
+    (Identity.cong (fun q => All.lookup (outs.append env) q) e).trans
+      (All.lookupRight outs env j)
+  let known : (t : Ty) → (p : Port (center.1 ++ Γ) t) → (x : S.Occurrence Γ₀) →
+      History.source (All.lookup (outs.append env) p) ≡ some x →
+      Elem x ((⟨f, A⟩ : S.Occurrence Γ₀) :: prior) :=
+    fun t p x src =>
+      match Elem.split center.1 p with
+      | .inl found =>
+          Identity.transport (fun y => Elem y ((⟨f, A⟩ : S.Occurrence Γ₀) :: prior))
+            (Identity.someInject
+              ((Identity.cong History.source (newAt p found.1 found.2)).symm.trans src))
+            .here
+      | .inr found =>
+          .there (m.known t found.1 x
+            ((Identity.cong History.source (oldAt p found.1 found.2)).symm.trans src))
+  let apart : (t : Ty) → (p q : Port (center.1 ++ Γ) t) →
+      All.lookup (outs.append env) p ≡ All.lookup (outs.append env) q → p ≡ q :=
+    fun t p q same =>
+      match Elem.split center.1 p, Elem.split center.1 q with
+      | .inl a, .inl b =>
+          a.2.trans
+            ((Identity.cong (fun (i : Elem t center.1) => (i.left : Elem t (center.1 ++ Γ)))
+                (Elem.sameNumber a.1 b.1
+                  (Identity.cong History.number
+                    ((newAt p a.1 a.2).symm.trans (same.trans (newAt q b.1 b.2)))))).trans
+              b.2.symm)
+      | .inl a, .inr b =>
+          (fresh (m.known t b.1 ⟨f, A⟩
+            (Identity.cong History.source
+              ((oldAt q b.1 b.2).symm.trans (same.symm.trans (newAt p a.1 a.2)))))).elim
+      | .inr a, .inl b =>
+          (fresh (m.known t a.1 ⟨f, A⟩
+            (Identity.cong History.source
+              ((oldAt p a.1 a.2).symm.trans (same.trans (newAt q b.1 b.2)))))).elim
+      | .inr a, .inr b =>
+          a.2.trans
+            ((Identity.cong (Elem.right center.1)
+                (m.apart t a.1 b.1
+                  ((oldAt p a.1 a.2).symm.trans (same.trans (oldAt q b.1 b.2))))).trans
+              b.2.symm)
+  let weak (x : S.Occurrence Γ₀) (e : Available S Γ)
+      (same : S.pureAt env ⟨e.op, e.args⟩ ≡ x) :
+      S.pureAt (outs.append env) ⟨e.op, e.args.weaken center.1⟩ ≡ x :=
+    (Identity.cong (fun a => (⟨e.op, Call.mk a none⟩ : S.Occurrence Γ₀))
+      (PortMap.selectWeaken outs env e.args)).trans same
+  Sum.casesOn
+    (motive := fun kind =>
+      Merged
+        (Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) kind
+          (fun pure =>
+            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))
+          (fun _ => table.map (Available.weaken center.1)))
+        (outs.append env) (A.next last) ((⟨f, A⟩ : S.Occurrence Γ₀) :: prior))
+    (Kind.cases (S.kind f))
+    (fun pure =>
+      { known := known
+        apart := apart
+        listed := fun x i px =>
+          match Elem.uncons i with
+          | .inl isNew =>
+              ⟨Available.ofStep f pure args center only, .here,
+                (Identity.cong (fun a => (⟨f, Call.mk a none⟩ : S.Occurrence Γ₀))
+                    (PortMap.selectWeaken outs env args)).trans
+                  ((Identity.cong
+                      (fun k =>
+                        (⟨f, Call.mk (env.select args) (Kind.before k last)⟩ :
+                          S.Occurrence Γ₀))
+                      pure).symm.trans isNew.symm)⟩
+          | .inr j =>
+              let e := m.listed x j px
+              ⟨e.1.weaken center.1, .there (Elem.map (Available.weaken center.1) e.2.1),
+                weak x e.1 e.2.2⟩
+        ranked := fun x i ex =>
+          match Elem.uncons i with
+          | .inl isNew =>
+              (Kind.pureNotEffectful
+                (pure.symm.trans
+                  ((Identity.cong (fun (y : S.Occurrence Γ₀) => S.kind y.1) isNew).symm.trans
+                    ex))).elim
+          | .inr j =>
+              Identity.transport
+                (fun k => Call.rank x.2 < Effect.rank (Kind.last k last (.after A))) pure.symm
+                (m.ranked x j ex) })
+    (fun effectful =>
+      { known := known
+        apart := apart
+        listed := fun x i px =>
+          match Elem.uncons i with
+          | .inl isNew =>
+              (Kind.pureNotEffectful
+                (px.symm.trans
+                  ((Identity.cong (fun (y : S.Occurrence Γ₀) => S.kind y.1) isNew).trans
+                    effectful))).elim
+          | .inr j =>
+              let e := m.listed x j px
+              ⟨e.1.weaken center.1, Elem.map (Available.weaken center.1) e.2.1,
+                weak x e.1 e.2.2⟩
+        ranked := fun x i ex =>
+          match Elem.uncons i with
+          | .inl isNew =>
+              Identity.transport
+                (fun (y : S.Occurrence Γ₀) => Call.rank y.2 < Effect.rank (A.next last))
+                isNew.symm
+                (Identity.transport
+                  (fun k =>
+                    Call.rank (Call.mk (env.select args) (Kind.before k last) : Call S Γ₀ f) <
+                      Effect.rank
+                        (Kind.last k last
+                          (.after (Call.mk (env.select args) (Kind.before k last)))))
+                  effectful.symm (Nat.lt_succ_self _))
+          | .inr j =>
+              Identity.transport
+                (fun k =>
+                  Call.rank x.2 <
+                    Effect.rank
+                      (Kind.last k last
+                        (.after (Call.mk (env.select args) (Kind.before k last) :
+                          Call S Γ₀ f))))
+                effectful.symm (Nat.lt_succ_of_lt (m.ranked x j ex)) })
+
+end
+
+/-- The merged diagram is a diagram of the fragment. -/
+def Diagram.mergeWithStraight [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} →
+    (table : List (Available S Γ)) → (ρ : PortMap Γ Δ) → (d : Diagram S Δ Qs) →
+    (h : d.Straight) → (Diagram.mergeWith table ρ d h).Straight
+  | _, _, _, _, _, .exit _, _ => ()
+  | Γ, _, Qs, table, ρ, .step call rest, h =>
+      Option.casesOn
+        (motive := fun o =>
+          (Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
+            (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
+              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                (ρ.lift h.1.1) (rest h.1) h.2.2))
+            (fun found =>
+              Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                  h.2.2))).Straight)
+        (Available.find call.1 (ρ.select call.2) table)
+        (Sigma.mk h.1
+          (Prod.mk h.2.1
+            (Identity.ind (a := h.1)
+              (fun (c : (S.output call.1).Case) (p : h.1 ≡ c) =>
+                (Identity.transport
+                  (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                  (Diagram.mergeWith
+                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                    (ρ.lift h.1.1) (rest h.1) h.2.2)).Straight)
+              (Diagram.mergeWithStraight
+                (Available.after table call.1 (ρ.select call.2) h.1 h.2.1) (ρ.lift h.1.1)
+                (rest h.1) h.2.2)
+              (h.2.1 h.1))))
+        (fun found =>
+          Diagram.mergeWithStraight table (found.outs.append ρ) (rest found.center)
+            (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2))
+  | _, _, _, _, _, .seq _ _, h => nomatch h
+
+/-- The occurrences of the merged diagram have no element at two positions, and no occurrence
+is a call of a step before, for each state of the merge. -/
+def Diagram.mergeWithSeparate [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} →
+    (table : List (Available S Γ)) → (ρ : PortMap Γ Δ) → (d : Diagram S Δ Qs) →
+    (h : d.Straight) → (env : All (History S Γ₀) Γ) → (last : Option (Effect S Γ₀)) →
+    (prior : List (S.Occurrence Γ₀)) → Merged table env last prior →
+    (hM : (Diagram.mergeWith table ρ d h).Straight) →
+    Separate ((Diagram.mergeWith table ρ d h).occurrences hM env last) prior
+  | _, _, _, _, _, .exit _, _, _, _, _, _, _ => (fun _ i _ => i.ofNil, fun _ i _ => i.ofNil)
+  | Γ, _, Qs, table, ρ, .step call rest, h, env, last, prior, m, hM =>
+      Option.casesOn
+        (motive := fun o => (Available.find call.1 (ρ.select call.2) table ≡ o) →
+          (hM : (Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
+            (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
+              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                (ρ.lift h.1.1) (rest h.1) h.2.2))
+            (fun found =>
+              Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                  h.2.2))).Straight) →
+          Separate
+            ((Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
+              (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
+                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                  (ρ.lift h.1.1) (rest h.1) h.2.2))
+              (fun found =>
+                Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
+                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
+                    h.2.2))).occurrences hM env last)
+            prior)
+        (Available.find call.1 (ρ.select call.2) table)
+        (fun missing hM =>
+          let A : Call S Γ₀ call.1 := Call.at call.1 (ρ.select call.2) env last
+          let fresh := m.fresh call.1 (ρ.select call.2) missing
+          let inner :=
+            Identity.ind (a := h.1)
+              (fun (c : (S.output call.1).Case) (p : h.1 ≡ c) =>
+                (s : (Identity.transport
+                  (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                  (Diagram.mergeWith
+                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                    (ρ.lift h.1.1) (rest h.1) h.2.2)).Straight) →
+                Separate
+                  ((Identity.transport
+                    (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                    (Diagram.mergeWith
+                      (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
+                      (ρ.lift h.1.1) (rest h.1) h.2.2)).occurrences s (A.outputs c env)
+                    (A.next last))
+                  ((⟨call.1, A⟩ : S.Occurrence Γ₀) :: prior))
+              (fun s =>
+                Diagram.mergeWithSeparate
+                  (Available.after table call.1 (ρ.select call.2) h.1 h.2.1) (ρ.lift h.1.1)
+                  (rest h.1) h.2.2 (A.outputs h.1 env) (A.next last)
+                  ((⟨call.1, A⟩ : S.Occurrence Γ₀) :: prior)
+                  (m.after call.1 (ρ.select call.2) h.1 h.2.1 fresh) s)
+              (h.2.1 hM.1) hM.2.2
+          (Elem.Distinct.cons inner.1 (fun i => inner.2 _ i .here), fun x i j =>
+            match Elem.uncons i with
+            | .inl isNew => fresh (Identity.transport (fun y => Elem y prior) isNew j)
+            | .inr i' => inner.2 x i' (.there j)))
+        (fun found _ hM =>
+          Diagram.mergeWithSeparate table (found.outs.append ρ) (rest found.center)
+            (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2)
+            env last prior m hM)
+        .refl hM
+  | _, _, _, _, _, .seq _ _, h, _, _, _, _, _ => nomatch h
+
+/-- The merged diagram of a diagram of the fragment is a diagram of the fragment. -/
+def Diagram.mergeStraight [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (h : d.Straight) : (d.merge h).Straight :=
+  Diagram.mergeWithStraight [] (PortMap.id Γ) d h
+
+/-- The dependency graph of the merged diagram has no element at two positions. -/
+def Diagram.mergeDistinct [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (h : d.Straight) (hM : (d.merge h).Straight) : Elem.Distinct ((d.merge h).graph hM) :=
+  (Diagram.mergeWithSeparate [] (PortMap.id Γ) d h (S.inputs Γ) none [] (Merged.start Γ) hM).1
+
+end Merged
 
 end Draft

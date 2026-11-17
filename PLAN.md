@@ -608,6 +608,18 @@ for a context of diagrams that absorbs each available call. The context under
 a step absorbs the call of that step by the copy rule, and it absorbs each
 earlier call by one interchange.
 
+The merged diagram is a diagram of the fragment, and its occurrences have no
+element at two positions. The proof has a state of the merge at each point:
+each call of a history of the context is a call of a step before, each such
+call with a pure operation is an available call, each such call with an
+effectful operation has less effectful calls before it than the last
+effectful call has, and no history is at two ports. The call of a step that
+the search does not find is thus not a call of a step before. The search
+finds an available call for its own operation and ports, because a type with
+a decision of identity has one identity proof for each two elements, which
+[Prelude/Decision.lean](Prelude/Decision.lean) has. The theorem of the other
+direction thus applies to each merged diagram.
+
 A source diagram with two equal calls keeps the two calls in each of its
 orders, and each order has an interchange derivation. The theorem of its
 graph is for its merged diagram, which has one occurrence for the two calls.
@@ -676,7 +688,10 @@ admissible order of the occurrences, and it is not the word of an order. Its
 evidence runs on the machine of the runs, and a check consumes the identity
 that no occurrence remains. The merged diagram of the fourth source diagram
 has one call of `A`. It gives the same values, and a check consumes the
-soundness of its derivation through a dependent payload. One more diagram has
+soundness of its derivation through a dependent payload. Its graph has the
+occurrence of `A` one time. With the evidence of the merge that no two of its
+occurrences are equal, the theorem of the other direction gives an order of
+the merged diagram from the evidence of the word of its two runs. One more diagram has
 the effectful `C` between the two calls of `A`. The derivation of its merged
 diagram has one interchange and the copy rule, and a check consumes its
 soundness through a dependent payload that has the response of the store.
@@ -685,10 +700,11 @@ These parts are open:
 
 - The completeness of the list of the orders: each order of a diagram of the
   fragment is in the list.
-- The merged diagram is a diagram of the fragment with no two equal
-  occurrences, and its occurrences are the occurrences of the source diagram
-  without each later equal occurrence. The theorem of the other direction
-  then applies to each merged diagram.
+- The link from the graph of the merged diagram to the graph of the source
+  diagram: the occurrences of the merged diagram are the occurrences of the
+  source diagram, without each later equal occurrence. A position of an
+  occurrence in one of the two graphs gives a position of that occurrence in
+  the other graph.
 - The decision of the identity of two histories, which the decision of the
   precondition of a run needs.
 - The check that reads the receipt of the order `C A B` through its

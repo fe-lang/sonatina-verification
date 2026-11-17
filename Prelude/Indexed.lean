@@ -124,6 +124,16 @@ def decide : {xs : List α} → (i j : Elem a xs) → Dec (i ≡ j)
       (decide i j).map (Identity.cong Elem.there)
         (fun p => Identity.someInject (Identity.cong back p))
 
+/-- Two positions of one element with one number are one position. -/
+def sameNumber : {xs : List α} → (i j : Elem a xs) → i.toFin.val ≡ j.toFin.val → i ≡ j
+  | _, .here, .here, _ => .refl
+  | _, .here, .there _, p =>
+      (Identity.transport (Nat.rec Unit fun _ _ => Empty) p ()).elim
+  | _, .there _, .here, p =>
+      (Identity.transport (Nat.rec Empty fun _ _ => Unit) p ()).elim
+  | _, .there i, .there j, p =>
+      Identity.cong Elem.there (sameNumber i j (Identity.cong Nat.pred p))
+
 /-- No element of a list has two positions. -/
 def Distinct (xs : List α) : Type u := (x : α) → (i j : Elem x xs) → i ≡ j
 

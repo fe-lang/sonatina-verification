@@ -111,6 +111,10 @@ def Kind.cases : (k : Kind) → (k ≡ .pure) ⊕ (k ≡ .effectful)
   | .pure => .inl .refl
   | .effectful => .inr .refl
 
+/-- The pure kind is not the effectful kind. -/
+def Kind.pureNotEffectful (p : Kind.pure ≡ .effectful) : Empty :=
+  Identity.transport (fun k => match k with | .pure => Unit | .effectful => Empty) p ()
+
 /-- Operations with a product of typed input ports and an output boundary. A test is an
 operation whose output boundary has two or more cases. -/
 structure Signature (Ty : Type) where
@@ -266,6 +270,16 @@ def selectCopy {Ξ Γ : List Ty} (x : All X Ξ) (env : All X Γ) :
     (Identity.cong₂ All.append
       (All.selectTabulate _ x _ fun _ i => All.lookupLeft x env i)
       (selectId (x.append env)))
+
+/-- Two port maps with one selection are one port map, when no value of the environment is at
+two ports. -/
+def selectInjective {Γ : List Ty} (env : All X Γ)
+    (apart : (t : Ty) → (p q : Port Γ t) → env.lookup p ≡ env.lookup q → p ≡ q) :
+    {Δ : List Ty} → (a b : PortMap Γ Δ) → env.select a ≡ env.select b → a ≡ b
+  | _, .nil, .nil, _ => .refl
+  | _, .cons p ps, .cons q qs, same =>
+      Identity.cong₂ All.cons (apart _ p q (Identity.cong All.head same))
+        (selectInjective env apart ps qs (Identity.cong All.tail same))
 
 /-- The selection at ports that are transported along an identity of lists is the transported
 selection. -/

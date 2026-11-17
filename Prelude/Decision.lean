@@ -58,6 +58,31 @@ def toPropDecidable {p : Prop} : Dec (PLift p) → Decidable p
   | .yes x => isTrue x.down
   | .no refute => isFalse (fun h => (refute ⟨h⟩).elim)
 
+/-- The identity proof of a decision of an identity. It does not use the given proof when the
+decision has a proof. -/
+def path {a b : α} : Dec (a ≡ b) → a ≡ b → a ≡ b
+  | .yes q, _ => q
+  | .no refute, p => (refute p).elim
+
+/-- The identity proof of a decision is the same for each given proof. -/
+def pathSame {a b : α} : (d : Dec (a ≡ b)) → (p q : a ≡ b) → path d p ≡ path d q
+  | .yes _, _, _ => .refl
+  | .no refute, p, _ => (refute p).elim
+
+/-- An identity proof is the composite of the two identity proofs of a decision. -/
+def pathSplit (dec : (x y : α) → Dec (x ≡ y)) {a b : α} (p : a ≡ b) :
+    p ≡ (path (dec a a) .refl).symm.trans (path (dec a b) p) :=
+  Identity.ind
+    (fun (b : α) (p : a ≡ b) => p ≡ (path (dec a a) .refl).symm.trans (path (dec a b) p))
+    (Identity.symmTrans (path (dec a a) .refl)).symm p
+
+/-- A type with a decision of identity has one identity proof for each two elements. -/
+def unique (dec : (x y : α) → Dec (x ≡ y)) {a b : α} (p q : a ≡ b) : p ≡ q :=
+  (pathSplit dec p).trans
+    ((Identity.cong (fun r => (path (dec a a) .refl).symm.trans r)
+        (pathSame (dec a b) p q)).trans
+      (pathSplit dec q).symm)
+
 end Dec
 
 /-- Decidable internal identity. -/

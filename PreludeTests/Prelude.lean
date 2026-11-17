@@ -199,6 +199,24 @@ def distinctTail : distinctTypes.tail Ty.bool .here .here ≡ .refl := .refl
 def mappedValue (n : Nat) :
     (Identity.ofMapSome (f := Nat.succ) (some n) (y := n + 1) .refl).1 ≡ n := .refl
 
+/-- Two identity proofs of two numbers are one proof, from the decision of the identity of two
+numbers. -/
+def oneProof (n : Nat) (p : n ≡ n) : p ≡ .refl := Dec.unique DecEq.nat p .refl
+
+/-- The proof computes for closed numbers. -/
+def oneProofClosed : oneProof 3 .refl ≡ .refl := .refl
+
+/-- Two positions with one number are one position. -/
+def sameThird : Elem.sameNumber third third .refl ≡ .refl := .refl
+
+/-- info: 'PreludeTests.oneProof' does not depend on any axioms -/
+#guard_msgs in
+#print axioms oneProof
+
+/-- info: 'PreludeTests.sameThird' does not depend on any axioms -/
+#guard_msgs in
+#print axioms sameThird
+
 /-- info: 'PreludeTests.distinctTail' does not depend on any axioms -/
 #guard_msgs in
 #print axioms distinctTail
