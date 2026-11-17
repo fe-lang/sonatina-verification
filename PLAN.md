@@ -33,7 +33,8 @@ The Prelude identity, indexed, decision, relation, and container modules,
 `Draft.Diagram`, `Draft.Verified`, `Draft.Specification`, `Draft.Stele`, and
 `Draft.Checks` exist. `Draft.Runtime` has the machines and the cell of a
 signature with the equations of global state.
-`Draft.Sequentialization` has the orders of the steps of a diagram.
+`Draft.Sequentialization` has the orders of the steps of a diagram, and the
+list of the ready steps of a test with two cases.
 The other module families are the planned locations for stages D3 to D7. The module families divide the work
 and not the system: the IR is the one diagram syntax of
 [CONCEPT.md](CONCEPT.md#design).
@@ -62,7 +63,7 @@ in AGENTS.
 | D1. Aberlé core | `Free`/`FreeDep`, verified composition, erasure compatibility, fold/append/concat, and distinguishable witness examples. Repeated composition preserves and exposes the supplied evidence. | Complete |
 | D2. Whole diagrams with effects | Signatures of pure and effectful operations, with input ports and an output boundary for each operation. Contexts, boundaries as lists of contexts, and their structural maps: copy, discard, and exchange on ports, and the join on cases. Diagrams: exits, steps, and composites. Continuations: copairings, frames with a bypass, and loops. The static size of a diagram. The structural agreement of two diagrams whose families agree at each case, with its soundness. The request interface of a signature at a family of values, with the specification of each operation as a part of the signature. The function meaning of a diagram into `Free`, with the remaining computation as an argument, for a number of unrollings of each loop and a computation for the limit. The verification of a diagram over its function meaning, in `FreeDep`, by the constructors of the diagram: a step takes the witness of the precondition of its operation from the context, and its continuation receives the postcondition of the response. The specification of a diagram, from a specification of its calls with a runtime: a witness of the precondition of each call that a run can make, and the runs over that witness, with its two exit equations as equivalences. Each law of the stage is an agreement of function meanings for each number of unrollings, and the evidence of a verified diagram moves along it. The interchange rule for a pure step and a step that no wire connects to it, with its agreement for each lowering in which each pure operation makes no call, and with the map of verified diagrams along that agreement. The state runner, with whiskering and pure centrality. The control equation set for the state runner: the two case equations, the pointwise uniqueness of a map out of a sum, preservation by whiskering, the agreement of a composite with the diagram that has the continuation at each exit, and the agreement of a frame with the copairing that has a copy of its diagram for each case of the bypass. Branching read/write with a shared invariant, and the applicable global-state rewrite evidence. Each law is a pointwise statement, so that the graph of a function carries it to the relations of D6. The D2 checks below pass. | Complete |
 | D3. Dependency orders | Source diagrams for the fixed-occurrence fragment: one sequence of steps and one exit. Each dependency-respecting order is a diagram of the same syntax with an interchange derivation from the source diagram, and its context at each step has the cut of live values. The evidence of each order is constructed from the evidence of the source along the derivation, with the condition on the specifications of the pure operations that the construction needs. Soundness for the interchange equation set: actual producer connections, exact call order, and returned-value preservation. The dependency graph of a diagram, with no names: a value is its history, and the graph has the occurrences of the steps at the histories of their operands, with the order of the effectful steps. Two calls of a pure operation with one history are one producer in the graph. The graph is thus for the interchange equation set with the copy equation set: copy naturality for each pure operation, with its soundness for each lowering in which each pure operation makes no call. The word of each order is an admissible order of the graph. The merged diagram of a diagram has one call for the equal calls of a pure operation, with a derivation from the diagram in the two equation sets, and it has no two equal occurrences. Constructive coverage for each diagram with no two equal occurrences: an arbitrary admissible order of its graph is the word of an order, with an interchange derivation and one run of each occurrence. A derivation of the interchange equation set keeps the occurrences, each the same number of times. The orders of a diagram of the fragment are a list, and each order agrees with an order of the list. The three interleavings and the shared, repeated, and discarded operand checks pass. | Current |
-| D4. Control and sharing | Source diagrams with the control sum: tests as steps with one diagram for each case, copairing for values and for the runtime, joins as two exits to one case, composites for shared continuations, and guarded operations. The dependency graph of a diagram with the control sum, in which the occurrences after a test depend on its case. The decision of the identity of two histories. The relation between two presentations of one VSDG, for the order of two pure tests that no wire connects and for the case of an operation. Occurrence partitions. Figure 5.6 and the five arrangements of Figure 5.7, each as a whole diagram. Retained bypass cases are related to source control information. Tail sharing is justified with the control equation set. Reuse and speculation are justified with the copy and discard equation sets, the applicable effect equations, and dependent evidence maps. Position invariance holds for each operation that is named for discard naturality, and a guarded operation consumes the port of its case. The two sharing hypotheses of CONCEPT are tested. Soundness and coverage hold for the claimed fragment. Costs are compared under the register-machine model of the thesis, which gives the instruction counts of the source contracts. | Partial. Binary readiness and Figure 5.6 are implemented. |
+| D4. Control and sharing | Source diagrams with the control sum: tests as steps with one diagram for each case, copairing for values and for the runtime, joins as two exits to one case, composites for shared continuations, and guarded operations. The dependency graph of a diagram with the control sum, in which the occurrences after a test depend on its case. The decision of the identity of two histories. The relation between two presentations of one VSDG, for the order of two pure tests that no wire connects and for the case of an operation. Occurrence partitions. Figure 5.6 and the five arrangements of Figure 5.7, each as a whole diagram. Retained bypass cases are related to source control information. Tail sharing is justified with the control equation set. Reuse and speculation are justified with the copy and discard equation sets, the applicable effect equations, and dependent evidence maps. Position invariance holds for each operation that is named for discard naturality, and a guarded operation consumes the port of its case. The two sharing hypotheses of CONCEPT are tested. Soundness and coverage hold for the claimed fragment. Costs are compared under the register-machine model of the thesis, which gives the instruction counts of the source contracts. | Partial. The list of the ready steps of a test with two cases exists, with Figure 5.6 as its check. |
 | D5. Substitution and composition laws | Exact silent resolution with closed cycles. Substitution with multiplied bypasses, and substitution closure. Identity and associativity with reindexing. Adequacy of finite routing certificates. Interpretation, runtime, and dependent verification commute with nested substitution. | Pending |
 | D6. Feedback | Computations as Type-valued relations, with the graph of a function, composition, the control sum, and agreement as an equivalence of run families. The loop of a body as the inductive family of runs, with the initial property: the map to each relation that the body closes, and its uniqueness at each run. For a function body: the function on the inductive domain, the uniqueness of the domain evidence, the function with fuel with soundness and completeness against the runs, and domain evidence from a decreasing measure. The consequences of the initial property, each as an equivalence with its two round-trip identities: fixpoint, naturality, codiagonal, dinaturality, uniformity for pure maps, and preservation by whiskering. The transport of a postcondition that depends on the run across each law. The generic definitions extend `Prelude.Relation`. The loop of the syntax: the laws of the specification of a diagram, and the soundness and the completeness of the function meaning against the runs of the specification. The rules of the feedback equation set, with their soundness as cartesian maps of specifications. The trace as a derived operation of the loop, with the trace laws as consequences. The compatibility of a bypass with the loop, the agreement of staged execution with all-at-once execution, and cell pasting from uniformity, for the declared observation. Source loop initialization, carried values and state, guards, and exits. Invariant-preserving iteration with the domain evidence as the precondition witness. Correspondence with traced wiring and execution certificates. Feedback compatibility for a changing runtime and a preserved bypass context. The derivation of each loop choice of thesis §5.4 that the stage covers, and a statement of the work that infinite control and infinite observations still need. | Pending |
 | D7. Example pipeline slice | The frontend and backend interfaces of CONCEPT, with Stele and the EVM as the instance. A source-to-target slice with compositional proof production, placement and storage accounting, and constructive Stele/EVM adapters. The declared value, effect, termination, and choice observations are preserved. The backend interpretation satisfies the named equation sets under its agreement relation. The direction from target runs to source runs gives the refinement relation of EquiVM at the boundary. The direction from source runs to target runs holds above a gas bound that exists for each source run. The lowering causes no stack underflow, no stack overflow, and no bad jump destination. The cost account uses the stack machine of EVMLean: gas for each instruction, code size, the reach of `DUP` and `SWAP`, the stack limit, and equal stack layouts at each merge. | Pending. A frontend fragment exists. |
@@ -762,22 +763,65 @@ These parts are open:
   for copy naturality in these three places. An operation that is central
   only is not in the copy equation set.
 
-## D4: binary branches with straight-line arms
+## D4: the ready steps of a test with two cases
 
-[The scheduler](Draft/Sequentialization.lean) lists the test and every move
-admitted by `Ready.past` across a binary test whose arms are straight-line.
-It matches ready occurrences by operation and ordered incoming ports. For
-each admissible move, `Ready.pastListed` gives a list position and structural
-agreement of the residual diagrams at each output case.
+[Draft/Sequentialization.lean](Draft/Sequentialization.lean) has the list of
+the ready steps of a test with two cases, when the rest of each case is a
+diagram of the fragment with fixed occurrences. The list has the test. It
+also has each step that is ready in the rest of the two cases, with one
+operation and the same operands. The operands are ports of the context of the
+test, and the test is pure or the step is pure. Such a step moves before the
+test, and its element of the list has the diagram after it. A ready step of
+the first case and a ready step of the second case give one element, so two
+equal calls in one case give different elements.
 
-[The Figure 5.6 checks](Draft/Checks/BinaryBranch.lean) use the listed move
-to bring `h(x)` before the test. That move takes the diagram from seven steps
-to six. Both exits supply their result to the shared continuation `f` by the
-control equation, which takes the diagram to five steps. The check gives the
-derivation that shares `f`: the scheduler does not find it. The checks cover static size, the
-calls on each path, and transport of a witness-dependent specification through
-the derivation. Discovery of shared tails, coverage of sharing partitions,
-and the Figure 5.7 cost comparison remain open.
+The list is complete for the moves before the test. Each step that is ready
+in the rest of each case, with operands of the context of the test, is in the
+list, with a diagram after it that agrees at each case. The match of a ready
+step with a call uses the decision of the identity of two operations, which
+is a premise on the signature, and the decision of the identity of two ports.
+[Draft/Diagram.lean](Draft/Diagram.lean) has the boundary with two cases and
+the case analysis on them. [Prelude/Decision.lean](Prelude/Decision.lean) has
+the decision of the identity of dependent pairs, the transport of a value
+along a decision, and the law that the decision of the identity of an element
+with itself gives the reflexivity.
+
+[Draft/Checks/BinaryBranch.lean](Draft/Checks/BinaryBranch.lean) has the
+checks, on Figure 5.6. The source diagram has a test, and each case has the
+step `h` on the input `x`, the step `g` or `g′` on the output of `h`, and
+the step `f`. It has seven steps. Its ready steps are the test and `h`. The
+diagram with `h` at the front is from the list, and it has six steps. For the
+evidence of the move of `h` that is not from the list, the theorem of the
+completeness gives the position of `h` in the list. A check consumes the
+agreement of the diagrams after `h` through a dependent payload, in each case
+of the test.
+
+The third diagram has `f` one time, as a continuation: each case exits to the
+boundary of the continuation with its value. It has five steps. A derivation
+in the control equation set relates the source diagram to the third diagram.
+Its first part is the derivation of the ready step. Its second part has the
+first exit equation and the composite equation, and the check gives that
+part: no search finds the shared continuation. The two diagrams agree after
+each lowering in which each pure operation returns without a call. The source
+diagram calls the test before `h`, and the third diagram calls `h` before the
+test, in each case of the test. The source diagram has a verified
+implementation for a specification whose postcondition depends on the witness
+of the precondition. The map of verified implementations along the derivation
+gives the verified implementation of the third diagram. A check consumes its
+evidence at the exit in each case of the test, for arbitrary functions of the
+operations and an arbitrary witness.
+
+A second group of checks has the operands of the ready steps. The test is
+effectful, and its two cases have different numbers of ports. Each case has
+two steps of one operation at one operand. For a pure operation and an
+operand of the context of the test, the list has the test and the four pairs
+of a step of the first case and a step of the second case. The list has the
+test only in three conditions: the operands of the two cases are different
+ports, the operand is an output port of the test in one case, or the
+operation is effectful.
+
+These parts are open: the search of a shared continuation, the coverage of
+the sharing partitions, and the cost comparison of Figure 5.7.
 
 ## D6: generic definitions
 
