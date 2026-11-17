@@ -771,6 +771,22 @@ of the run family of a composite and of a copairing, the soundness and the
 completeness of the function meaning against the runs, and the rules of the
 feedback equation set.
 
+These results are pending, and they take the place of the run family of a
+diagram. A specification of the calls with a runtime gives a specification of
+a diagram. A response of a call is a response with the next runtime, or a
+stop, and a result of a run is an exit with a runtime, or a stop. A witness of
+the precondition of a diagram has a witness of the precondition of each call
+that a run can make, and the runs of the diagram are over that witness. The
+graph of a machine is a specification of the calls. An implementation has a
+specification from the specification of its calls: the implementation is
+verified for it, and each specification with a lift of the implementation maps
+to it. The evidence of a computation gives the condition at the result of
+each run along that evidence. The function meaning and the specification of a
+diagram are two recursions on the diagram, and their connection is the
+soundness and the completeness of the function meaning against the runs. The
+form of the precondition of a loop is open: the domain, in which each run from
+the entrance stops, or an invariant that the body keeps.
+
 ## D7: the frontend fragment
 
 [Draft/Stele.lean](Draft/Stele.lean) has a typed fragment of Stele. The types
