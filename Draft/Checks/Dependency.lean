@@ -20,9 +20,9 @@ and no other order, and each order of the list gives the same two values.
 The source diagram has a verified implementation: its lift for a specification with an
 admission, and then the verified lowering. The map of verified implementations along the
 derivation of an order gives the verified implementation of the order. The receipt at the exit
-of the source diagram and of the order `A C B` gives the same payload through its identity,
-for an arbitrary admission. The evidence of the order `C A B` has the same value in its
-receipt, and a check consumes its postcondition of `B` through a dependent payload.
+of the source diagram, of the order `A C B`, and of the order `C A B` gives the same payload
+through its identity, for an arbitrary admission. A check consumes the postcondition of `B` in
+the evidence of the order `C A B` through a dependent payload.
 
 The dependency graph of the source diagram has the occurrences of its three steps at the
 histories of its inputs. The orders `A C B` and `C A B` have the same occurrences in the other
@@ -48,8 +48,10 @@ order is one call of the store.
 The fourth group has two equal calls. `A` is pure and has two calls at the two inputs, and `D`
 has the outputs of the two calls. The copy rule relates this diagram to the diagram with one
 call of `A`, in which `D` has the output of that call two times. The two diagrams give the same
-values, and a check consumes the soundness of the rule through a dependent payload. In the
-dependency graph, the two calls are one occurrence two times, and the two operands of `D` have
+values, and a check consumes the soundness of the rule through a dependent payload. The same
+rule holds for a rest with two steps: `D`, and then the effectful `C` with the output of `D`.
+A check consumes its soundness through a dependent payload that has the response of the store.
+In the dependency graph, the two calls are one occurrence two times, and the two operands of `D` have
 one history. The list of the orders has the two orders of the two calls. The word that runs one
 call of `A`, then `D`, and then the other call of `A` is an admissible order of the occurrences,
 and it is not the word of an order: `D` runs when one of the two calls is done. The evidence
@@ -292,10 +294,10 @@ def middleReceipt (flag : Bool) (u v x y : Nat) (pre : Admission) :
     receipt (lowered stop count limit middle middleOrder) flag u v x y pre ≡ expected pre u := .refl
 
 set_option smartUnfolding false in
-/-- The receipt in the evidence of the order `C A B` has the same value. -/
-def frontValue (flag : Bool) (u v x y : Nat) (pre : Admission) :
-    (((lowered stop count limit front frontOrder).run (Verified.verify flag u v))
-      (inputs x y) pre).2.2.2.actual ≡ expected pre u := .refl
+/-- The evidence of the order `C A B`, whose derivation has two interchanges, gives the same
+payload. -/
+def frontReceipt (flag : Bool) (u v x y : Nat) (pre : Admission) :
+    receipt (lowered stop count limit front frontOrder) flag u v x y pre ≡ expected pre u := .refl
 
 set_option smartUnfolding false in
 /-- The postcondition of `B` in the evidence of the order `C A B` is consumed through a
@@ -584,6 +586,41 @@ def copyPayload (flag : Bool) (u v x y : Nat) :
         ((copySound stop count x y).run (f := provider flag u v) (fun _ => .refl)))
       ⟨x + y + (x + y), Nat.lt_succ_self _⟩).val ≡ x + y + (x + y) := .refl
 
+/-- A rest after two calls of `A` that has two steps. `D` has the outputs of the two calls. The
+effectful `C` has the output of `D`. The exit has the output of `D` and the response. -/
+def afterLong : (c c' : (sig.output Op.add).Case) → Diagram sig (c'.1 ++ (c.1 ++ [(), ()])) Two
+  | ⟨_, .here⟩, ⟨_, .here⟩ =>
+      .step ⟨.add, .cons (.there .here) (.cons .here .nil)⟩ fun
+        | ⟨_, .here⟩ =>
+            .step ⟨.emit, .cons .here .nil⟩ fun
+              | ⟨_, .here⟩ =>
+                  .exit ⟨_, .here, Boundary.only _, .cons (.there .here) (.cons .here .nil)⟩
+
+/-- Two calls of `A` at the two inputs, and then the rest with two steps. -/
+def twiceLong : Diagram sig [(), ()] Two :=
+  .step ⟨.add, addInputs⟩ fun c => .step ⟨.add, addInputs.weaken _⟩ fun c' => afterLong c c'
+
+/-- One call of `A`, and then the rest with the output of that call at the two places. -/
+def onceLong : Diagram sig [(), ()] Two :=
+  .step ⟨.add, addInputs⟩ fun c => Diagram.rename (PortMap.copy c.1 _) (afterLong c c)
+
+/-- The soundness of the copy rule for the rest with two steps. -/
+def longSound (x y : Nat) :
+    Free.Agreement ((twiceLong.meaning stop count (inputs x y)).subst lower)
+      ((onceLong.meaning stop count (inputs x y)).subst lower) :=
+  (Diagram.Derivation.rule (R := Rules.copy sig)
+      (Diagram.Copy.copy (S := sig) Op.add .refl addInputs afterLong)).sound stop count
+    (.copy returns) (inputs x y) .pure
+
+set_option smartUnfolding false in
+/-- The identity of the returned values of the two diagrams is consumed through a dependent
+payload that has the response of the store. -/
+def longPayload (flag : Bool) (u v x y : Nat) :
+    (Identity.transport (fun n => Fin (n + 1))
+      (Identity.cong (fun out => (values out).2)
+        ((longSound stop count x y).run (f := provider flag u v) (fun _ => .refl)))
+      ⟨u + (x + y + (x + y)), Nat.lt_succ_self _⟩).val ≡ u + (x + y + (x + y)) := .refl
+
 /-- The diagram with two calls is a diagram of the fragment. -/
 def twiceStraight : twice.Straight := ⟨center, only, center, only, center, only, ()⟩
 
@@ -859,9 +896,9 @@ end Draft.Checks.Dependency
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.middleReceipt
 
-/-- info: 'Draft.Checks.Dependency.frontValue' does not depend on any axioms -/
+/-- info: 'Draft.Checks.Dependency.frontReceipt' does not depend on any axioms -/
 #guard_msgs in
-#print axioms Draft.Checks.Dependency.frontValue
+#print axioms Draft.Checks.Dependency.frontReceipt
 
 /-- info: 'Draft.Checks.Dependency.notAdmissible' does not depend on any axioms -/
 #guard_msgs in
@@ -898,6 +935,10 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.copyPayload' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.copyPayload
+
+/-- info: 'Draft.Checks.Dependency.longPayload' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.longPayload
 
 /-- info: 'Draft.Checks.Dependency.twiceGraph' does not depend on any axioms -/
 #guard_msgs in

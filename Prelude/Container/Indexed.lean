@@ -46,8 +46,10 @@ namespace Ext
 /-- A shape identity transports the type index of each position. -/
 def indexAlong {a b : C.Shape o} (shape : a ≡ b) (p : C.Pos a) :
     C.index a p ≡ C.index b (Identity.transport (fun s : C.Shape o => C.Pos s) shape p) :=
-  match shape with
-  | .refl => .refl
+  Identity.ind
+    (fun b shape =>
+      C.index a p ≡ C.index b (Identity.transport (fun s : C.Shape o => C.Pos s) shape p))
+    .refl shape
 
 structure Agreement (x y : C.Ext X o) where
   shape : x.1 ≡ y.1
@@ -64,26 +66,34 @@ variable {C}
 def Agreement.refl (x : C.Ext X o) : Agreement C x x := ⟨.refl, fun _ => .refl⟩
 
 def Agreement.ofIdentity {x y : C.Ext X o} (same : x ≡ y) : Agreement C x y :=
-  match same with
-  | .refl => .refl x
+  Identity.ind (fun y _ => Agreement C x y) (.refl x) same
 
-def Agreement.symm {x y : C.Ext X o} (same : Agreement C x y) : Agreement C y x := by
-  rcases x with ⟨s, values⟩
-  rcases y with ⟨t, other⟩
-  rcases same with ⟨shape, positions⟩
-  cases shape
-  exact ⟨.refl, fun p => (positions p).symm⟩
+/-- The values of an element at a shape, with the witnesses that they are the values of `x`
+along an identity of shapes. -/
+abbrev Agreement.Values (x : C.Ext X o) (t : C.Shape o) (shape : x.1 ≡ t)
+    (other : (p : C.Pos t) → X (C.index t p)) : Type (max p u) :=
+  (p : C.Pos x.1) → Identity.transport X (indexAlong C shape p) (x.2 p) ≡
+    other (Identity.transport (fun s : C.Shape o => C.Pos s) shape p)
+
+def Agreement.symm {x y : C.Ext X o} (same : Agreement C x y) : Agreement C y x :=
+  Identity.ind
+    (fun (t : C.Shape o) (shape : x.1 ≡ t) =>
+      (other : (p : C.Pos t) → X (C.index t p)) → Agreement.Values x t shape other →
+      Agreement C (⟨t, other⟩ : C.Ext X o) x)
+    (fun _ positions => ⟨.refl, fun p => (positions p).symm⟩)
+    same.shape y.2 same.values
 
 def Agreement.trans {x y z : C.Ext X o} (first : Agreement C x y) (second : Agreement C y z) :
-    Agreement C x z := by
-  rcases x with ⟨s, values⟩
-  rcases y with ⟨t, middle⟩
-  rcases z with ⟨u, other⟩
-  rcases first with ⟨shape, positions⟩
-  rcases second with ⟨shape', positions'⟩
-  cases shape
-  cases shape'
-  exact ⟨.refl, fun p => (positions p).trans (positions' p)⟩
+    Agreement C x z :=
+  Identity.ind
+    (fun (t : C.Shape o) (shape : x.1 ≡ t) =>
+      (middle : (p : C.Pos t) → X (C.index t p)) → Agreement.Values x t shape middle →
+      Agreement C (⟨t, middle⟩ : C.Ext X o) z → Agreement C x z)
+    (fun _ positions second =>
+      ⟨second.shape, fun p =>
+        (Identity.cong (Identity.transport X (indexAlong C second.shape p)) (positions p)).trans
+          (second.values p)⟩)
+    first.shape y.2 first.values second
 
 def Agreement.map {x y : C.Ext X o} (same : Agreement C x y) (f : (i : I) → X i → Y i) :
     Agreement C (C.map f x) (C.map f y) :=
@@ -92,12 +102,13 @@ def Agreement.map {x y : C.Ext X o} (same : Agreement C x y) (f : (i : I) → X 
 
 /-- Positionwise evidence follows the shape and value witnesses. -/
 def Agreement.all {x y : C.Ext X o} (same : Agreement C x y)
-    (P : (i : I) → X i → Type v) (proof : All C P x) : All C P y := by
-  rcases x with ⟨s, values⟩
-  rcases y with ⟨t, other⟩
-  rcases same with ⟨shape, positions⟩
-  cases shape
-  exact fun p => Identity.transport (P (C.index s p)) (positions p) (proof p)
+    (P : (i : I) → X i → Type v) (proof : All C P x) : All C P y :=
+  Identity.ind
+    (fun (t : C.Shape o) (shape : x.1 ≡ t) =>
+      (other : (p : C.Pos t) → X (C.index t p)) → Agreement.Values x t shape other →
+      All C P (⟨t, other⟩ : C.Ext X o))
+    (fun _ positions p => Identity.transport (P (C.index x.1 p)) (positions p) (proof p))
+    same.shape y.2 same.values
 
 end Ext
 
@@ -144,8 +155,9 @@ structure Agreement (f g : Hom C D) where
 
 private def valueAlong (x : C.Ext X o) {p q : C.Pos x.1} (same : p ≡ q) :
     Identity.transport X (Identity.cong (C.index x.1) same) (x.2 p) ≡ x.2 q :=
-  match same with
-  | .refl => .refl
+  Identity.ind
+    (fun q same => Identity.transport X (Identity.cong (C.index x.1) same) (x.2 p) ≡ x.2 q)
+    .refl same
 
 /-- Agreement of index witnesses induces agreement of the transported values. -/
 def Agreement.apply {f g : Hom C D} (same : Agreement f g) (x : C.Ext X o) :

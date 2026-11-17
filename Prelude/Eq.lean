@@ -24,8 +24,7 @@ def ofEq (p : a = b) : a ≡ b :=
   | rfl => .refl
 
 def ofEqToEq (p : a ≡ b) : ofEq p.toEq ≡ p :=
-  match p with
-  | .refl => .refl
+  ind (fun _ p => ofEq p.toEq ≡ p) .refl p
 
 @[simp] theorem toEq_ofEq (p : a = b) : (ofEq p).toEq = p := rfl
 

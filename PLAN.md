@@ -657,10 +657,9 @@ order of the list gives the same values. The source diagram has a verified
 implementation for a specification with an admission. The map of verified
 implementations along the derivation of an order, which is the map of D2,
 gives the verified implementation of each order. The receipt at the exit of
-the order `A C B` gives the payload of the source diagram through its
-identity, for an arbitrary admission. The evidence of the order `C A B` has
-the same value in its receipt, and a check consumes its postcondition of `B`
-through a dependent payload.
+each of the two orders gives the payload of the source diagram through its
+identity, for an arbitrary admission. A check consumes the postcondition of
+`B` in the evidence of the order `C A B` through a dependent payload.
 
 The dependency graph of the first source diagram has the occurrences of its
 three steps. The orders `A C B` and `C A B` have the same occurrences in the
@@ -689,7 +688,9 @@ The fourth source diagram has two equal calls: the pure `A` has two calls at
 the two inputs, and `D` has the outputs of the two calls. The copy rule
 relates it to the diagram with one call of `A`, in which `D` has the output of
 that call two times. The two diagrams give the same values, and a check
-consumes the soundness of the rule through a dependent payload. In the graph,
+consumes the soundness of the rule through a dependent payload. A second
+check does this for a rest with two steps, and its payload has the response
+of the store. In the graph,
 the two calls are one occurrence two times, and the two operands of `D` have
 one history. The list of the orders has the two orders of the two calls. The
 word that runs one call of `A`, then `D`, and then the other call of `A` is an
@@ -713,19 +714,8 @@ These parts are open:
   fragment is in the list.
 - The decision of the identity of two histories, which the decision of the
   precondition of a run needs.
-- The check that reads the receipt of the order `C A B` through its
-  identity. Its derivation has two interchanges, and the check exceeds the
-  default limit of the elaborator. The cause is open.
-- The check that consumes the soundness of the copy rule through a dependent
-  payload, for a diagram with two steps after the two calls. It exceeds the
-  default limit of the elaborator, and the check with one step after the two
-  calls passes. The cause is open.
 - The converse: each diagram that an interchange derivation gives from a
   diagram of the fragment is an order of it.
-- The cost of the elaborator in the check modules `Lift`, `State`, `Diagram`,
-  and `Dependency`. Each of the four has most of its time in the elaborator
-  and little in the kernel. The work on the causes is the last part of the
-  stage, and it includes the causes of the two checks that exceed the limit.
 
 ## D6: generic definitions
 

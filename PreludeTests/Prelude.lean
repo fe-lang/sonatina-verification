@@ -18,6 +18,14 @@ def identityToEq {A : Type u} {x y : A} (p : x ≡ y) : x = y := p.toEq
 def basedInductionComputes {A : Type u} {x : A} (P : (y : A) → x ≡ y → Type v)
     (r : P x .refl) : Identity.ind P r Identity.refl = r := rfl
 
+-- The induction with the second element fixed computes at the reflexivity proof.
+def endInductionComputes {A : Type u} {y : A} (P : (x : A) → x ≡ y → Type v)
+    (r : P y .refl) : Identity.indEnd P r Identity.refl ≡ r := .refl
+
+-- The identity of two pairs computes at reflexivity proofs, for arbitrary elements.
+def pairComputes {A : Type u} {B : Type v} (x : A) (y : B) :
+    Identity.cong₂ Prod.mk (.refl : x ≡ x) (.refl : y ≡ y) ≡ .refl := .refl
+
 def identityChain {A : Type u} {x y z : A} (p : x ≡ y) (q : y ≡ z) : x ≡ z := calc
   x ≡ y := p
   _ ≡ z := q
@@ -214,6 +222,14 @@ def oneProofClosed : oneProof 3 .refl ≡ .refl := .refl
 
 /-- Two positions with one number are one position. -/
 def sameThird : Elem.sameNumber third third .refl ≡ .refl := .refl
+
+/-- info: 'PreludeTests.endInductionComputes' does not depend on any axioms -/
+#guard_msgs in
+#print axioms endInductionComputes
+
+/-- info: 'PreludeTests.pairComputes' does not depend on any axioms -/
+#guard_msgs in
+#print axioms pairComputes
 
 /-- info: 'PreludeTests.oneProof' does not depend on any axioms -/
 #guard_msgs in

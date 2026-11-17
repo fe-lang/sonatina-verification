@@ -1,6 +1,9 @@
 import Init
 
-/-! Computational Type-valued identity and its eliminators. -/
+/-! Computational Type-valued identity and its eliminators.
+
+Each function eliminates an identity by `ind` or `indEnd`, with an explicit motive. Its term
+has no eliminator of a `Prop` equality, so its reduction compares no two values. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -24,6 +27,12 @@ def ind {a : α} (motive : (b : α) → a ≡ b → Sort v)
     (base : motive a .refl) {b : α} (p : a ≡ b) : motive b p :=
   Identity.casesOn (motive := motive) p base
 
+/-- Path induction with the second element fixed. -/
+def indEnd {b : α} (motive : (a : α) → a ≡ b → Sort v)
+    (base : motive b .refl) {a : α} (p : a ≡ b) : motive a p :=
+  ind (fun b p => (motive : (a : α) → a ≡ b → Sort v) → motive b .refl → motive a p)
+    (fun _ base => base) p motive base
+
 /-- An identity witness implies Lean equality. -/
 theorem toEq (p : a ≡ b) : a = b :=
   ind (fun b _ => a = b) rfl p
@@ -42,8 +51,7 @@ def cong (f : α → β) (p : a ≡ b) : f a ≡ f b :=
 
 def cong₂ (f : α → β → γ) {x y : β} (p : a ≡ b) (q : x ≡ y) :
     f a x ≡ f b y :=
-  match p, q with
-  | .refl, .refl => .refl
+  ind (fun b _ => f a x ≡ f b y) (cong (f a) q) p
 
 /-- Transport also accepts Prop-valued families at the Lean interface. -/
 def transport (P : α → Sort v) (p : a ≡ b) (x : P a) : P b :=
@@ -54,45 +62,37 @@ def cast {A B : Type u} (p : A ≡ B) (x : A) : B :=
 
 def depCong {P : α → Type v} (f : (x : α) → P x) (p : a ≡ b) :
     transport P p (f a) ≡ f b :=
-  match p with
-  | .refl => .refl
+  ind (fun b p => transport P p (f a) ≡ f b) .refl p
 
 def transRefl (p : a ≡ b) : p.trans .refl ≡ p :=
-  match p with
-  | .refl => .refl
+  ind (fun _ p => p.trans .refl ≡ p) .refl p
 
 def reflTrans (p : a ≡ b) : Identity.refl.trans p ≡ p := .refl
 
 def transAssoc (p : a ≡ b) (q : b ≡ c) (r : c ≡ d) :
-    (p.trans q).trans r ≡ p.trans (q.trans r) := by
-  cases p
-  exact .refl
+    (p.trans q).trans r ≡ p.trans (q.trans r) :=
+  ind (fun b p => (q : b ≡ c) → (p.trans q).trans r ≡ p.trans (q.trans r)) (fun _ => .refl) p q
 
 def symmSymm (p : a ≡ b) : p.symm.symm ≡ p :=
-  match p with
-  | .refl => .refl
+  ind (fun _ p => p.symm.symm ≡ p) .refl p
 
 def symmTrans (p : a ≡ b) : p.symm.trans p ≡ .refl :=
-  match p with
-  | .refl => .refl
+  ind (fun _ p => p.symm.trans p ≡ .refl) .refl p
 
 def transSymm (p : a ≡ b) : p.trans p.symm ≡ .refl :=
-  match p with
-  | .refl => .refl
+  ind (fun _ p => p.trans p.symm ≡ .refl) .refl p
 
 def congId (p : a ≡ b) : cong id p ≡ p :=
-  match p with
-  | .refl => .refl
+  ind (fun _ p => cong id p ≡ p) .refl p
 
 def congComp (f : α → β) (g : β → γ) (p : a ≡ b) :
     cong (g ∘ f) p ≡ cong g (cong f p) :=
-  match p with
-  | .refl => .refl
+  ind (fun _ p => cong (g ∘ f) p ≡ cong g (cong f p)) .refl p
 
 def congTrans (f : α → β) (p : a ≡ b) (q : b ≡ c) :
-    cong f (p.trans q) ≡ (cong f p).trans (cong f q) := by
-  cases p
-  exact .refl
+    cong f (p.trans q) ≡ (cong f p).trans (cong f q) :=
+  ind (fun b p => (q : b ≡ c) → cong f (p.trans q) ≡ (cong f p).trans (cong f q))
+    (fun _ => .refl) p q
 
 def transportTrans (P : α → Type v) (p : a ≡ b) (q : b ≡ c) (x : P a) :
     transport P (p.trans q) x ≡ transport P q (transport P p x) :=
@@ -112,8 +112,7 @@ def transportConst (p : a ≡ b) (x : β) : transport (fun _ => β) p x ≡ x :=
 def transportMap {P : α → Type v} {Q : α → Type w}
     (f : (x : α) → P x → Q x) (p : a ≡ b) (x : P a) :
     transport Q p (f a x) ≡ f b (transport P p x) :=
-  match p with
-  | .refl => .refl
+  ind (fun b p => transport Q p (f a x) ≡ f b (transport P p x)) .refl p
 
 def pair {x y : β} (p : a ≡ b) (q : x ≡ y) : (a, x) ≡ (b, y) :=
   cong₂ Prod.mk p q
@@ -121,13 +120,12 @@ def pair {x y : β} (p : a ≡ b) (q : x ≡ y) : (a, x) ≡ (b, y) :=
 def sigma {P : α → Type v} {x : P a} {y : P b}
     (p : a ≡ b) (q : transport P p x ≡ y) :
     (⟨a, x⟩ : Sigma P) ≡ ⟨b, y⟩ :=
-  match p, q with
-  | .refl, .refl => .refl
+  ind (fun b p => (y : P b) → transport P p x ≡ y → (⟨a, x⟩ : Sigma P) ≡ ⟨b, y⟩)
+    (fun _ q => cong (Sigma.mk a) q) p y q
 
 def sigmaSnd {P : α → Type v} {x y : Sigma P} (p : x ≡ y) :
     transport P (cong Sigma.fst p) x.2 ≡ y.2 :=
-  match p with
-  | .refl => .refl
+  ind (fun y p => transport P (cong Sigma.fst p) x.2 ≡ y.2) .refl p
 
 def congFun {P : α → Type v} {f g : (x : α) → P x} (p : f ≡ g) (x : α) :
     f x ≡ g x := cong (fun h => h x) p
@@ -175,25 +173,27 @@ def inlCode {x : α} : (t : Sum α β) → (Sum.inl x : Sum α β) ≡ t → Typ
   | .inl _, q => InlFiber (.inl x) .refl q
   | .inr _, _ => PUnit
 
-def inlEncode {x : α} : (t : Sum α β) → (q : (Sum.inl x : Sum α β) ≡ t) → inlCode t q
-  | _, .refl => (⟨.refl, .refl⟩ : InlFiber (β := β) (.inl x) .refl .refl)
+def inlEncode {x : α} (t : Sum α β) (q : (Sum.inl x : Sum α β) ≡ t) : inlCode t q :=
+  ind (fun t q => inlCode t q) (⟨.refl, .refl⟩ : InlFiber (β := β) (.inl x) .refl .refl) q
 
 def inrCode {x : β} : (t : Sum α β) → (Sum.inr x : Sum α β) ≡ t → Type (max u v)
   | .inl _, _ => PUnit
   | .inr _, q => InrFiber (.inr x) .refl q
 
-def inrEncode {x : β} : (t : Sum α β) → (q : (Sum.inr x : Sum α β) ≡ t) → inrCode t q
-  | _, .refl => (⟨.refl, .refl⟩ : InrFiber (α := α) (.inr x) .refl .refl)
+def inrEncode {x : β} (t : Sum α β) (q : (Sum.inr x : Sum α β) ≡ t) : inrCode t q :=
+  ind (fun t q => inrCode t q) (⟨.refl, .refl⟩ : InrFiber (α := α) (.inr x) .refl .refl) q
 
 /-- `inl` has at most one value and one identity over each element of the sum. -/
-def inlFiber : {s : Sum α β} → {x y : α} → (p : s ≡ .inl x) → (q : s ≡ .inl y) →
-    InlFiber s p q
-  | _, _, y, .refl, q => inlEncode (.inl y) q
+def inlFiber {s : Sum α β} {x y : α} (p : s ≡ .inl x) (q : s ≡ .inl y) : InlFiber s p q :=
+  indEnd (b := (Sum.inl x : Sum α β))
+    (fun (s : Sum α β) (p : s ≡ .inl x) => (q : s ≡ .inl y) → InlFiber s p q)
+    (fun (q : (Sum.inl x : Sum α β) ≡ .inl y) => inlEncode (.inl y) q) p q
 
 /-- `inr` has at most one value and one identity over each element of the sum. -/
-def inrFiber : {s : Sum α β} → {x y : β} → (p : s ≡ .inr x) → (q : s ≡ .inr y) →
-    InrFiber s p q
-  | _, _, y, .refl, q => inrEncode (.inr y) q
+def inrFiber {s : Sum α β} {x y : β} (p : s ≡ .inr x) (q : s ≡ .inr y) : InrFiber s p q :=
+  indEnd (b := (Sum.inr x : Sum α β))
+    (fun (s : Sum α β) (p : s ≡ .inr x) => (q : s ≡ .inr y) → InrFiber s p q)
+    (fun (q : (Sum.inr x : Sum α β) ≡ .inr y) => inrEncode (.inr y) q) p q
 
 end Identity
 

@@ -57,6 +57,9 @@ Proofs inhabiting `Identity` are definitions (`def`); Lean's `theorem` command
 is reserved for propositions.
 
 `Identity.ind` supports motives depending on the identity witness.
+`Identity.indEnd` is the path induction with the second element fixed. Each
+identity function eliminates by one of the two, with an explicit motive, so
+its reduction eliminates no `Prop` equality.
 `Identity.transport` accepts families in any `Sort`, including `Prop`.
 `Identity.trans p q` traverses `p` followed by `q`; the `Trans` instance supports
 `calc` blocks. `Identity.sigma` combines a base identity with an identity in

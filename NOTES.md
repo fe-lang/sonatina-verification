@@ -133,6 +133,15 @@ uses `casesOn` with an explicit motive eliminates no equality. One check of
 two interchanges unfolded `Eq.rec` 226,639 times and stopped at the default
 limit with matchers on environments and positions. With `casesOn`, it passes.
 
+A matcher on an identity proof has this cost at each use. The elaborator
+reduces the proof, and then it compares the proof with `Identity.refl` by
+unification, which reduces the proof again. With matchers in `Identity.cong₂`
+and the other identity functions of the Prelude, the check `getGetPayload` of
+[Draft/Checks/State.lean](Draft/Checks/State.lean) takes 6.7 s in the
+elaborator and 0.35 s in the kernel. With `Identity.ind`, it takes 0.7 s in
+the elaborator. With constants in place of its variables, the elaborator has
+its cache, and the two times are 1.1 s and 0.3 s.
+
 `Free.bind` goes through its first argument again at each level. A sequence
 of `n` calls that binds its earlier part has `n²/2` crossings of a bind. Two
 runs of Aberlé's fold on 512 elements take 21 s and 6.5 GiB in the kernel. The

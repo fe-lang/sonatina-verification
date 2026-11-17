@@ -118,11 +118,15 @@ abbrev lift (F : Rel.{u, v, r} A B) : Rel.{u, v, max r r'} A B := fun a b => ULi
 
 /-- A run of the graph of a function and then a computation is the run that its run of the
 computation gives. -/
-def graphSeqInvTo (f : A → B) (G : Rel.{v, w, r} B C) {a : A} {c : C} :
-    (x : seq (lift.{u, v, v, r'} (graph f)) G a c) →
+def graphSeqInvTo (f : A → B) (G : Rel.{v, w, r} B C) {a : A} {c : C}
+    (x : seq (lift.{u, v, v, r'} (graph f)) G a c) :
     (⟨f a, ⟨.refl⟩, Identity.transport (fun b => G b c) x.2.1.down.symm x.2.2⟩ :
-      seq (lift.{u, v, v, r'} (graph f)) G a c) ≡ x
-  | ⟨_, ⟨.refl⟩, _⟩ => .refl
+      seq (lift.{u, v, v, r'} (graph f)) G a c) ≡ x :=
+  Identity.ind
+    (fun (b : B) (e : f a ≡ b) => (g : G b c) →
+      (⟨f a, ⟨.refl⟩, Identity.transport (fun b => G b c) e.symm g⟩ :
+        seq (lift.{u, v, v, r'} (graph f)) G a c) ≡ ⟨b, ⟨e⟩, g⟩)
+    (fun _ => .refl) x.2.1.down x.2.2
 
 /-- The graph of a function and then a computation agrees with the computation at the value of
 the function. The runs of the graph can be at a higher level. -/
@@ -263,10 +267,11 @@ def foldUnfold {F : Rel A (B ⊕ A)} : {a : A} → {b : B} → (r : Loop F a b) 
   | _, _, .exit _ => .refl
   | _, _, .next _ _ => .refl
 
-def unfoldFoldExit {F : Rel A (B ⊕ A)} {a : A} : {b' b : B} → (p : F a (.inl b')) →
-    (q : b' ≡ b) →
-    unfold (fold (F := F) (.inl b') p ⟨q⟩) ≡ (⟨.inl b', p, ⟨q⟩⟩ : Unfolded F a b)
-  | _, _, _, .refl => .refl
+def unfoldFoldExit {F : Rel A (B ⊕ A)} {a : A} {b' b : B} (p : F a (.inl b')) (q : b' ≡ b) :
+    unfold (fold (F := F) (.inl b') p ⟨q⟩) ≡ (⟨.inl b', p, ⟨q⟩⟩ : Unfolded F a b) :=
+  Identity.ind
+    (fun b q => unfold (fold (F := F) (.inl b') p ⟨q⟩) ≡ (⟨.inl b', p, ⟨q⟩⟩ : Unfolded F a b))
+    .refl q
 
 def unfoldFold {F : Rel A (B ⊕ A)} {a : A} {b : B} :
     (s : B ⊕ A) → (p : F a s) → (q : Rel.copair Rel.id (Loop F) s b) →
@@ -497,16 +502,20 @@ def ofMeasure (f : A → B ⊕ A) (measure : A → Nat)
     step f (fun a' e => ofMeasure f measure decreases n a'
       (Nat.lt_of_lt_of_le (decreases a a' e) (Nat.le_of_lt_succ h))) (f a) .refl
 
-def exitUnique {f : A → B ⊕ A} {a : A} :
-    {b b' : B} → (p : f a ≡ .inl b) → (p' : f a ≡ .inl b') →
-    Identity.InlFiber (f a) p p' → Domain.exit p ≡ Domain.exit p'
-  | _, _, _, _, ⟨.refl, h⟩ => Identity.cong Domain.exit h
+def exitUnique {f : A → B ⊕ A} {a : A} {b b' : B} (p : f a ≡ .inl b) (p' : f a ≡ .inl b')
+    (fiber : Identity.InlFiber (f a) p p') : Domain.exit p ≡ Domain.exit p' :=
+  Identity.ind
+    (fun b' e => (p' : f a ≡ .inl b') →
+      Identity.transport (fun z => f a ≡ .inl z) e p ≡ p' → Domain.exit p ≡ Domain.exit p')
+    (fun _ h => Identity.cong Domain.exit h) fiber.1 p' fiber.2
 
-def nextUnique {f : A → B ⊕ A} {a : A} :
-    {a₁ a₂ : A} → (p : f a ≡ .inr a₁) → (p' : f a ≡ .inr a₂) →
-    (d : Domain f a₁) → (d' : Domain f a₂) → Identity.InrFiber (f a) p p' →
-    ((d'' : Domain f a₁) → d ≡ d'') → Domain.next p d ≡ Domain.next p' d'
-  | _, _, _, _, _, d', ⟨.refl, h⟩, ih => Identity.cong₂ Domain.next h (ih d')
+def nextUnique {f : A → B ⊕ A} {a : A} {a₁ a₂ : A} (p : f a ≡ .inr a₁) (p' : f a ≡ .inr a₂)
+    (d : Domain f a₁) (d' : Domain f a₂) (fiber : Identity.InrFiber (f a) p p')
+    (ih : (d'' : Domain f a₁) → d ≡ d'') : Domain.next p d ≡ Domain.next p' d' :=
+  Identity.ind
+    (fun a₂ e => (p' : f a ≡ .inr a₂) → (d' : Domain f a₂) →
+      Identity.transport (fun z => f a ≡ .inr z) e p ≡ p' → Domain.next p d ≡ Domain.next p' d')
+    (fun _ d' h => Identity.cong₂ Domain.next h (ih d')) fiber.1 p' d' fiber.2
 
 /-- Two domain witnesses at one input are identical. -/
 def unique {f : A → B ⊕ A} : {a : A} → (d d' : Domain f a) → d ≡ d'

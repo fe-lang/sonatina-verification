@@ -43,8 +43,7 @@ def ind (motive : (x y : C.Ext α) → Agreement C x y → Sort w)
 def refl (x : C.Ext α) : Agreement C x x := ⟨.refl, fun _ => .refl⟩
 
 def ofIdentity {x y : C.Ext α} (same : x ≡ y) : Agreement C x y :=
-  match same with
-  | .refl => refl x
+  Identity.ind (fun y _ => Agreement C x y) (refl x) same
 
 def symm {x y : C.Ext α} (same : Agreement C x y) : Agreement C y x :=
   ind (fun x y _ => Agreement C y x) (fun _ _ _ h => ⟨.refl, fun i => (h i).symm⟩) same
@@ -171,8 +170,10 @@ def transCongr {E : Container.{s'', p''}} {f f' : Hom C D} {g g' : Hom D E}
 def positionTransport (f : Hom C D) {a b : C.Shape} (e : a ≡ b) (i : D.Pos (f.shape a)) :
     Identity.transport C.Pos e (f.position a i) ≡
       f.position b (Identity.transport D.Pos (Identity.cong f.shape e) i) :=
-  match e with
-  | .refl => .refl
+  Identity.ind
+    (fun b e => Identity.transport C.Pos e (f.position a i) ≡
+      f.position b (Identity.transport D.Pos (Identity.cong f.shape e) i))
+    .refl e
 
 /-- Two morphisms into a composite agree at the two layers, at each shape. -/
 def CompAgreement {E : Container.{s'', p''}} (f g : Hom C (D.comp E)) :=
