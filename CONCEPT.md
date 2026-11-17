@@ -892,17 +892,25 @@ A backend supplies:
 - a sufficiency statement, if the target has a bounded resource;
 - a proof that the lowering causes no failure that only the target has.
 
-**Resources.** A bounded resource of a target is a cost. The sufficiency
-statement of a backend says that, for each source run, a bound exists, and
-that above this bound the target run has the related result. A bound that is
-a function of the source run is an extension of that statement.
+**Resources.** A bounded resource of a target, such as EVM gas, belongs to
+that target's semantics and cost model. A resource sufficiency statement is a
+condition of the backend's preservation theorem: for each terminating source
+run covered by the statement, a bound exists above which the target run has
+the related result. It need not be one bound for all inputs or a bound known
+at compile time. A bound computed from the source run is a further result.
+
+These target conditions do not restrict the IR to terminating programs or to
+programs with an execution budget. A RISC-V backend supplies its own machine
+and execution environment contract; it does not inherit EVM gas semantics.
+Evaluator fuel is separate from target resources and is not an implicit
+counter in generated code.
 
 **Directions.** Agreement inside the IR is an equivalence of run families.
 Each boundary states its directions. The direction from target runs to source
 runs is necessary for each pair. The direction from source runs to target
-runs has the condition of the sufficiency statement. A source semantics with
-free choices, such as a read of the available resource, can give the first
-direction only.
+runs has a resource sufficiency condition when the backend contract requires
+it. A source semantics with free choices, such as a read of the available
+resource, can give the first direction only.
 
 **Costs.** The cost model of a comparison is the machine model of its
 backend. The register-machine counts of the thesis are the agreement test for
@@ -1352,19 +1360,37 @@ and it is not an execution cutoff. Closure includes the cycles that
 substitution creates.
 
 A loop body is a computation from `A` to `B + A`, with the runtime in `A` and
-in `B`. Its loop is the inductive family of runs: a run exits with the body,
-or it continues with the body and then runs from the next input. A run is
-data, and the initial property is the induction principle of the family. For
-a body that is a function, the loop is equally a function on an inductive
-domain. The domain evidence at an input records that the loop stops from that
-input, and the result is a recursion on that evidence. Two domain witnesses
-at one input are identical, which is an obligation with a proof by induction. The domain
-evidence is the precondition witness of the loop, and the invariant and the
-postcondition depend on it. A decreasing measure constructs domain evidence.
-A resource bound of a target, such as gas, is such a measure. A function with fuel is the evaluator, with soundness and
-completeness against the runs. For a loop of the syntax, the body is the run
-family of the body of the loop, and the function with fuel is the function
-meaning with a number of unrollings.
+in `B`. In the specification of a diagram, the precondition of a loop is an
+invariant: a family on the entrances, with an initial witness and a witness
+of the precondition of the body at each entrance of the family. The body
+preserves the family and supplies its witness at each next entrance. The
+runs of the loop are the inductive family of runs on entrances equipped with
+that evidence: a run exits with the body, or it continues with the body and
+then runs from the next entrance. A run is data, and the initial property is
+the induction principle of the family. A loop can have an invariant witness
+and no terminating run. Its precondition establishes admission of its calls
+and preservation of the invariant; it does not require termination. The
+diagram-level specification is a D6 construction obligation.
+
+For a body that is a function, a terminating evaluator is a function on an
+inductive domain. Domain evidence records that the loop stops from the given
+input, and the evaluator recurses on that evidence. Two domain witnesses at
+one input are identical, with a proof by induction. A decreasing measure can
+construct domain evidence when termination is required by an interpretation.
+This evidence is an input to the terminating evaluator, not the general
+precondition of an IR loop.
+
+Evaluator fuel bounds a finite unfolding of a diagram. The function meaning
+takes a number of loop unrollings and a computation for the cutoff.
+Exhausting that budget does not establish divergence or a target failure.
+The correspondence with the runs requires soundness and completeness: a
+result reached without the cutoff corresponds to a run, and each terminating
+run is reproduced at a sufficiently large unfolding bound. No single bound
+for all inputs is required. Transformations can change the number of
+unrollings needed, so preservation compares runs and their observations,
+rather than equal fuel consumption. These diagram-level correspondence
+results remain D6 obligations. Neither evaluator fuel nor a target resource
+budget is a condition for representing a program in the IR.
 
 A computation without a loop is a function, and it enters the relations
 through its graph. The laws of the stages without feedback are pointwise
