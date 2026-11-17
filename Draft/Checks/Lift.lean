@@ -30,9 +30,9 @@ The fourth group has the loop that counts down. The family at its entrance has t
 the calls of the earlier iterations, the identity of the value with the first value plus their
 responses, and a count: the counter is less than the number of the unrollings that remain. A
 witness of the precondition shows that the first counter is less than the number of
-unrollings. A derivation with the second exit equation under the loop moves the verified
-implementation to the loop whose exit is an exit past a continuation, with the same
-specification and the same number of unrollings.
+unrollings. A derivation with the interchange rule under the loop moves the verified
+implementation to the loop that has the effectful step before the pure step in each
+iteration, with the same specification and the same number of unrollings.
 
 Each lift has the empty condition at the limit. The verified implementation thus has an
 arbitrary computation at the limit, and it needs no evidence for that computation. The
@@ -364,7 +364,7 @@ open Container
 open Draft.Checks.Dependent (Admission Receipt expected)
 open Draft.Checks.Lift (valueOf ZeroCase)
 open Draft.Checks.Specification.Bound (Below)
-open Draft.Checks.Specification.Optimize (countdownPast optimize exitPastSound)
+open Draft.Checks.Specification.Interchange (countdownLate swap returns)
 
 /-! The loop that counts down. -/
 
@@ -496,32 +496,32 @@ def traceTotal (n : Nat) (flag : Bool) (u v a : Nat) (pre : Admission) :
     (Identity.transport (fun k => Fin (k + 1)) (evidence stop n flag u v a pre).2
       ⟨u + (u + a), Nat.lt_succ_self _⟩).val ≡ u + (u + a) := .refl
 
-/-! The verified loop along a derivation. The second exit equation holds after the
-substitution of the lowering. The verified implementation from the family with a count moves
-to the loop whose exit is an exit past a continuation. No constructor gives the evidence of
-that loop. -/
+/-! The verified loop along a derivation. The derivation has the interchange rule under the
+loop, and the rule holds after the substitution of the lowering. The verified implementation
+from the family with a count moves to the loop that has the effectful step before the pure
+step in each iteration. No constructor gives the evidence of that loop. -/
 
 /-- The verified implementation of the second loop, along the derivation. -/
-def loweredPast (n : Nat) :
-    ImplDep (countSpec n) Verified.spec ((countdownPast.impl stop n).trans lower) :=
-  (Diagram.Derivation.symm optimize).lift exitPastSound stop n (lowered stop n)
+def loweredLate (n : Nat) :
+    ImplDep (countSpec n) Verified.spec ((countdownLate.impl stop n).trans lower) :=
+  swap.lift (.interchange returns) stop n (lowered stop n)
 
 /-- The evidence at the exit of the second loop from the counter 2, with three or more
 unrollings. -/
-def evidencePast (n : Nat) (flag : Bool) (u v a : Nat) (pre : Admission) :=
-  ((loweredPast stop (n + 3)).run (Verified.verify flag u v)) (inputs 2 a) (pre, ⟨n, .refl⟩)
+def evidenceLate (n : Nat) (flag : Bool) (u v a : Nat) (pre : Admission) :=
+  ((loweredLate stop (n + 3)).run (Verified.verify flag u v)) (inputs 2 a) (pre, ⟨n, .refl⟩)
 
 set_option smartUnfolding false in
 /-- After the derivation, each receipt has the payload of its admission constructor. -/
-def pastTraceSecond (n : Nat) (flag : Bool) (u v a key : Nat) :
-    (evidencePast stop n flag u v a (.second key)).1.map (fun e => e.2.read) ≡
+def lateTraceSecond (n : Nat) (flag : Bool) (u v a key : Nat) :
+    (evidenceLate stop n flag u v a (.second key)).1.map (fun e => e.2.read) ≡
       [key + u + 1, key + u + 1] := .refl
 
 set_option smartUnfolding false in
 /-- After the derivation, the identity of the value at the exit is consumed through a
 dependent payload. -/
-def pastTraceTotal (n : Nat) (flag : Bool) (u v a : Nat) (pre : Admission) :
-    (Identity.transport (fun k => Fin (k + 1)) (evidencePast stop n flag u v a pre).2
+def lateTraceTotal (n : Nat) (flag : Bool) (u v a : Nat) (pre : Admission) :
+    (Identity.transport (fun k => Fin (k + 1)) (evidenceLate stop n flag u v a pre).2
       ⟨u + (u + a), Nat.lt_succ_self _⟩).val ≡ u + (u + a) := .refl
 
 end Draft.Checks.Countdown
@@ -558,10 +558,10 @@ end Draft.Checks.Countdown
 #guard_msgs in
 #print axioms Draft.Checks.Countdown.traceTotal
 
-/-- info: 'Draft.Checks.Countdown.pastTraceSecond' does not depend on any axioms -/
+/-- info: 'Draft.Checks.Countdown.lateTraceSecond' does not depend on any axioms -/
 #guard_msgs in
-#print axioms Draft.Checks.Countdown.pastTraceSecond
+#print axioms Draft.Checks.Countdown.lateTraceSecond
 
-/-- info: 'Draft.Checks.Countdown.pastTraceTotal' does not depend on any axioms -/
+/-- info: 'Draft.Checks.Countdown.lateTraceTotal' does not depend on any axioms -/
 #guard_msgs in
-#print axioms Draft.Checks.Countdown.pastTraceTotal
+#print axioms Draft.Checks.Countdown.lateTraceTotal

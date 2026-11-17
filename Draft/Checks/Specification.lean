@@ -24,9 +24,10 @@ one number of unrollings is for the two loops. The evidence of a loop with no co
 a derivation with a rule under the loop, and along the peel of the loop, and the moved evidence
 is a part under the constructor of a composite. Each of these checks consumes the moved
 evidence at a run of the second diagram over the moved witness. The evidence of the machine of
-the countdown with a real bound moves along the derivation, with the same number of
-unrollings: the two approximants have one machine. The peeled diagram with a real bound needs
-one unrolling less. -/
+the countdown with a real bound moves along a derivation with the interchange rule under the
+loop, with the same number of unrollings. The two diagrams make different calls, and their
+approximants have one machine. The peeled diagram with a real bound needs one unrolling
+less. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -1147,45 +1148,152 @@ def partRuntime (a s : Nat) :
     ((partHolds 0 (inputs 2 a) s ()).parts.2 (.inr (out ((s + 1) + (s + a)), s + 2))
       (partRun a s)).result ≡ (Identity.refl : s + 2 ≡ s + 2) := .refl
 
-/-! A real bound along a derivation. The second exit equation holds in each congruence, so the
+end Draft.Checks.Specification.Optimize
+
+namespace Draft.Checks.Specification.Interchange
+
+open Draft Draft.Checks.Countdown Draft.Checks.Specification
+open Draft.Checks.Free (store)
+open Draft.Checks.Specification.Invariant (Final)
+open Draft.Checks.Specification.Bound (bounded countdownImpl)
+open Draft.Checks.Specification.Optimize (countdownN)
+
+/-! A real bound along a derivation that changes the calls. The second diagram has the
+effectful step before the pure step in each iteration, and the derivation has the interchange
+rule under the loop. The interchange rule holds on the machine of the calls, so the
 approximants of the two diagrams have one machine at each number of unrollings. The evidence
 of the machine of the countdown, from the family with a count, moves along the derivation to
-the machine of the loop whose exit is an exit past a continuation. No constructor gives the
-evidence of that loop. -/
+the machine of the second diagram. No constructor gives the evidence of the second diagram. -/
 
-open Draft.Checks.Specification.Bound (bounded countdownImpl)
+/-- The operand of `pred` and the operand of `emit` at the entrance. No wire connects the two
+steps. -/
+def predArgs : PortMap [(), ()] [()] := .cons .here .nil
 
-/-- The second exit equation holds in each congruence. -/
-def exitPastSound.{w} {α : Type} {eqv : Free.Congruence.{0, 0, 0, w} (sig.interface Value) α} :
-    (Rules.exitPast sig).Sound eqv :=
-  ⟨fun stop n => Diagram.ExitPast.sound stop n, fun _ _ => fun r => nomatch r⟩
+def emitArgs : PortMap [(), ()] [()] := .cons (.there .here) .nil
+
+/-- The rest after the two steps: the exit to the entrance with the predecessor and the
+response. -/
+def afterBoth : (ca : (sig.output .pred).Case) → (cb : (sig.output .emit).Case) →
+    Diagram sig (cb.1 ++ (ca.1 ++ [(), ()])) [Entry, Out]
+  | ⟨_, .here⟩, ⟨_, .here⟩ =>
+      .exit (Exits.At.here ⟨Boundary.only _, .cons (.there .here) (.cons .here .nil)⟩)
+
+/-- The rest after the test, with the effectful step before the pure step. -/
+def afterTestLate : (c : (sig.output .isZero).Case) → Diagram sig (c.1 ++ [(), ()]) [Entry, Out]
+  | ⟨_, .here⟩ => .exit ⟨_, .there .here, Boundary.only _, .cons (.there .here) .nil⟩
+  | ⟨_, .there .here⟩ =>
+      .step ⟨.emit, emitArgs⟩ fun cb => .step ⟨.pred, predArgs.weaken _⟩ fun ca =>
+        (afterBoth ca cb).rename (PortMap.exchange _ _ _)
+
+def bodyLate : Continuation sig Entry [Entry, Out] :=
+  .one (.step ⟨.isZero, .cons .here .nil⟩ afterTestLate)
+
+def loopLate : Continuation sig Entry [Out] := .loop bodyLate
+
+/-- The second diagram: the countdown with `emit` before `pred` in each iteration. -/
+def countdownLate : Diagram sig [(), ()] [Out] := .seq enter loopLate
+
+/-- The rest of the successor agrees with the first diagram of the rule. -/
+def succAgreement :
+    Diagram.Agreement (afterTest ⟨_, .there .here⟩)
+      (.step ⟨.pred, predArgs⟩ fun ca => .step ⟨.emit, emitArgs.weaken _⟩ fun cb =>
+        afterBoth ca cb) :=
+  .step _ fun
+    | ⟨_, .here⟩ => .step _ fun
+        | ⟨_, .here⟩ => .refl _
+
+/-- The derivation of the rests after the test: the interchange rule at the successor. -/
+def afterTestSwap : (c : (sig.output .isZero).Case) →
+    Diagram.Derivation (Rules.interchange sig) (afterTest c) (afterTestLate c)
+  | ⟨_, .here⟩ => .agree (Diagram.Agreement.refl _)
+  | ⟨_, .there .here⟩ =>
+      .trans (.agree succAgreement)
+        (.rule (.swap (S := sig) Op.pred Op.emit (.inl .refl) predArgs emitArgs afterBoth))
+
+/-- The derivation of the diagram of the one case of the entrance. -/
+def bodySwap : (c : Entry.Case) →
+    Diagram.Derivation (Rules.interchange sig)
+      (Boundary.family (F := fun Δ => Diagram sig Δ [Entry, Out])
+        (.cons (.step ⟨.isZero, .cons .here .nil⟩ afterTest) .nil) c)
+      (Boundary.family (F := fun Δ => Diagram sig Δ [Entry, Out])
+        (.cons (.step ⟨.isZero, .cons .here .nil⟩ afterTestLate) .nil) c)
+  | ⟨_, .here⟩ => .step _ afterTestSwap
+
+/-- The derivation from the countdown to the second diagram: the interchange rule under a step,
+a copairing, a loop, and a composite. -/
+def swap : Diagram.Derivation (Rules.interchange sig) countdownN countdownLate :=
+  .seq (.agree (Diagram.Agreement.refl _)) (.loop (.copair bodySwap))
+
+/-- The operations of the calls of a computation on the function of the calls, from a
+runtime. -/
+def opsOf {α : Type} : Free (sig.interface Value) α → Nat → List Op
+  | .pure _, _ => []
+  | .request a k, s => a.1 :: opsOf (k (handle a s).1) (handle a s).2
 
 variable (stop : Free (sig.interface Value) (Exits.At [Out] Value))
+
+set_option smartUnfolding false in
+/-- From the counter 2, the countdown has `pred` before `emit` in each iteration. -/
+def countdownOps (k a s : Nat) :
+    opsOf (countdownN.run stop (k + 3) (inputs 2 a) .pure) s ≡
+      [.isZero, .pred, .emit, .isZero, .pred, .emit, .isZero] := .refl
+
+set_option smartUnfolding false in
+/-- The second diagram has `emit` before `pred`: the two computations are different. -/
+def lateOps (k a s : Nat) :
+    opsOf (countdownLate.run stop (k + 3) (inputs 2 a) .pure) s ≡
+      [.isZero, .emit, .pred, .isZero, .emit, .pred, .isZero] := .refl
+
+/-- Each pure operation of the lowering returns without a call. -/
+def returns : ImplDep (sig.pureSpec Value) (DepPoly.noCall.{0, 0, 0, 0} store) lower
+  | ⟨.isZero, .cons 0 .nil⟩, _ => .pure ⟨⟩
+  | ⟨.isZero, .cons (_ + 1) .nil⟩, _ => .pure ⟨⟩
+  | ⟨.pred, _⟩, _ => .pure ⟨⟩
+
+/-- A machine of the store: the response of the call of a number is the runtime, and the next
+runtime is one more. -/
+def storeMachine : Machine store Nat Unit
+  | (.flag, s) => .inr (false, s)
+  | (.one, s) => .inr (s, s + 1)
+  | (.two, s) => .inr ((s, s), s)
+
+/-- The machine of the calls is the machine of the lowering on the machine of the store. -/
+def machineLowered : Homotopy machine (storeMachine.impl lower)
+  | (⟨.isZero, .cons 0 .nil⟩, _) => .refl
+  | (⟨.isZero, .cons (_ + 1) .nil⟩, _) => .refl
+  | (⟨.pred, _⟩, _) => .refl
+  | (⟨.emit, _⟩, _) => .refl
+
+/-- The interchange rule holds on the machine of the calls: it holds after the substitution of
+the lowering, and thus on the machine of the lowering. -/
+def interchangeSound {α : Type} : (Rules.interchange sig).Sound (α := α) machine.congruence :=
+  ((Rules.Sound.interchange returns).machine storeMachine).map fun {x y} r s =>
+    (Machine.runCongr (Free.Agreement.refl x) machineLowered s).trans
+      ((r s).trans (Machine.runCongr (Free.Agreement.refl y) machineLowered s).symm)
 
 /-- The evidence of the machine of the countdown, from the family with a count. -/
 def boundedEvidence (n : Nat) : Evidence (bounded n) (machine.impl (countdownN.impl stop n)) :=
   (countdownImpl stop n).run machine.graphEvidence
 
-/-- The evidence of the machine of the loop whose exit is an exit past a continuation, along
-the derivation. -/
-def boundedMoved (n : Nat) : Evidence (bounded n) (machine.impl (countdownPast.impl stop n)) :=
-  Diagram.Derivation.evidence (m := machine) exitPastSound (.symm optimize) stop n
+/-- The evidence of the machine of the second diagram, along the derivation. -/
+def boundedLate (n : Nat) : Evidence (bounded n) (machine.impl (countdownLate.impl stop n)) :=
+  Diagram.Derivation.evidence (m := machine) interchangeSound swap stop n
     (boundedEvidence stop n)
 
 set_option smartUnfolding false in
 /-- From the counter 2, with each number of unrollings that is three or more. -/
-def boundedMovedAtExit (k a s : Nat) :
-    Final s 2 (machine.run (countdownPast.run stop (k + 3) (inputs 2 a) .pure) s) :=
-  boundedMoved stop (k + 3) (inputs 2 a, s) ⟨k, .refl⟩
+def boundedLateAtExit (k a s : Nat) :
+    Final s 2 (machine.run (countdownLate.run stop (k + 3) (inputs 2 a) .pure) s) :=
+  boundedLate stop (k + 3) (inputs 2 a, s) ⟨k, .refl⟩
 
 set_option smartUnfolding false in
 /-- The moved evidence is consumed through a dependent payload, for an arbitrary value, an
 arbitrary runtime, and an arbitrary computation at the limit. -/
-def boundedMovedRuntime (k a s : Nat) :
-    (Identity.transport (fun j => Fin (j + 1)) (boundedMovedAtExit stop k a s)
+def boundedLateRuntime (k a s : Nat) :
+    (Identity.transport (fun j => Fin (j + 1)) (boundedLateAtExit stop k a s)
       ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := .refl
 
-end Draft.Checks.Specification.Optimize
+end Draft.Checks.Specification.Interchange
 
 namespace Draft.Checks.Specification.Peel
 
@@ -1418,9 +1526,13 @@ end Draft.Checks.Specification.Peel
 #guard_msgs in
 #print axioms Draft.Checks.Specification.Optimize.partRuntime
 
-/-- info: 'Draft.Checks.Specification.Optimize.boundedMovedRuntime' does not depend on any axioms -/
+/-- info: 'Draft.Checks.Specification.Interchange.lateOps' does not depend on any axioms -/
 #guard_msgs in
-#print axioms Draft.Checks.Specification.Optimize.boundedMovedRuntime
+#print axioms Draft.Checks.Specification.Interchange.lateOps
+
+/-- info: 'Draft.Checks.Specification.Interchange.boundedLateRuntime' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Specification.Interchange.boundedLateRuntime
 
 /-- info: 'Draft.Checks.Specification.Peel.peeledRuntime' does not depend on any axioms -/
 #guard_msgs in

@@ -241,8 +241,9 @@ receipts of the calls, the identity of the value, and a count. Each lift has
 the empty condition at the limit, so each verified implementation has an
 arbitrary computation at the limit and needs no evidence for it. A witness of
 the precondition of the loop shows that the counter is less than the number
-of unrollings. A derivation with the second exit equation under the loop
-moves the verified loop to a second loop.
+of unrollings. A derivation with the interchange rule under the loop moves
+the verified loop to the loop that has the effectful step before the pure
+step in each iteration.
 
 The calls with a runtime have one form.
 [Prelude/Container/Runtime.lean](Prelude/Container/Runtime.lean) has the
@@ -939,13 +940,18 @@ rule set that holds in a congruence. The approximants of the two diagrams
 agree at each number of unrollings, and the verified implementation moves
 along that agreement with its specification. Thus the result of a real bound
 moves along a derivation, and no constructor gives the evidence of the second
-diagram. The second exit equation holds in each congruence. Two checks move
-the verified countdown with a count to the loop whose exit is an exit past a
-continuation, with the same number of unrollings: one moves the evidence of
-the machine of the diagram, and one moves the verified implementation with no
-runtime, after the lowering. The witness with its bound does not move in this
-manner. The verified implementation of the whole diagram moves in its place,
-because a derivation of a part gives a derivation of the whole.
+diagram. Two checks move the verified countdown with a count along a
+derivation with the interchange rule under the loop, with the same number of
+unrollings. The second diagram has the effectful step before the pure step in
+each iteration, so the two diagrams make different calls. One check moves the
+evidence of the machine of the diagram: the interchange rule holds on the
+machine of the calls, because that machine is the machine of the lowering on
+a machine of the store. The second check moves the verified implementation
+with no runtime, after the lowering. The witness with its bound does not move
+in this manner. The verified implementation of the whole diagram moves in its
+place, because a derivation of a part gives a derivation of the whole. This
+map needs a rule set that holds in a congruence, and the two approximants at
+one number of unrollings.
 
 The peel of a loop is a map of specifications from the loop to one copy of
 the body, and then the loop. A witness of the loop gives a witness of the
