@@ -335,7 +335,8 @@ lowering is a verified implementation. A pass maps a verified object to a
 verified object of the same specification. An agreement of the plain
 computations is the plain part of a pass, and the evidence of a computation
 moves along it. A derivation gives a map between the specifications of its
-two diagrams, and a verified diagram moves along that map. Composition keeps
+two diagrams, with an equivalence of their runs, and a verified diagram moves
+along that map. Composition keeps
 correctness (`thm:comp-dep`). A construction and its verification are built
 in the same manner, and no stage is complete with the plain part only.
 
@@ -835,16 +836,22 @@ statement is for the function meaning: for a rule of the interchange, copy,
 discard, or control equation set, the function meanings of the two diagrams
 agree for each number of unrollings. The second statement is for the
 specification. A rule holds for a specification of the calls when it has a
-map between the specifications of its two diagrams, in each direction: a
-witness of the precondition of one diagram gives a witness of the
-precondition of the other, and each run over the second witness gives a run
-over the first witness to the same result. A derivation in a rule set that
-holds for a specification of the calls has these maps, and a verified diagram
-moves along them to a verified diagram of the same specification. The first
-statement is the plain part of that pass. A rule of the feedback equation set
-changes the number of unrollings that a run needs, so it has the second
-statement only. The condition on the specification of the calls for which a
-rule set holds is an obligation of the stage of that rule set.
+cartesian map between the specifications of its two diagrams, in each
+direction. A cartesian map gives a witness of the precondition of the second
+diagram from a witness of the precondition of the first. For each result, it
+gives an equivalence of the runs over the second witness and the runs over
+the first witness, with its two round trips. It is a cartesian map of
+polynomials: the witnesses are the positions, and the runs are the
+directions. A run is data, and the equivalence keeps the runs: a diagram
+with one run to a result and a diagram with two runs to that result do not
+agree. A derivation in a rule set that holds for a specification of the calls
+has these maps, and a verified diagram moves along them to a verified diagram
+of the same specification. The first statement is the plain part of that
+pass. A rule of the feedback equation set changes the number of unrollings
+that a run needs, so it has the second statement only. The condition on the
+specification of the calls for which a rule set holds is an obligation of the
+stage of that rule set. The obligation of a rule is an equivalence of the
+runs, and that is more than a map in each direction.
 
 The thesis is the agreement test for the feedback equation set. The stage
 that constructs the equations derives each loop choice of §5.4 from them:
@@ -923,8 +930,9 @@ and execution environment contract; it does not inherit EVM gas semantics.
 Evaluator fuel is separate from target resources and is not an implicit
 counter in generated code.
 
-**Directions.** Agreement of two diagrams inside the IR is a map between
-their specifications in each direction. Each boundary states its directions. The direction from target runs to source
+**Directions.** Agreement of two diagrams inside the IR is a cartesian map
+between their specifications in each direction. Each boundary states its
+directions. The direction from target runs to source
 runs is necessary for each pair. The direction from source runs to target
 runs has a resource sufficiency condition when the backend contract requires
 it. A source semantics with free choices, such as a read of the available

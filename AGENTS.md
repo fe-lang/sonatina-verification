@@ -104,7 +104,8 @@ of interfaces gives the plain interface and the plain implementation:
   verified object of the same specification. An agreement of the plain
   computations is the plain part of a pass, and the evidence of a computation
   moves along it. A derivation gives a map between the specifications of its
-  two diagrams, and a verified diagram moves along that map.
+  two diagrams, with an equivalence of their runs, and a verified diagram
+  moves along that map.
 
 Composition (`ImplDep.trans`, `ImplDep.copair`) keeps correctness. A
 construction and its verification are built in the same manner, and no stage

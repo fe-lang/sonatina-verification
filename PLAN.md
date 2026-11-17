@@ -387,7 +387,8 @@ specification of an implementation, the evidence of the computation of a
 diagram with each number of unrollings from a witness of the precondition, the
 completeness of that evidence against the runs, the verified diagram as a map
 into the specification of the diagram, the bound of a verified diagram, the
-maps of specifications that a derivation gives, the unit runtime, and the
+cartesian maps of specifications that a derivation gives, the unit runtime,
+and the
 constructors of the evidence of a diagram in the form of the Prelude.
 
 The text below describes the plain part.
@@ -856,12 +857,24 @@ computation with the unit runtime give each other. A verified diagram at the
 unit runtime gives the verified implementation of each approximant with no
 runtime.
 
-A rule set holds for a specification of the calls when each rule has a map
+A cartesian map of specifications gives a witness of the second precondition
+from a witness of the first, and an equivalence of the runs over the second
+witness and the runs over the first, with its two round trips. A rule set
+holds for a specification of the calls when each rule has a cartesian map
 between the specifications of its two sides, in each direction. A derivation
 in such a rule set has these maps, by a recursion on the derivation, and a
-verified diagram moves along them. The map of a loop is one application of
-the uniformity of the loop of
-[Prelude/Relation.lean](Prelude/Relation.lean).
+verified diagram moves along them. In a composite and in a frame, the witness
+of the later part depends on the run of the first part. In an iteration of a
+loop, the invariant at the next entrance depends on the run of the body. The
+equivalence of the runs is thus a sum over an equivalence of the runs of the
+first part. That sum needs the two round trips of the
+first equivalence to agree, and an isomorphism has a first round trip with
+that property. The equivalence of the runs of a loop is one application of
+the agreement of the loops of two bodies that agree. The two laws are for
+[Prelude/Identity.lean](Prelude/Identity.lean) and
+[Prelude/Relation.lean](Prelude/Relation.lean). The checks on the countdown
+loop have the two maps of the equivalence at a run, and its two round
+trips.
 
 In the form of the Prelude, a verified diagram is the verified implementation
 with one call, from a specification of the interface of the diagram to the
@@ -888,8 +901,19 @@ These parts are open:
   does not reach the limit of the loop. The constructor of the evidence of a
   loop has no such number. The probe has the bound of one loop, with one part
   for each form of its body.
-- The maps of specifications for each rule set of D2 and D3, with the
-  condition on the specification of the calls.
+- The cartesian maps for each rule set of D2 and D3, with the condition on
+  the specification of the calls. The obligation of a rule is an equivalence
+  of the runs, so the condition is stronger than the condition for a map in
+  each direction. The copy rule and the interchange rule are the first cases:
+  the copy rule relates one response of a pure operation, with its evidence,
+  to two, and the interchange rule relates the runs of the two orders.
+- The round trip at a run over the moved witness, for a derivation with two
+  loop forms. Its check by `.refl` is above the default limit of the
+  elaborator, and the kernel accepts the same term. The cause is the proof
+  that the two round trips of an isomorphism agree: the elaborator evaluates
+  it again at each iteration, and the composite of two equivalences gives it
+  a run that is not in normal form. The check passes for a derivation with
+  one loop form.
 - The bound of a verified diagram along a derivation.
 - The least threshold of a run.
 - The two round trips of the connection for each diagram.
