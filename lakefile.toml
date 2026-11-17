@@ -13,7 +13,7 @@ name = "Frontend"
 
 [[lean_lib]]
 name = "Probes"
-roots = ["Probes.Wiring", "Probes.DepPoly"]
+roots = ["Probes.Wiring", "Probes.DepPoly", "Probes.Specification"]
 
 [[lean_lib]]
 name = "PreludeTests"

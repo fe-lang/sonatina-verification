@@ -1,0 +1,1656 @@
+import Draft.Checks.Countdown
+import Draft.Runtime
+
+set_option autoImplicit false
+set_option genInjectivity false
+
+open Prelude Container
+
+/-! Probe: the specification of a diagram, from a specification of its calls with a runtime.
+
+A specification of a computation has a precondition at each input, and the runs to each result
+over a witness of the precondition. A response of a call is a response with the next runtime,
+or a stop, and a result of a run is an exit with a runtime, or a stop. A witness of the
+precondition of a diagram has a witness of the precondition of each call that a run can make.
+The precondition of a loop is an invariant: a family on the entrances that the body keeps. The
+runs of a loop are the loop of `Prelude.Relation` on the entrances with the family. One
+iteration has the runs of the body at the result that the next entrance, the exit, or the stop
+names.
+
+An implementation has a specification from the specification of its calls. The implementation
+is verified for it, and each specification with a lift of the implementation maps to it.
+
+A witness of the precondition of a diagram gives the evidence of the computation of the diagram
+with each number of unrollings, for evidence of the rest at each result of a run. That is
+soundness: the condition at the result of a run of the computation along the evidence is a run
+of the diagram. Completeness is the converse: a run of the diagram, and then a run of the rest,
+is a run of the computation along its evidence, from a threshold of the number of unrollings.
+
+A verified diagram, for a specification of its interface with a runtime, is a map into the
+specification of the diagram: a witness of the precondition of the diagram, and the
+postcondition at the result of each run. It has the lift of a diagram with a runtime for each
+number of unrollings. A bound is second evidence: each run over the witness reaches the limit
+of a loop only at a runtime with a given condition. With the empty condition, the lift needs no
+evidence for the computation at the limit.
+
+The checks are on the countdown loop, for an arbitrary value and an arbitrary runtime: the
+round trip of a run through the computation with a number of unrollings, the same for a loop
+in a loop, and the run that the result of the function meaning on a machine has, for an
+arbitrary computation at the limit. -/
+
+namespace Prelude.Container
+
+variable {C D : Container.{0, 0}} {α : Type} {r : DepPoly.{0, 0, 0, 0} C} {Q Q' : α → Type}
+
+/-- The runs of a computation along its evidence. -/
+def FreeDep.Runs : (x : Free C α) → FreeDep r Q x → α → Type
+  | .pure a, _, o => a ≡ o
+  | .request s k, h, o =>
+      (i : C.Pos s) × (post : r.Post s h.parts.1 i) × Runs (k i) (h.parts.2 i post) o
+
+/-- The condition at the result of a run along the evidence. -/
+def FreeDep.atRun : (x : Free C α) → (h : FreeDep r Q x) → {o : α} → FreeDep.Runs x h o → Q o
+  | .pure _, h, _, e => Identity.transport Q e h.result
+  | .request _ k, h, _, t => atRun (k t.1) (h.parts.2 t.1 t.2.1) t.2.2
+
+/-- The evidence of another condition, from a map of the conditions. -/
+def FreeDep.mapQ (g : (a : α) → Q a → Q' a) : (x : Free C α) → FreeDep r Q x → FreeDep r Q' x
+  | .pure a, h => .pure (g a h.result)
+  | .request _ k, h => .request h.parts.1 fun i post => mapQ g (k i) (h.parts.2 i post)
+
+/-- A computation with evidence has the evidence of its own runs. -/
+def FreeDep.own : (x : Free C α) → (h : FreeDep r Q x) → FreeDep r (fun o => FreeDep.Runs x h o) x
+  | .pure _, _ => .pure .refl
+  | .request s k, h =>
+      .request h.parts.1 fun i post =>
+        mapQ (Q := fun o => FreeDep.Runs (k i) (h.parts.2 i post) o)
+          (Q' := fun o => FreeDep.Runs (.request s k) h o)
+          (fun _ run => ⟨i, post, run⟩) (k i) (own (k i) (h.parts.2 i post))
+
+/-- The runs do not use the condition at the result. -/
+def FreeDep.runsOfMap (g : (a : α) → Q a → Q' a) :
+    (x : Free C α) → (h : FreeDep r Q x) → {o : α} → FreeDep.Runs x (mapQ g x h) o →
+    FreeDep.Runs x h o
+  | .pure _, _, _, e => e
+  | .request _ k, h, _, t => ⟨t.1, t.2.1, runsOfMap g (k t.1) (h.parts.2 t.1 t.2.1) t.2.2⟩
+
+/-- The specification of an implementation, from a specification of its calls. A witness of
+the precondition has a witness of the precondition of each call that a run can make. The
+postcondition has the runs along that witness. -/
+def Impl.spec (f : Impl C D) (t : DepPoly.{0, 0, 0, 0} D) : DepPoly.{0, 0, 0, 0} C where
+  Pre a := FreeDep t (fun _ => PUnit) (f a)
+  Post a pre b := FreeDep.Runs (f a) pre b
+
+/-- An implementation is verified for its own specification. -/
+def Impl.specDep (f : Impl C D) (t : DepPoly.{0, 0, 0, 0} D) : ImplDep (f.spec t) t f :=
+  fun a pre => FreeDep.own (f a) pre
+
+/-- The specification of an implementation is the strongest: each specification with a lift of
+the implementation gives a witness of its precondition, and each run along that witness has
+the postcondition of the specification. -/
+def Impl.specPre {f : Impl C D} {t : DepPoly.{0, 0, 0, 0} D} {q : DepPoly.{0, 0, 0, 0} C}
+    (ff : ImplDep q t f) (a : C.Shape) (pre : q.Pre a) : (f.spec t).Pre a :=
+  FreeDep.mapQ (fun _ _ => PUnit.unit) (f a) (ff a pre)
+
+def Impl.specPost {f : Impl C D} {t : DepPoly.{0, 0, 0, 0} D} {q : DepPoly.{0, 0, 0, 0} C}
+    (ff : ImplDep q t f) (a : C.Shape) (pre : q.Pre a) (b : C.Pos a)
+    (run : (f.spec t).Post a (Impl.specPre ff a pre) b) : q.Post a pre b :=
+  FreeDep.atRun (f a) (ff a pre) (FreeDep.runsOfMap _ (f a) (ff a pre) run)
+
+end Prelude.Container
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+
+abbrev Spec (A B : Type) : Type 2 := DepPoly.{0, 0, 1, 0} ⟨A, fun _ => B⟩
+
+def Spec.resumePre {M : Type} (P : M → Type 1) : E ⊕ M → Type 1
+  | .inl _ => PUnit
+  | .inr m => P m
+
+def Spec.resumePost {M B : Type} {P : M → Type 1} (G : (m : M) → P m → E ⊕ B → Type) :
+    (x : E ⊕ M) → Spec.resumePre P x → E ⊕ B → Type
+  | .inl e, _, o => (Sum.inl e : E ⊕ B) ≡ o
+  | .inr m, p, o => G m p o
+
+def Exits.At.cases.{w} {K : Boundary Ty} {Qs : Exits Ty}
+    {motive : Exits.At (K :: Qs) X → Type w}
+    (head : (k : K.At X) → motive (Exits.At.here k))
+    (tail : (q : Qs.At X) → motive (Exits.At.there K q)) (r : Exits.At (K :: Qs) X) : motive r :=
+  Elem.consCases
+    (motive := fun (Q : Boundary Ty) (i : Elem Q (K :: Qs)) => (q : Q.At X) → motive ⟨Q, i, q⟩)
+    r.2.1 head (fun Q j q => tail ⟨Q, j, q⟩) r.2.2
+
+abbrev Spec.exitPre {K : Boundary Ty} {Qs : Exits Ty} (headPre : K.At X → Type 1) :
+    Exits.At (K :: Qs) X → Type 1 :=
+  Exits.At.elim headPre fun _ => PUnit
+
+def Spec.atExit {K : Boundary Ty} {Qs : Exits Ty} {B : Type} (headPre : K.At X → Type 1)
+    (headPost : (k : K.At X) → headPre k → B → Type) (tailPost : Qs.At X → B → Type) :
+    (r : Exits.At (K :: Qs) X) → Spec.exitPre headPre r → B → Type :=
+  Exits.At.cases (motive := fun r => Spec.exitPre headPre r → B → Type)
+    headPost (fun q _ o => tailPost q o)
+
+/-- The result of the body of a loop that a result of an iteration names: a stop, an exit of
+the loop, or the next entrance. -/
+def unresult {K : Boundary Ty} {Qs : Exits Ty} :
+    (E ⊕ (Qs.At X × R)) ⊕ (K.At X × R) → E ⊕ (Exits.At (K :: Qs) X × R)
+  | .inl (.inl e) => .inl e
+  | .inl (.inr y) => .inr (Exits.At.there K y.1, y.2)
+  | .inr y => .inr (Exits.At.here y.1, y.2)
+
+abbrev Spec.Keeps {A B : Type} (F : Spec A (B ⊕ A)) (Inv : A → Type) : Type 1 :=
+  (a : A) → Inv a → (p : F.Pre a) × ((a' : A) → F.Post a p (.inr a') → Inv a')
+
+def Spec.iterate {A B : Type} (F : Spec A (B ⊕ A)) {Inv : A → Type} (keeps : F.Keeps Inv) :
+    Rel.{0, 0, 0} ((a : A) × Inv a) (B ⊕ ((a : A) × Inv a))
+  | x, .inl b => F.Post x.1 (keeps x.1 x.2).1 (.inl b)
+  | x, .inr y => (post : F.Post x.1 (keeps x.1 x.2).1 (.inr y.1)) × ((keeps x.1 x.2).2 y.1 post ≡ y.2)
+
+def Spec.loopInv {A B : Type} (F : Spec A (B ⊕ A)) : Spec A B :=
+  ⟨fun a => (Inv : A → Type) × (Inv a × F.Keeps Inv), fun a w b => Loop (F.iterate w.2.2) ⟨a, w.2.1⟩ b⟩
+
+variable (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+
+mutual
+
+def Diagram.spec : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs →
+    Spec (All X Γ × R) (E ⊕ (Qs.At X × R))
+  | _, Qs, .exit out =>
+      ⟨fun _ => PUnit, fun a _ o => (Sum.inr (out.select a.1, a.2) : E ⊕ (Qs.At X × R)) ≡ o⟩
+  | _, _, .step call next =>
+      ⟨fun a =>
+        (p : r.Pre (⟨call.1, a.1.select call.2⟩, a.2)) ×
+          ((x : E ⊕ ((S.output call.1).At X × R)) → r.Post (⟨call.1, a.1.select call.2⟩, a.2) p x →
+            Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
+              ((next y.1.1).spec).Pre (y.1.2.append a.1, y.2)) x),
+        fun a pre o =>
+          (x : E ⊕ ((S.output call.1).At X × R)) ×
+            (post : r.Post (⟨call.1, a.1.select call.2⟩, a.2) pre.1 x) ×
+              Spec.resumePost
+                (fun (y : (S.output call.1).At X × R) p o =>
+                  ((next y.1.1).spec).Post (y.1.2.append a.1, y.2) p o) x (pre.2 x post) o⟩
+  | _, Qs, .seq (K := K) first next =>
+      ⟨fun a =>
+        (p : (first.spec).Pre a) ×
+          ((m : E ⊕ (Exits.At (K :: Qs) X × R)) → (first.spec).Post a p m →
+            Spec.resumePre (fun (y : Exits.At (K :: Qs) X × R) =>
+              Spec.exitPre (fun k => (next.spec).Pre (k, y.2)) y.1) m),
+        fun a pre o =>
+          (m : E ⊕ (Exits.At (K :: Qs) X × R)) × (post : (first.spec).Post a pre.1 m) ×
+            Spec.resumePost
+              (fun (y : Exits.At (K :: Qs) X × R) p o =>
+                Spec.atExit (fun k => (next.spec).Pre (k, y.2))
+                  (fun k p o => (next.spec).Post (k, y.2) p o)
+                  (fun q o => (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) ≡ o) y.1 p o)
+              m (pre.2 m post) o⟩
+
+def Continuation.spec : {P : Boundary Ty} → {Qs : Exits Ty} → Continuation S P Qs →
+    Spec (P.At X × R) (E ⊕ (Qs.At X × R))
+  | _, _, .copair each =>
+      ⟨fun a => ((each a.1.1).spec).Pre (a.1.2, a.2),
+        fun a p o => ((each a.1.1).spec).Post (a.1.2, a.2) p o⟩
+  | _, Qs, .frame (K := K) kept args shared next =>
+      ⟨fun a =>
+        (p : (shared.spec).Pre (a.1.2.select (args a.1.1), a.2)) ×
+          ((m : E ⊕ (Exits.At [K] X × R)) →
+            (shared.spec).Post (a.1.2.select (args a.1.1), a.2) p m →
+            Spec.resumePre (fun (y : Exits.At [K] X × R) =>
+              Spec.exitPre (fun out =>
+                (next.spec).Pre
+                  (⟨Boundary.pair (kept a.1.1).1 out.1,
+                    out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2)) y.1) m),
+        fun a pre o =>
+          (m : E ⊕ (Exits.At [K] X × R)) ×
+            (post : (shared.spec).Post (a.1.2.select (args a.1.1), a.2) pre.1 m) ×
+              Spec.resumePost
+                (fun (y : Exits.At [K] X × R) p o =>
+                  Spec.atExit
+                    (fun out =>
+                      (next.spec).Pre
+                        (⟨Boundary.pair (kept a.1.1).1 out.1,
+                          out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2))
+                    (fun out p o =>
+                      (next.spec).Post
+                        (⟨Boundary.pair (kept a.1.1).1 out.1,
+                          out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2) p o)
+                    (fun q _ => Exits.At.ofNil q) y.1 p o)
+                m (pre.2 m post) o⟩
+  | _, Qs, .loop (K := K) body =>
+      Spec.loopInv (A := K.At X × R) (B := E ⊕ (Qs.At X × R))
+        ⟨fun a => (body.spec).Pre a, fun a p t => (body.spec).Post a p (unresult t)⟩
+
+end
+
+/-- The specification of one iteration of a loop. -/
+abbrev iterSpec {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation S K (K :: Qs)) :
+    Spec (K.At X × R) ((E ⊕ (Qs.At X × R)) ⊕ (K.At X × R)) :=
+  ⟨fun a => (body.spec r).Pre a, fun a p t => (body.spec r).Post a p (unresult t)⟩
+
+/-! The evidence of an approximant, from a witness of the precondition. -/
+
+section Evidence
+
+variable {α : Type} {F : E ⊕ (α × R) → Type} {stop : Free (S.interface X) α}
+  (limit : (s₀ : R) → FreeDep r F (stop.thread s₀)) (n : Nat)
+
+/-- For a witness of the precondition: the computation of the diagram with a number of
+unrollings has evidence, when the rest has evidence at each result of a run over the
+witness. -/
+abbrev Diagram.Evidence (F : E ⊕ (α × R) → Type) (stop : Free (S.interface X) α)
+    {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (env : All X Γ) (s : R) (pre : (d.spec r).Pre (env, s)) : Type :=
+  (cont : Qs.At X → Free (S.interface X) α) →
+    ((m : E ⊕ (Qs.At X × R)) → (d.spec r).Post (env, s) pre m →
+      FreeDep r F (Free.resume cont m)) →
+    FreeDep r F ((d.run stop n env cont).thread s)
+
+abbrev Continuation.Evidence (F : E ⊕ (α × R) → Type) (stop : Free (S.interface X) α)
+    {P : Boundary Ty} {Qs : Exits Ty}
+    (k : Continuation S P Qs) (a : P.At X) (s : R) (pre : (k.spec r).Pre (a, s)) : Type :=
+  (cont : Qs.At X → Free (S.interface X) α) →
+    ((m : E ⊕ (Qs.At X × R)) → (k.spec r).Post (a, s) pre m →
+      FreeDep r F (Free.resume cont m)) →
+    FreeDep r F ((k.run stop n a cont).thread s)
+
+/-- The evidence of the rest of the first diagram of a composite, at each of its results. -/
+def seqRest {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S Γ (K :: Qs))
+    (next : Continuation S K Qs) (env : All X Γ) (s : R)
+    (pre : ((Diagram.seq first next).spec r).Pre (env, s))
+    (nextEv : (k : K.At X) → (s₁ : R) → (p : (next.spec r).Pre (k, s₁)) →
+      next.Evidence r n F stop k s₁ p)
+    (cont : Qs.At X → Free (S.interface X) α)
+    (rest : (m : E ⊕ (Qs.At X × R)) → ((Diagram.seq first next).spec r).Post (env, s) pre m →
+      FreeDep r F (Free.resume cont m)) :
+    (m₁ : E ⊕ (Exits.At (K :: Qs) X × R)) → (first.spec r).Post (env, s) pre.1 m₁ →
+    FreeDep r F (Free.resume (Exits.At.elim (fun k => next.run stop n k cont) cont) m₁)
+  | .inl e, run₁ => rest (.inl e) ⟨.inl e, run₁, .refl⟩
+  | .inr y, run₁ =>
+      Exits.At.cases
+        (motive := fun x => (first.spec r).Post (env, s) pre.1 (.inr (x, y.2)) →
+          FreeDep r F ((Exits.At.elim (fun k => next.run stop n k cont) cont x).thread y.2))
+        (fun k run₁ =>
+          nextEv k y.2 (pre.2 (.inr (Exits.At.here k, y.2)) run₁) cont
+            (fun m tail => rest m ⟨.inr (Exits.At.here k, y.2), run₁, tail⟩))
+        (fun q run₁ => rest (.inr (q, y.2)) ⟨.inr (Exits.At.there K q, y.2), run₁, .refl⟩)
+        y.1 run₁
+
+/-- The evidence of the rest of the diagram of a frame, at each of its results. -/
+def frameRest {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+    (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) (a : P.At X) (s : R)
+    (pre : ((Continuation.frame kept args shared next).spec r).Pre (a, s))
+    (nextEv : (k : (M.product K).At X) → (s₁ : R) → (p : (next.spec r).Pre (k, s₁)) →
+      next.Evidence r n F stop k s₁ p)
+    (cont : Qs.At X → Free (S.interface X) α)
+    (rest : (m : E ⊕ (Qs.At X × R)) →
+      ((Continuation.frame kept args shared next).spec r).Post (a, s) pre m →
+      FreeDep r F (Free.resume cont m)) :
+    (m₁ : E ⊕ (Exits.At [K] X × R)) →
+    (shared.spec r).Post (a.2.select (args a.1), s) pre.1 m₁ →
+    FreeDep r F
+      (Free.resume
+        (Exits.At.only fun out =>
+          next.run stop n
+            ⟨Boundary.pair (kept a.1).1 out.1, out.2.append (a.2.select (kept a.1).2)⟩ cont)
+        m₁)
+  | .inl e, run₁ => rest (.inl e) ⟨.inl e, run₁, .refl⟩
+  | .inr y, run₁ =>
+      Exits.At.cases
+        (motive := fun x =>
+          (shared.spec r).Post (a.2.select (args a.1), s) pre.1 (.inr (x, y.2)) →
+            FreeDep r F
+              ((Exits.At.only (fun out =>
+                next.run stop n
+                  ⟨Boundary.pair (kept a.1).1 out.1,
+                    out.2.append (a.2.select (kept a.1).2)⟩ cont) x).thread y.2))
+        (fun out run₁ =>
+          nextEv _ y.2 (pre.2 (.inr (Exits.At.here out, y.2)) run₁) cont
+            (fun m tail => rest m ⟨.inr (Exits.At.here out, y.2), run₁, tail⟩))
+        (fun q _ => Exits.At.ofNil q) y.1 run₁
+
+section Loop
+
+variable {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation S K (K :: Qs))
+  {Inv : K.At X × R → Type} (keeps : (iterSpec r body).Keeps Inv)
+  (cont : Qs.At X → Free (S.interface X) α)
+
+/-- The evidence of the rest of the body of a loop, at each of its results: the stop, the
+unrollings that remain at the next entrance, or the rest of the loop at an exit. -/
+def loopRest (j : Nat) (y : (a : K.At X × R) × Inv a)
+    (again : (y' : (a : K.At X × R) × Inv a) →
+      ((m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y' m →
+        FreeDep r F (Free.resume cont m)) →
+      FreeDep r F
+        ((Continuation.unrolled stop (body.run stop n) j y'.1.1 cont).thread y'.1.2))
+    (rest : (m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y m →
+      FreeDep r F (Free.resume cont m)) :
+    (m' : E ⊕ (Exits.At (K :: Qs) X × R)) → (body.spec r).Post y.1 (keeps y.1 y.2).1 m' →
+    FreeDep r F
+      (Free.resume
+        (Exits.At.elim (fun k' => Continuation.unrolled stop (body.run stop n) j k' cont) cont)
+        m')
+  | .inl e, bodyRun => rest (.inl e) (.exit bodyRun)
+  | .inr b, bodyRun =>
+      Exits.At.cases
+        (motive := fun x => (body.spec r).Post y.1 (keeps y.1 y.2).1 (.inr (x, b.2)) →
+          FreeDep r F
+            ((Exits.At.elim
+              (fun k' => Continuation.unrolled stop (body.run stop n) j k' cont) cont
+              x).thread b.2))
+        (fun k' bodyRun =>
+          again ⟨(k', b.2), (keeps y.1 y.2).2 (k', b.2) bodyRun⟩
+            (fun m l =>
+              rest m
+                (Loop.next (F := (iterSpec r body).iterate keeps)
+                  (a' := (⟨(k', b.2), (keeps y.1 y.2).2 (k', b.2) bodyRun⟩ :
+                    (a : K.At X × R) × Inv a))
+                  ⟨bodyRun, .refl⟩ l)))
+        (fun q bodyRun => rest (.inr (q, b.2)) (.exit bodyRun))
+        b.1 bodyRun
+
+/-- The evidence of the unrollings of a loop, from the evidence of its body. -/
+def loopEvidence
+    (bodyEv : (a : K.At X) → (s₁ : R) → (p : (body.spec r).Pre (a, s₁)) →
+      body.Evidence r n F stop a s₁ p) :
+    (j : Nat) → (y : (a : K.At X × R) × Inv a) →
+    ((m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y m →
+      FreeDep r F (Free.resume cont m)) →
+    FreeDep r F ((Continuation.unrolled stop (body.run stop n) j y.1.1 cont).thread y.1.2)
+  | 0, y, _ => limit y.1.2
+  | j + 1, y, rest =>
+      bodyEv y.1.1 y.1.2 (keeps y.1 y.2).1 _
+        (loopRest r n body keeps cont j y
+          (fun y' rest' => loopEvidence bodyEv j y' rest') rest)
+
+end Loop
+
+mutual
+
+/-- The evidence of each approximant of a diagram, from a witness of its precondition. -/
+def Diagram.evidence : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (env : All X Γ) → (s : R) → (pre : (d.spec r).Pre (env, s)) →
+    d.Evidence r n F stop env s pre
+  | _, _, .exit out, env, s, _ => fun _ rest => rest (.inr (out.select env, s)) .refl
+  | _, Qs, .step call next, env, s, pre => fun cont rest =>
+      FreeDep.request (r := r) (shape := (⟨call.1, env.select call.2⟩, s))
+        (next := Sum.elim (fun e => .pure (.inl e))
+          (fun (b : (S.output call.1).At X × R) =>
+            ((next b.1.1).run stop n (b.1.2.append env) cont).thread b.2))
+        pre.1
+        fun x post =>
+          Sum.casesOn
+            (motive := fun x =>
+              (p : Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
+                ((next y.1.1).spec r).Pre (y.1.2.append env, y.2)) x) →
+              ((m : E ⊕ (Qs.At X × R)) →
+                Spec.resumePost
+                  (fun (y : (S.output call.1).At X × R) p o =>
+                    ((next y.1.1).spec r).Post (y.1.2.append env, y.2) p o) x p m →
+                FreeDep r F (Free.resume cont m)) →
+              FreeDep r F
+                (Sum.elim (fun e => Free.pure (.inl e))
+                  (fun (b : (S.output call.1).At X × R) =>
+                    ((next b.1.1).run stop n (b.1.2.append env) cont).thread b.2) x))
+            x (fun e _ k => k (.inl e) .refl)
+            (fun b p k => Diagram.evidence (next b.1.1) (b.1.2.append env) b.2 p cont k)
+            (pre.2 x post) (fun m tail => rest m ⟨x, post, tail⟩)
+  | _, _, .seq first next, env, s, pre => fun cont rest =>
+      Diagram.evidence first env s pre.1 _
+        (seqRest r n first next env s pre
+          (fun k s₁ p => Continuation.evidence next k s₁ p) cont rest)
+
+def Continuation.evidence : {P : Boundary Ty} → {Qs : Exits Ty} →
+    (k : Continuation S P Qs) → (a : P.At X) → (s : R) → (pre : (k.spec r).Pre (a, s)) →
+    k.Evidence r n F stop a s pre
+  | _, _, .copair each, a, s, pre => fun cont rest =>
+      Diagram.evidence (each a.1) a.2 s pre cont rest
+  | _, _, .frame kept args shared next, a, s, pre => fun cont rest =>
+      Diagram.evidence shared (a.2.select (args a.1)) s pre.1 _
+        (frameRest r n kept args shared next a s pre
+          (fun k s₁ p => Continuation.evidence next k s₁ p) cont rest)
+  | _, _, .loop body, a, s, pre => fun cont rest =>
+      loopEvidence r limit n body pre.2.2 cont
+        (fun a s₁ p => Continuation.evidence body a s₁ p) n ⟨(a, s), pre.2.1⟩ rest
+
+end
+
+end Evidence
+
+end Draft
+
+#print axioms Draft.Diagram.evidence
+
+/-! Completeness: a run of the diagram over the witness, and then a run of the rest along its
+evidence, is a run of each approximant along its evidence, from a threshold. -/
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+  {α : Type} {F : E ⊕ (α × R) → Type} {stop : Free (S.interface X) α}
+  (limit : (s₀ : R) → FreeDep r F (stop.thread s₀))
+
+abbrev Diagram.Along {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (env : All X Γ) (s : R)
+    (pre : (d.spec r).Pre (env, s)) (m : E ⊕ (Qs.At X × R))
+    (run : (d.spec r).Post (env, s) pre m) : Type :=
+  (N : Nat) × ((n : Nat) → N ≤ n → (cont : Qs.At X → Free (S.interface X) α) →
+    (rest : (m : E ⊕ (Qs.At X × R)) → (d.spec r).Post (env, s) pre m →
+      FreeDep r F (Free.resume cont m)) →
+    (o : E ⊕ (α × R)) → FreeDep.Runs (Free.resume cont m) (rest m run) o →
+    FreeDep.Runs ((d.run stop n env cont).thread s)
+      (Diagram.evidence r limit n d env s pre cont rest) o)
+
+abbrev Continuation.Along {P : Boundary Ty} {Qs : Exits Ty} (k : Continuation S P Qs)
+    (a : P.At X) (s : R) (pre : (k.spec r).Pre (a, s)) (m : E ⊕ (Qs.At X × R))
+    (run : (k.spec r).Post (a, s) pre m) : Type :=
+  (N : Nat) × ((n : Nat) → N ≤ n → (cont : Qs.At X → Free (S.interface X) α) →
+    (rest : (m : E ⊕ (Qs.At X × R)) → (k.spec r).Post (a, s) pre m →
+      FreeDep r F (Free.resume cont m)) →
+    (o : E ⊕ (α × R)) → FreeDep.Runs (Free.resume cont m) (rest m run) o →
+    FreeDep.Runs ((k.run stop n a cont).thread s)
+      (Continuation.evidence r limit n k a s pre cont rest) o)
+
+/-- Completeness after the result of the first diagram of a composite. -/
+def seqAlong {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S Γ (K :: Qs))
+    (next : Continuation S K Qs) (env : All X Γ) (s : R)
+    (pre : ((Diagram.seq first next).spec r).Pre (env, s))
+    (nextAlong : (k : K.At X) → (s₁ : R) → (p : (next.spec r).Pre (k, s₁)) →
+      (m : E ⊕ (Qs.At X × R)) → (run : (next.spec r).Post (k, s₁) p m) →
+      next.Along r limit k s₁ p m run)
+    (m : E ⊕ (Qs.At X × R)) :
+    (m₁ : E ⊕ (Exits.At (K :: Qs) X × R)) → (run₁ : (first.spec r).Post (env, s) pre.1 m₁) →
+    (tail : Spec.resumePost
+      (fun (y : Exits.At (K :: Qs) X × R) p o =>
+        Spec.atExit (fun k => (next.spec r).Pre (k, y.2))
+          (fun k p o => (next.spec r).Post (k, y.2) p o)
+          (fun q o => (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) ≡ o) y.1 p o)
+      m₁ (pre.2 m₁ run₁) m) →
+    (N : Nat) × ((n : Nat) → N ≤ n → (cont : Qs.At X → Free (S.interface X) α) →
+      (rest : (m : E ⊕ (Qs.At X × R)) →
+        ((Diagram.seq first next).spec r).Post (env, s) pre m →
+        FreeDep r F (Free.resume cont m)) →
+      (o : E ⊕ (α × R)) → FreeDep.Runs (Free.resume cont m) (rest m ⟨m₁, run₁, tail⟩) o →
+      FreeDep.Runs (Free.resume (Exits.At.elim (fun k => next.run stop n k cont) cont) m₁)
+        (seqRest r n first next env s pre
+          (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest m₁ run₁) o)
+  | .inl e, run₁, tail =>
+      ⟨0, fun _ _ cont rest o t =>
+        Identity.ind
+          (fun (m : E ⊕ (Qs.At X × R)) (tail : (Sum.inl e : E ⊕ (Qs.At X × R)) ≡ m) =>
+            FreeDep.Runs (Free.resume cont m) (rest m ⟨.inl e, run₁, tail⟩) o →
+              FreeDep.Runs (Free.resume cont (.inl e)) (rest (.inl e) ⟨.inl e, run₁, .refl⟩) o)
+          (fun t => t) tail t⟩
+  | .inr y, run₁, tail =>
+      Exits.At.cases
+        (motive := fun x =>
+          (run₁ : (first.spec r).Post (env, s) pre.1 (.inr (x, y.2))) →
+          (tail : Spec.atExit (fun k => (next.spec r).Pre (k, y.2))
+            (fun k p o => (next.spec r).Post (k, y.2) p o)
+            (fun q o => (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) ≡ o) x
+            (pre.2 (.inr (x, y.2)) run₁) m) →
+          (N : Nat) × ((n : Nat) → N ≤ n → (cont : Qs.At X → Free (S.interface X) α) →
+            (rest : (m : E ⊕ (Qs.At X × R)) →
+              ((Diagram.seq first next).spec r).Post (env, s) pre m →
+              FreeDep r F (Free.resume cont m)) →
+            (o : E ⊕ (α × R)) →
+            FreeDep.Runs (Free.resume cont m) (rest m ⟨.inr (x, y.2), run₁, tail⟩) o →
+            FreeDep.Runs
+              ((Exits.At.elim (fun k => next.run stop n k cont) cont x).thread y.2)
+              (seqRest r n first next env s pre
+                (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest
+                (.inr (x, y.2)) run₁) o))
+        (fun k run₁ tail =>
+          let ih := nextAlong k y.2 (pre.2 (.inr (Exits.At.here k, y.2)) run₁) m tail
+          ⟨ih.1, fun n hn cont rest o t =>
+            ih.2 n hn cont (fun m tail => rest m ⟨.inr (Exits.At.here k, y.2), run₁, tail⟩) o t⟩)
+        (fun q run₁ tail =>
+          ⟨0, fun _ _ cont rest o t =>
+            Identity.ind
+              (fun (m : E ⊕ (Qs.At X × R))
+                  (tail : (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) ≡ m) =>
+                FreeDep.Runs (Free.resume cont m)
+                    (rest m ⟨.inr (Exits.At.there K q, y.2), run₁, tail⟩) o →
+                  FreeDep.Runs (Free.resume cont (.inr (q, y.2)))
+                    (rest (.inr (q, y.2)) ⟨.inr (Exits.At.there K q, y.2), run₁, .refl⟩) o)
+              (fun t => t) tail t⟩)
+        y.1 run₁ tail
+
+/-- Completeness after the result of the diagram of a frame. -/
+def frameAlong {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+    (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) (a : P.At X) (s : R)
+    (pre : ((Continuation.frame kept args shared next).spec r).Pre (a, s))
+    (nextAlong : (k : (M.product K).At X) → (s₁ : R) → (p : (next.spec r).Pre (k, s₁)) →
+      (m : E ⊕ (Qs.At X × R)) → (run : (next.spec r).Post (k, s₁) p m) →
+      next.Along r limit k s₁ p m run)
+    (m : E ⊕ (Qs.At X × R)) :
+    (m₁ : E ⊕ (Exits.At [K] X × R)) →
+    (run₁ : (shared.spec r).Post (a.2.select (args a.1), s) pre.1 m₁) →
+    (tail : Spec.resumePost
+      (fun (y : Exits.At [K] X × R) p o =>
+        Spec.atExit
+          (fun out =>
+            (next.spec r).Pre
+              (⟨Boundary.pair (kept a.1).1 out.1,
+                out.2.append (a.2.select (kept a.1).2)⟩, y.2))
+          (fun out p o =>
+            (next.spec r).Post
+              (⟨Boundary.pair (kept a.1).1 out.1,
+                out.2.append (a.2.select (kept a.1).2)⟩, y.2) p o)
+          (fun q _ => Exits.At.ofNil q) y.1 p o)
+      m₁ (pre.2 m₁ run₁) m) →
+    (N : Nat) × ((n : Nat) → N ≤ n → (cont : Qs.At X → Free (S.interface X) α) →
+      (rest : (m : E ⊕ (Qs.At X × R)) →
+        ((Continuation.frame kept args shared next).spec r).Post (a, s) pre m →
+        FreeDep r F (Free.resume cont m)) →
+      (o : E ⊕ (α × R)) → FreeDep.Runs (Free.resume cont m) (rest m ⟨m₁, run₁, tail⟩) o →
+      FreeDep.Runs
+        (Free.resume
+          (Exits.At.only fun out =>
+            next.run stop n
+              ⟨Boundary.pair (kept a.1).1 out.1, out.2.append (a.2.select (kept a.1).2)⟩ cont)
+          m₁)
+        (frameRest r n kept args shared next a s pre
+          (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest m₁ run₁) o)
+  | .inl e, run₁, tail =>
+      ⟨0, fun _ _ cont rest o t =>
+        Identity.ind
+          (fun (m : E ⊕ (Qs.At X × R)) (tail : (Sum.inl e : E ⊕ (Qs.At X × R)) ≡ m) =>
+            FreeDep.Runs (Free.resume cont m) (rest m ⟨.inl e, run₁, tail⟩) o →
+              FreeDep.Runs (Free.resume cont (.inl e)) (rest (.inl e) ⟨.inl e, run₁, .refl⟩) o)
+          (fun t => t) tail t⟩
+  | .inr y, run₁, tail =>
+      Exits.At.cases
+        (motive := fun x =>
+          (run₁ : (shared.spec r).Post (a.2.select (args a.1), s) pre.1 (.inr (x, y.2))) →
+          (tail : Spec.atExit
+            (fun out =>
+              (next.spec r).Pre
+                (⟨Boundary.pair (kept a.1).1 out.1,
+                  out.2.append (a.2.select (kept a.1).2)⟩, y.2))
+            (fun out p o =>
+              (next.spec r).Post
+                (⟨Boundary.pair (kept a.1).1 out.1,
+                  out.2.append (a.2.select (kept a.1).2)⟩, y.2) p o)
+            (fun q _ => Exits.At.ofNil q) x (pre.2 (.inr (x, y.2)) run₁) m) →
+          (N : Nat) × ((n : Nat) → N ≤ n → (cont : Qs.At X → Free (S.interface X) α) →
+            (rest : (m : E ⊕ (Qs.At X × R)) →
+              ((Continuation.frame kept args shared next).spec r).Post (a, s) pre m →
+              FreeDep r F (Free.resume cont m)) →
+            (o : E ⊕ (α × R)) →
+            FreeDep.Runs (Free.resume cont m) (rest m ⟨.inr (x, y.2), run₁, tail⟩) o →
+            FreeDep.Runs
+              ((Exits.At.only (fun out =>
+                next.run stop n
+                  ⟨Boundary.pair (kept a.1).1 out.1,
+                    out.2.append (a.2.select (kept a.1).2)⟩ cont) x).thread y.2)
+              (frameRest r n kept args shared next a s pre
+                (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest
+                (.inr (x, y.2)) run₁) o))
+        (fun out run₁ tail =>
+          let ih := nextAlong _ y.2 (pre.2 (.inr (Exits.At.here out, y.2)) run₁) m tail
+          ⟨ih.1, fun n hn cont rest o t =>
+            ih.2 n hn cont
+              (fun m tail => rest m ⟨.inr (Exits.At.here out, y.2), run₁, tail⟩) o t⟩)
+        (fun q _ _ => Exits.At.ofNil q) y.1 run₁ tail
+
+end Draft
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+  {α : Type} {F : E ⊕ (α × R) → Type} {stop : Free (S.interface X) α}
+  (limit : (s₀ : R) → FreeDep r F (stop.thread s₀))
+
+section LoopAlong
+
+variable {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation S K (K :: Qs))
+  {Inv : K.At X × R → Type} (keeps : (iterSpec r body).Keeps Inv)
+
+/-- The evidence of the unrollings at the next entrance, for the witness that the body gives
+and for an identical witness. -/
+def nextAlign (n j : Nat) (y : (a : K.At X × R) × Inv a) (a' : K.At X × R)
+    (post : (iterSpec r body).Post y.1 (keeps y.1 y.2).1 (.inr a')) :
+    (i' : Inv a') → (e₂ : (keeps y.1 y.2).2 a' post ≡ i') →
+    (cont : Qs.At X → Free (S.interface X) α) →
+    (rest : (m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y m →
+      FreeDep r F (Free.resume cont m)) →
+    (o : E ⊕ (α × R)) →
+    FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
+      (loopEvidence r limit n body keeps cont
+        (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j ⟨a', i'⟩
+        (fun m l =>
+          rest m
+            (Loop.next (F := (iterSpec r body).iterate keeps)
+              (a' := (⟨a', i'⟩ : (a : K.At X × R) × Inv a)) ⟨post, e₂⟩ l))) o →
+    FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
+      (loopEvidence r limit n body keeps cont
+        (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j
+        ⟨a', (keeps y.1 y.2).2 a' post⟩
+        (fun m l =>
+          rest m
+            (Loop.next (F := (iterSpec r body).iterate keeps)
+              (a' := (⟨a', (keeps y.1 y.2).2 a' post⟩ : (a : K.At X × R) × Inv a))
+              ⟨post, .refl⟩ l))) o :=
+  fun i' e₂ =>
+    Identity.ind
+      (fun (i' : Inv a') (e₂ : (keeps y.1 y.2).2 a' post ≡ i') =>
+        (cont : Qs.At X → Free (S.interface X) α) →
+        (rest : (m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y m →
+          FreeDep r F (Free.resume cont m)) →
+        (o : E ⊕ (α × R)) →
+        FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
+          (loopEvidence r limit n body keeps cont
+            (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j ⟨a', i'⟩
+            (fun m l =>
+              rest m
+                (Loop.next (F := (iterSpec r body).iterate keeps)
+                  (a' := (⟨a', i'⟩ : (a : K.At X × R) × Inv a)) ⟨post, e₂⟩ l))) o →
+        FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
+          (loopEvidence r limit n body keeps cont
+            (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j
+            ⟨a', (keeps y.1 y.2).2 a' post⟩
+            (fun m l =>
+              rest m
+                (Loop.next (F := (iterSpec r body).iterate keeps)
+                  (a' := (⟨a', (keeps y.1 y.2).2 a' post⟩ : (a : K.At X × R) × Inv a))
+                  ⟨post, .refl⟩ l))) o)
+      (fun _ _ _ t => t) e₂
+
+/-- Completeness of a loop, from the completeness of its body. -/
+def loopAlong
+    (bodyAlong : (a : K.At X) → (s₁ : R) → (p : (body.spec r).Pre (a, s₁)) →
+      (m' : E ⊕ (Exits.At (K :: Qs) X × R)) → (run : (body.spec r).Post (a, s₁) p m') →
+      body.Along r limit a s₁ p m' run) :
+    {y : (a : K.At X × R) × Inv a} → {m : E ⊕ (Qs.At X × R)} →
+    (l : Loop ((iterSpec r body).iterate keeps) y m) →
+    (N : Nat) × ((n j : Nat) → N ≤ n → N ≤ j → (cont : Qs.At X → Free (S.interface X) α) →
+      (rest : (m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y m →
+        FreeDep r F (Free.resume cont m)) →
+      (o : E ⊕ (α × R)) → FreeDep.Runs (Free.resume cont m) (rest m l) o →
+      FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j y.1.1 cont).thread y.1.2)
+        (loopEvidence r limit n body keeps cont
+          (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y rest) o)
+  | y, .inl e, .exit bodyRun =>
+      let ihb := bodyAlong y.1.1 y.1.2 (keeps y.1 y.2).1 (.inl e) bodyRun
+      ⟨ihb.1 + 1, fun n j hn hj cont rest o t =>
+        match j, hj with
+        | 0, hj => absurd hj (Nat.not_succ_le_zero _)
+        | j + 1, _ =>
+            ihb.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
+              (loopRest r n body keeps cont j y
+                (fun y' rest' =>
+                  loopEvidence r limit n body keeps cont
+                    (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y' rest')
+                rest) o t⟩
+  | y, .inr b, .exit bodyRun =>
+      let ihb :=
+        bodyAlong y.1.1 y.1.2 (keeps y.1 y.2).1 (.inr (Exits.At.there K b.1, b.2)) bodyRun
+      ⟨ihb.1 + 1, fun n j hn hj cont rest o t =>
+        match j, hj with
+        | 0, hj => absurd hj (Nat.not_succ_le_zero _)
+        | j + 1, _ =>
+            ihb.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
+              (loopRest r n body keeps cont j y
+                (fun y' rest' =>
+                  loopEvidence r limit n body keeps cont
+                    (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y' rest')
+                rest) o t⟩
+  | y, _, .next (a' := y') p l =>
+      let ihb :=
+        bodyAlong y.1.1 y.1.2 (keeps y.1 y.2).1 (.inr (Exits.At.here y'.1.1, y'.1.2)) p.1
+      let ihl := loopAlong bodyAlong l
+      ⟨ihb.1 + ihl.1 + 1, fun n j hn hj cont rest o t =>
+        match j, hj with
+        | 0, hj => absurd hj (Nat.not_succ_le_zero _)
+        | j + 1, hj =>
+            ihb.2 n
+              (Nat.le_trans (Nat.le_trans (Nat.le_add_right _ _) (Nat.le_add_right _ _)) hn) _
+              (loopRest r n body keeps cont j y
+                (fun y' rest' =>
+                  loopEvidence r limit n body keeps cont
+                    (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y' rest')
+                rest) o
+              (nextAlign r limit body keeps n j y y'.1 p.1 y'.2 p.2 cont rest o
+                (ihl.2 n j
+                  (Nat.le_trans
+                    (Nat.le_trans (Nat.le_add_left _ _) (Nat.le_add_right _ _)) hn)
+                  (Nat.le_trans (Nat.le_add_left _ _) (Nat.le_of_succ_le_succ hj)) cont
+                  (fun m l' =>
+                    rest m
+                      (Loop.next (F := (iterSpec r body).iterate keeps) (a' := y') p l'))
+                  o t))⟩
+
+end LoopAlong
+
+mutual
+
+/-- Completeness: a run of a diagram over a witness, and then a run of the rest along its
+evidence, is a run of each approximant along its evidence, from a threshold. -/
+def Diagram.along : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) → (env : All X Γ) →
+    (s : R) → (pre : (d.spec r).Pre (env, s)) → (m : E ⊕ (Qs.At X × R)) →
+    (run : (d.spec r).Post (env, s) pre m) → d.Along r limit env s pre m run
+  | _, Qs, .exit out, env, s, _, _, run =>
+      ⟨0, fun _ _ cont rest o t =>
+        Identity.ind
+          (fun (m : E ⊕ (Qs.At X × R))
+              (run : (Sum.inr (out.select env, s) : E ⊕ (Qs.At X × R)) ≡ m) =>
+            FreeDep.Runs (Free.resume cont m) (rest m run) o →
+              FreeDep.Runs (Free.resume cont (.inr (out.select env, s)))
+                (rest (.inr (out.select env, s)) .refl) o)
+          (fun t => t) run t⟩
+  | _, Qs, .step call next, env, s, pre, m, run =>
+      match run with
+      | ⟨.inl e, post, tail⟩ =>
+          ⟨0, fun _ _ cont rest o t =>
+            ⟨.inl e, post,
+              Identity.ind
+                (fun (m : E ⊕ (Qs.At X × R)) (tail : (Sum.inl e : E ⊕ (Qs.At X × R)) ≡ m) =>
+                  FreeDep.Runs (Free.resume cont m) (rest m ⟨.inl e, post, tail⟩) o →
+                    FreeDep.Runs (Free.resume cont (.inl e))
+                      (rest (.inl e) ⟨.inl e, post, .refl⟩) o)
+                (fun t => t) tail t⟩⟩
+      | ⟨.inr b, post, tail⟩ =>
+          let ih :=
+            Diagram.along (next b.1.1) (b.1.2.append env) b.2 (pre.2 (.inr b) post) m tail
+          ⟨ih.1, fun n hn cont rest o t =>
+            ⟨.inr b, post, ih.2 n hn cont (fun m tail => rest m ⟨.inr b, post, tail⟩) o t⟩⟩
+  | _, _, .seq first next, env, s, pre, m, run =>
+      let ih₁ := Diagram.along first env s pre.1 run.1 run.2.1
+      let tl :=
+        seqAlong r limit first next env s pre
+          (fun k s₁ p m run => Continuation.along next k s₁ p m run) m run.1 run.2.1 run.2.2
+      ⟨ih₁.1 + tl.1, fun n hn cont rest o t =>
+        ih₁.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
+          (seqRest r n first next env s pre
+            (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest) o
+          (tl.2 n (Nat.le_trans (Nat.le_add_left _ _) hn) cont rest o t)⟩
+
+def Continuation.along : {P : Boundary Ty} → {Qs : Exits Ty} → (k : Continuation S P Qs) →
+    (a : P.At X) → (s : R) → (pre : (k.spec r).Pre (a, s)) → (m : E ⊕ (Qs.At X × R)) →
+    (run : (k.spec r).Post (a, s) pre m) → k.Along r limit a s pre m run
+  | _, _, .copair each, a, s, pre, m, run => Diagram.along (each a.1) a.2 s pre m run
+  | _, _, .frame kept args shared next, a, s, pre, m, run =>
+      let ih₁ := Diagram.along shared (a.2.select (args a.1)) s pre.1 run.1 run.2.1
+      let tl :=
+        frameAlong r limit kept args shared next a s pre
+          (fun k s₁ p m run => Continuation.along next k s₁ p m run) m run.1 run.2.1 run.2.2
+      ⟨ih₁.1 + tl.1, fun n hn cont rest o t =>
+        ih₁.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
+          (frameRest r n kept args shared next a s pre
+            (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest) o
+          (tl.2 n (Nat.le_trans (Nat.le_add_left _ _) hn) cont rest o t)⟩
+  | _, _, .loop body, _, _, pre, _, run =>
+      let l :=
+        loopAlong r limit body pre.2.2
+          (fun a s₁ p m' run => Continuation.along body a s₁ p m' run) run
+      ⟨l.1, fun n hn cont rest o t => l.2 n n hn hn cont rest o t⟩
+
+end
+
+end Draft
+
+#print axioms Draft.Diagram.along
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+  (always : (a : ((S.interface X).runtime R E).Shape) → r.Pre a)
+
+mutual
+
+/-- A specification of the calls with a witness of each precondition gives a witness of the
+precondition of each diagram. -/
+def Diagram.witness : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (a : All X Γ × R) → (d.spec r).Pre a
+  | _, _, .exit _, _ => PUnit.unit
+  | _, _, .step call next, a =>
+      ⟨always _, fun x _ =>
+        Sum.casesOn
+          (motive := fun x =>
+            Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
+              ((next y.1.1).spec r).Pre (y.1.2.append a.1, y.2)) x)
+          x (fun _ => PUnit.unit) (fun y => Diagram.witness (next y.1.1) (y.1.2.append a.1, y.2))⟩
+  | _, Qs, .seq (K := K) first next, a =>
+      ⟨Diagram.witness first a, fun m _ =>
+        Sum.casesOn
+          (motive := fun m =>
+            Spec.resumePre (fun (y : Exits.At (K :: Qs) X × R) =>
+              Spec.exitPre (fun k => (next.spec r).Pre (k, y.2)) y.1) m)
+          m (fun _ => PUnit.unit)
+          (fun y =>
+            Exits.At.cases
+              (motive := fun e => Spec.exitPre (fun k => (next.spec r).Pre (k, y.2)) e)
+              (fun k => Continuation.witness next (k, y.2)) (fun _ => PUnit.unit) y.1)⟩
+
+def Continuation.witness : {P : Boundary Ty} → {Qs : Exits Ty} → (k : Continuation S P Qs) →
+    (a : P.At X × R) → (k.spec r).Pre a
+  | _, _, .copair each, a => Diagram.witness (each a.1.1) (a.1.2, a.2)
+  | _, _, .frame (K := K) kept args shared next, a =>
+      ⟨Diagram.witness shared (a.1.2.select (args a.1.1), a.2), fun m _ =>
+        Sum.casesOn
+          (motive := fun m =>
+            Spec.resumePre (fun (y : Exits.At [K] X × R) =>
+              Spec.exitPre (fun out =>
+                (next.spec r).Pre
+                  (⟨Boundary.pair (kept a.1.1).1 out.1,
+                    out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2)) y.1) m)
+          m (fun _ => PUnit.unit)
+          (fun y =>
+            Exits.At.cases
+              (motive := fun e =>
+                Spec.exitPre (fun out =>
+                  (next.spec r).Pre
+                    (⟨Boundary.pair (kept a.1.1).1 out.1,
+                      out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2)) e)
+              (fun out => Continuation.witness next _) (fun _ => PUnit.unit) y.1)⟩
+  | _, _, .loop body, _ =>
+      ⟨fun _ => PUnit, PUnit.unit, fun a' _ => ⟨Continuation.witness body a', fun _ _ => PUnit.unit⟩⟩
+
+end
+
+end Draft
+
+namespace Draft.Checks.Specification
+
+open Draft Draft.Checks.Countdown
+
+/-- A machine with a response at each call. -/
+def machine : Machine (sig.interface Value) Nat Unit := fun a => .inr (handle a.1 a.2)
+
+abbrev G : DepPoly.{0, 0, 0, 0} ((sig.interface Value).runtime Nat Unit) := machine.graph
+
+abbrev Res : Type := Unit ⊕ (Option (Exits.At [Out] Value) × Nat)
+
+/-- The condition at a result of an approximant of a continuation, over a witness: the runs to
+a stop, the runs to an exit, and no condition at the limit. -/
+def Seen (k : Continuation sig Entry [Out]) (x : Entry.At Value × Nat) (w : (k.spec G).Pre x) :
+    Res → Type
+  | .inl e => (k.spec G).Post x w (.inl e)
+  | .inr (some q, s') => (k.spec G).Post x w (.inr (q, s'))
+  | .inr (none, _) => PUnit
+
+/-- The rest that returns the run. -/
+def returns (k : Continuation sig Entry [Out]) (x : Entry.At Value × Nat) (w : (k.spec G).Pre x) :
+    (m : Unit ⊕ (Exits.At [Out] Value × Nat)) → (k.spec G).Post x w m →
+    FreeDep G (Seen k x w)
+      (Free.resume (fun q => (Free.pure (some q) : Free (sig.interface Value) _)) m)
+  | .inl e, run => FreeDep.pure (Q := Seen k x w) (value := Sum.inl e) run
+  | .inr y, run => FreeDep.pure (Q := Seen k x w) (value := Sum.inr (some y.1, y.2)) run
+
+/-- The evidence at the limit: no condition. -/
+def limitEv (k : Continuation sig Entry [Out]) (x : Entry.At Value × Nat) (w : (k.spec G).Pre x)
+    (s₀ : Nat) :
+    FreeDep G (Seen k x w)
+      ((Free.pure none : Free (sig.interface Value) (Option (Exits.At [Out] Value))).thread s₀) :=
+  FreeDep.pure (Q := Seen k x w) (value := Sum.inr (none, s₀)) PUnit.unit
+
+/-! The loop of the countdown. -/
+
+def keepsAll : (iterSpec G body).Keeps fun _ => PUnit :=
+  fun a' _ => ⟨Continuation.witness G (fun _ => PUnit.unit) body a', fun _ _ => PUnit.unit⟩
+
+def wit (c a s : Nat) : (loop.spec G).Pre (entry c a, s) := ⟨fun _ => PUnit, PUnit.unit, keepsAll⟩
+
+abbrev StepS := (iterSpec G body).iterate keepsAll
+
+set_option smartUnfolding false in
+def goes (c a s : Nat) :
+    StepS ⟨(entry (c + 1) a, s), PUnit.unit⟩ (.inr ⟨(entry c (s + a), s + 1), PUnit.unit⟩) :=
+  ⟨⟨.inr (⟨⟨_, .there .here⟩, .nil⟩, s), .refl, .inr (value c, s), .refl,
+      .inr (value (s + a), s + 1), .refl, .refl⟩,
+    .refl⟩
+
+set_option smartUnfolding false in
+def ends (a s : Nat) : StepS ⟨(entry 0 a, s), PUnit.unit⟩ (.inl (.inr (out a, s))) :=
+  ⟨.inr (⟨⟨_, .here⟩, .nil⟩, s), .refl, .refl⟩
+
+def runsS : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) ×
+    Loop StepS ⟨(entry c a, s), PUnit.unit⟩ (.inr r)
+  | 0, a, s => ⟨(out a, s), .exit (ends a s)⟩
+  | c + 1, a, s => ⟨(runsS c (s + a) (s + 1)).1, .next (goes c a s) (runsS c (s + a) (s + 1)).2⟩
+
+/-- Completeness at the run from the counter 2. -/
+def alongTwo (a s : Nat) :=
+  Continuation.along G (limitEv loop (entry 2 a, s) (wit 2 a s)) loop (entry 2 a) s (wit 2 a s)
+    (.inr (runsS 2 a s).1) (runsS 2 a s).2
+
+set_option smartUnfolding false in
+/-- The threshold of the run is the number of its runs of the body. -/
+def thresholdTwo (a s : Nat) : (alongTwo a s).1 ≡ 3 := .refl
+
+set_option smartUnfolding false in
+/-- The run of the approximant with three unrollings, along the evidence. -/
+def treeTwo (a s : Nat) :=
+  (alongTwo a s).2 3 (Nat.le_refl 3) (fun q => .pure (some q))
+    (returns loop (entry 2 a, s) (wit 2 a s))
+    (.inr (some (runsS 2 a s).1.1, (runsS 2 a s).1.2)) .refl
+
+set_option smartUnfolding false in
+/-- The round trip: the condition at the result of that run of the approximant is the run of
+the loop, for an arbitrary value and an arbitrary runtime. -/
+def roundTrip (a s : Nat) : FreeDep.atRun _ _ (treeTwo a s) ≡ (runsS 2 a s).2 := .refl
+
+end Draft.Checks.Specification
+
+#print axioms Draft.Checks.Specification.thresholdTwo
+#print axioms Draft.Checks.Specification.roundTrip
+
+/-! ### The relation with the evidence of a diagram with a runtime -/
+
+namespace Draft
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E))
+
+/-- A diagram is verified for its own specification, for each number of unrollings: the
+evidence of a diagram with a runtime, with the runs as the conditions. It is the evidence of
+the approximant, with the two conditions as one family. -/
+def Diagram.verified (n : Nat) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (env : All X Γ) (s : R) (pre : (d.spec r).Pre (env, s)) :
+    d.StateDep r n (fun x s' => (d.spec r).Post (env, s) pre (.inr (x, s')))
+      (fun e => (d.spec r).Post (env, s) pre (.inl e)) (fun _ => PUnit) env s :=
+  @fun _ F _ stops limit cont done =>
+    Diagram.evidence r (fun s₀ => limit s₀ PUnit.unit) n d env s pre cont fun m =>
+      Sum.casesOn
+        (motive := fun m => (d.spec r).Post (env, s) pre m → FreeDep r F (Free.resume cont m))
+        m (fun e run => FreeDep.pure (Q := F) (value := Sum.inl e) (stops e run))
+        (fun y run => done y.1 y.2 run)
+
+/-- The converse: the evidence of a diagram with a runtime, with the runs as the conditions,
+gives the evidence of the approximant with one family. -/
+def Diagram.StateDep.toEvidence {n : Nat} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs}
+    {env : All X Γ} {s : R} {pre : (d.spec r).Pre (env, s)}
+    (dep : d.StateDep r n (fun x s' => (d.spec r).Post (env, s) pre (.inr (x, s')))
+      (fun e => (d.spec r).Post (env, s) pre (.inl e)) (fun _ => PUnit) env s)
+    {α : Type} {F : E ⊕ (α × R) → Type} {stop : Free (S.interface X) α}
+    (limit : (s₀ : R) → FreeDep r F (stop.thread s₀)) : d.Evidence r n F stop env s pre :=
+  fun _ rest =>
+    dep (fun e run => (rest (.inl e) run).result) (fun s₀ _ => limit s₀)
+      (fun x s' run => rest (.inr (x, s')) run)
+
+/-! ### A bound on the runs, and the limit condition -/
+
+/-- A condition after a result with a stop, over the witness after that result. -/
+def Spec.resumeOn {M : Type} {P : M → Type 1} (W : (m : M) → P m → Type) :
+    (x : E ⊕ M) → Spec.resumePre P x → Type
+  | .inl _, _ => PUnit
+  | .inr m, p => W m p
+
+/-- A condition at an exit, over the witness at that exit. -/
+def Spec.exitOn {K : Boundary Ty} {Qs : Exits Ty} (headPre : K.At X → Type 1)
+    (W : (k : K.At X) → headPre k → Type) :
+    (e : Exits.At (K :: Qs) X) → Spec.exitPre headPre e → Type :=
+  Exits.At.cases (motive := fun e => Spec.exitPre headPre e → Type) W (fun _ _ => PUnit)
+
+/-- The bound of a loop, for a number of unrollings. With no unrolling, the entrance has the
+condition of the limit. With one more unrolling, the body has its bound, and each next
+entrance that a run of the body gives has the bound with one unrolling less. -/
+def Spec.Bound {A B : Type} (F : Spec A (B ⊕ A)) {Inv : A → Type} (keeps : F.Keeps Inv)
+    (bodyOn : (a : A) → F.Pre a → Type) (atLimit : A → Type) : Nat → ((a : A) × Inv a) → Type
+  | 0, y => atLimit y.1
+  | m + 1, y =>
+      bodyOn y.1 (keeps y.1 y.2).1 ×
+        ((a' : A) → (post : F.Post y.1 (keeps y.1 y.2).1 (.inr a')) →
+          Spec.Bound F keeps bodyOn atLimit m ⟨a', (keeps y.1 y.2).2 a' post⟩)
+
+variable (r : DepPoly.{0, 0, 0, 0} ((S.interface X).runtime R E)) (L : R → Type)
+
+mutual
+
+/-- The bound of a diagram over a witness of its precondition, for a number of unrollings: each
+run over the witness reaches the limit of a loop only at a runtime with the condition `L`. -/
+def Diagram.Within (n : Nat) : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (a : All X Γ × R) → (d.spec r).Pre a → Type
+  | _, _, .exit _, _, _ => PUnit
+  | _, _, .step call rest, a, pre =>
+      (x : E ⊕ ((S.output call.1).At X × R)) →
+        (post : r.Post (⟨call.1, a.1.select call.2⟩, a.2) pre.1 x) →
+        Spec.resumeOn
+          (fun (y : (S.output call.1).At X × R) p =>
+            (rest y.1.1).Within n (y.1.2.append a.1, y.2) p) x (pre.2 x post)
+  | _, Qs, .seq (K := K) first next, a, pre =>
+      first.Within n a pre.1 ×
+        ((m : E ⊕ (Exits.At (K :: Qs) X × R)) →
+          (post : (first.spec r).Post a pre.1 m) →
+          Spec.resumeOn
+            (fun (y : Exits.At (K :: Qs) X × R) p =>
+              Spec.exitOn (fun k => (next.spec r).Pre (k, y.2))
+                (fun k p => next.Within n (k, y.2) p) y.1 p) m (pre.2 m post))
+
+def Continuation.Within (n : Nat) : {P : Boundary Ty} → {Qs : Exits Ty} →
+    (k : Continuation S P Qs) → (a : P.At X × R) → (k.spec r).Pre a → Type
+  | _, _, .copair each, a, pre => (each a.1.1).Within n (a.1.2, a.2) pre
+  | _, _, .frame (K := K) kept args shared next, a, pre =>
+      shared.Within n (a.1.2.select (args a.1.1), a.2) pre.1 ×
+        ((m : E ⊕ (Exits.At [K] X × R)) →
+          (post : (shared.spec r).Post (a.1.2.select (args a.1.1), a.2) pre.1 m) →
+          Spec.resumeOn
+            (fun (y : Exits.At [K] X × R) p =>
+              Spec.exitOn
+                (fun out =>
+                  (next.spec r).Pre
+                    (⟨Boundary.pair (kept a.1.1).1 out.1,
+                      out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2))
+                (fun out p =>
+                  next.Within n
+                    (⟨Boundary.pair (kept a.1.1).1 out.1,
+                      out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2) p) y.1 p)
+            m (pre.2 m post))
+  | _, _, .loop body, a, pre =>
+      Spec.Bound (iterSpec r body) pre.2.2 (fun a p => body.Within n a p) (fun a => L a.2) n
+        ⟨a, pre.2.1⟩
+
+end
+
+section At
+
+variable {α : Type} {F : E ⊕ (α × R) → Type} {stop : Free (S.interface X) α}
+  (limit : (s₀ : R) → L s₀ → FreeDep r F (stop.thread s₀)) (n : Nat)
+
+/-- The evidence of the rest of the first diagram of a composite, with a bound. -/
+def seqRestAt {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S Γ (K :: Qs))
+    (next : Continuation S K Qs) (env : All X Γ) (s : R)
+    (pre : ((Diagram.seq first next).spec r).Pre (env, s))
+    (within : (Diagram.seq first next).Within r L n (env, s) pre)
+    (nextEv : (k : K.At X) → (s₁ : R) → (p : (next.spec r).Pre (k, s₁)) →
+      next.Within r L n (k, s₁) p → next.Evidence r n F stop k s₁ p)
+    (cont : Qs.At X → Free (S.interface X) α)
+    (rest : (m : E ⊕ (Qs.At X × R)) → ((Diagram.seq first next).spec r).Post (env, s) pre m →
+      FreeDep r F (Free.resume cont m)) :
+    (m₁ : E ⊕ (Exits.At (K :: Qs) X × R)) → (first.spec r).Post (env, s) pre.1 m₁ →
+    FreeDep r F (Free.resume (Exits.At.elim (fun k => next.run stop n k cont) cont) m₁)
+  | .inl e, run₁ => rest (.inl e) ⟨.inl e, run₁, .refl⟩
+  | .inr y, run₁ =>
+      Exits.At.cases
+        (motive := fun x => (first.spec r).Post (env, s) pre.1 (.inr (x, y.2)) →
+          FreeDep r F ((Exits.At.elim (fun k => next.run stop n k cont) cont x).thread y.2))
+        (fun k run₁ =>
+          nextEv k y.2 (pre.2 (.inr (Exits.At.here k, y.2)) run₁)
+            (within.2 (.inr (Exits.At.here k, y.2)) run₁) cont
+            (fun m tail => rest m ⟨.inr (Exits.At.here k, y.2), run₁, tail⟩))
+        (fun q run₁ => rest (.inr (q, y.2)) ⟨.inr (Exits.At.there K q, y.2), run₁, .refl⟩)
+        y.1 run₁
+
+/-- The evidence of the rest of the diagram of a frame, with a bound. -/
+def frameRestAt {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+    (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) (a : P.At X) (s : R)
+    (pre : ((Continuation.frame kept args shared next).spec r).Pre (a, s))
+    (within : (Continuation.frame kept args shared next).Within r L n (a, s) pre)
+    (nextEv : (k : (M.product K).At X) → (s₁ : R) → (p : (next.spec r).Pre (k, s₁)) →
+      next.Within r L n (k, s₁) p → next.Evidence r n F stop k s₁ p)
+    (cont : Qs.At X → Free (S.interface X) α)
+    (rest : (m : E ⊕ (Qs.At X × R)) →
+      ((Continuation.frame kept args shared next).spec r).Post (a, s) pre m →
+      FreeDep r F (Free.resume cont m)) :
+    (m₁ : E ⊕ (Exits.At [K] X × R)) →
+    (shared.spec r).Post (a.2.select (args a.1), s) pre.1 m₁ →
+    FreeDep r F
+      (Free.resume
+        (Exits.At.only fun out =>
+          next.run stop n
+            ⟨Boundary.pair (kept a.1).1 out.1, out.2.append (a.2.select (kept a.1).2)⟩ cont)
+        m₁)
+  | .inl e, run₁ => rest (.inl e) ⟨.inl e, run₁, .refl⟩
+  | .inr y, run₁ =>
+      Exits.At.cases
+        (motive := fun x =>
+          (shared.spec r).Post (a.2.select (args a.1), s) pre.1 (.inr (x, y.2)) →
+            FreeDep r F
+              ((Exits.At.only (fun out =>
+                next.run stop n
+                  ⟨Boundary.pair (kept a.1).1 out.1,
+                    out.2.append (a.2.select (kept a.1).2)⟩ cont) x).thread y.2))
+        (fun out run₁ =>
+          nextEv _ y.2 (pre.2 (.inr (Exits.At.here out, y.2)) run₁)
+            (within.2 (.inr (Exits.At.here out, y.2)) run₁) cont
+            (fun m tail => rest m ⟨.inr (Exits.At.here out, y.2), run₁, tail⟩))
+        (fun q _ => Exits.At.ofNil q) y.1 run₁
+
+section LoopAt
+
+variable {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation S K (K :: Qs))
+  {Inv : K.At X × R → Type} (keeps : (iterSpec r body).Keeps Inv)
+  (cont : Qs.At X → Free (S.interface X) α)
+
+/-- The bound of a loop, for the body and the limit condition of a diagram. -/
+abbrev LoopBound (j : Nat) (y : (a : K.At X × R) × Inv a) : Type :=
+  Spec.Bound (iterSpec r body) keeps (fun a p => body.Within r L n a p) (fun a => L a.2) j y
+
+/-- The evidence of the rest of the body of a loop, with the bound at each next entrance. -/
+def loopRestAt (j : Nat) (y : (a : K.At X × R) × Inv a)
+    (nexts : (a' : K.At X × R) →
+      (post : (iterSpec r body).Post y.1 (keeps y.1 y.2).1 (.inr a')) →
+      LoopBound r L n body keeps j ⟨a', (keeps y.1 y.2).2 a' post⟩)
+    (again : (y' : (a : K.At X × R) × Inv a) → LoopBound r L n body keeps j y' →
+      ((m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y' m →
+        FreeDep r F (Free.resume cont m)) →
+      FreeDep r F
+        ((Continuation.unrolled stop (body.run stop n) j y'.1.1 cont).thread y'.1.2))
+    (rest : (m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y m →
+      FreeDep r F (Free.resume cont m)) :
+    (m' : E ⊕ (Exits.At (K :: Qs) X × R)) → (body.spec r).Post y.1 (keeps y.1 y.2).1 m' →
+    FreeDep r F
+      (Free.resume
+        (Exits.At.elim (fun k' => Continuation.unrolled stop (body.run stop n) j k' cont) cont)
+        m')
+  | .inl e, bodyRun => rest (.inl e) (.exit bodyRun)
+  | .inr b, bodyRun =>
+      Exits.At.cases
+        (motive := fun x => (body.spec r).Post y.1 (keeps y.1 y.2).1 (.inr (x, b.2)) →
+          FreeDep r F
+            ((Exits.At.elim
+              (fun k' => Continuation.unrolled stop (body.run stop n) j k' cont) cont
+              x).thread b.2))
+        (fun k' bodyRun =>
+          again ⟨(k', b.2), (keeps y.1 y.2).2 (k', b.2) bodyRun⟩ (nexts (k', b.2) bodyRun)
+            (fun m l =>
+              rest m
+                (Loop.next (F := (iterSpec r body).iterate keeps)
+                  (a' := (⟨(k', b.2), (keeps y.1 y.2).2 (k', b.2) bodyRun⟩ :
+                    (a : K.At X × R) × Inv a))
+                  ⟨bodyRun, .refl⟩ l)))
+        (fun q bodyRun => rest (.inr (q, b.2)) (.exit bodyRun))
+        b.1 bodyRun
+
+/-- The evidence of the unrollings of a loop, with a bound. -/
+def loopEvidenceAt
+    (bodyEv : (a : K.At X) → (s₁ : R) → (p : (body.spec r).Pre (a, s₁)) →
+      body.Within r L n (a, s₁) p → body.Evidence r n F stop a s₁ p) :
+    (j : Nat) → (y : (a : K.At X × R) × Inv a) → LoopBound r L n body keeps j y →
+    ((m : E ⊕ (Qs.At X × R)) → Loop ((iterSpec r body).iterate keeps) y m →
+      FreeDep r F (Free.resume cont m)) →
+    FreeDep r F ((Continuation.unrolled stop (body.run stop n) j y.1.1 cont).thread y.1.2)
+  | 0, y, bound, _ => limit y.1.2 bound
+  | j + 1, y, bound, rest =>
+      bodyEv y.1.1 y.1.2 (keeps y.1 y.2).1 bound.1 _
+        (loopRestAt r L n body keeps cont j y bound.2
+          (fun y' bound' rest' => loopEvidenceAt bodyEv j y' bound' rest') rest)
+
+end LoopAt
+
+mutual
+
+/-- The evidence of an approximant of a diagram, from a witness of its precondition and a
+bound: the limit of a loop is reached only at a runtime with the condition `L`. -/
+def Diagram.evidenceAt : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (env : All X Γ) → (s : R) → (pre : (d.spec r).Pre (env, s)) →
+    d.Within r L n (env, s) pre → d.Evidence r n F stop env s pre
+  | _, _, .exit out, env, s, _, _ => fun _ rest => rest (.inr (out.select env, s)) .refl
+  | _, Qs, .step call next, env, s, pre, within => fun cont rest =>
+      FreeDep.request (r := r) (shape := (⟨call.1, env.select call.2⟩, s))
+        (next := Sum.elim (fun e => .pure (.inl e))
+          (fun (b : (S.output call.1).At X × R) =>
+            ((next b.1.1).run stop n (b.1.2.append env) cont).thread b.2))
+        pre.1
+        fun x post =>
+          Sum.casesOn
+            (motive := fun x =>
+              (p : Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
+                ((next y.1.1).spec r).Pre (y.1.2.append env, y.2)) x) →
+              Spec.resumeOn
+                (fun (y : (S.output call.1).At X × R) p =>
+                  (next y.1.1).Within r L n (y.1.2.append env, y.2) p) x p →
+              ((m : E ⊕ (Qs.At X × R)) →
+                Spec.resumePost
+                  (fun (y : (S.output call.1).At X × R) p o =>
+                    ((next y.1.1).spec r).Post (y.1.2.append env, y.2) p o) x p m →
+                FreeDep r F (Free.resume cont m)) →
+              FreeDep r F
+                (Sum.elim (fun e => Free.pure (.inl e))
+                  (fun (b : (S.output call.1).At X × R) =>
+                    ((next b.1.1).run stop n (b.1.2.append env) cont).thread b.2) x))
+            x (fun e _ _ k => k (.inl e) .refl)
+            (fun b p w k =>
+              Diagram.evidenceAt (next b.1.1) (b.1.2.append env) b.2 p w cont k)
+            (pre.2 x post) (within x post) (fun m tail => rest m ⟨x, post, tail⟩)
+  | _, _, .seq first next, env, s, pre, within => fun cont rest =>
+      Diagram.evidenceAt first env s pre.1 within.1 _
+        (seqRestAt r L n first next env s pre within
+          (fun k s₁ p w => Continuation.evidenceAt next k s₁ p w) cont rest)
+
+def Continuation.evidenceAt : {P : Boundary Ty} → {Qs : Exits Ty} →
+    (k : Continuation S P Qs) → (a : P.At X) → (s : R) → (pre : (k.spec r).Pre (a, s)) →
+    k.Within r L n (a, s) pre → k.Evidence r n F stop a s pre
+  | _, _, .copair each, a, s, pre, within => fun cont rest =>
+      Diagram.evidenceAt (each a.1) a.2 s pre within cont rest
+  | _, _, .frame kept args shared next, a, s, pre, within => fun cont rest =>
+      Diagram.evidenceAt shared (a.2.select (args a.1)) s pre.1 within.1 _
+        (frameRestAt r L n kept args shared next a s pre within
+          (fun k s₁ p w => Continuation.evidenceAt next k s₁ p w) cont rest)
+  | _, _, .loop body, a, s, pre, within => fun cont rest =>
+      loopEvidenceAt r L limit n body pre.2.2 cont
+        (fun a s₁ p w => Continuation.evidenceAt body a s₁ p w) n ⟨(a, s), pre.2.1⟩ within rest
+
+end
+
+end At
+
+/-- With a witness of the precondition and a bound, a diagram has the evidence of a diagram
+with a runtime, with the condition `L` at the limit. -/
+def Continuation.verifiedAt (n : Nat) {P : Boundary Ty} {Qs : Exits Ty} (k : Continuation S P Qs)
+    (a : P.At X) (s : R) (pre : (k.spec r).Pre (a, s)) (within : k.Within r L n (a, s) pre) :
+    k.StateDep r n (fun x s' => (k.spec r).Post (a, s) pre (.inr (x, s')))
+      (fun e => (k.spec r).Post (a, s) pre (.inl e)) L a s :=
+  @fun _ F _ stops limit cont done =>
+    Continuation.evidenceAt r L limit n k a s pre within cont fun m =>
+      Sum.casesOn
+        (motive := fun m => (k.spec r).Post (a, s) pre m → FreeDep r F (Free.resume cont m))
+        m (fun e run => FreeDep.pure (Q := F) (value := Sum.inl e) (stops e run))
+        (fun y run => done y.1 y.2 run)
+
+/-- With a witness of the precondition and a bound, a diagram has the evidence of a diagram
+with a runtime, with the condition `L` at the limit. -/
+def Diagram.verifiedAt (n : Nat) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+    (env : All X Γ) (s : R) (pre : (d.spec r).Pre (env, s))
+    (within : d.Within r L n (env, s) pre) :
+    d.StateDep r n (fun x s' => (d.spec r).Post (env, s) pre (.inr (x, s')))
+      (fun e => (d.spec r).Post (env, s) pre (.inl e)) L env s :=
+  @fun _ F _ stops limit cont done =>
+    Diagram.evidenceAt r L limit n d env s pre within cont fun m =>
+      Sum.casesOn
+        (motive := fun m => (d.spec r).Post (env, s) pre m → FreeDep r F (Free.resume cont m))
+        m (fun e run => FreeDep.pure (Q := F) (value := Sum.inl e) (stops e run))
+        (fun y run => done y.1 y.2 run)
+
+/-! ### The verified diagram -/
+
+/-- The evidence of a diagram for other conditions, from a map of the conditions. -/
+def Diagram.StateDep.imp {n : Nat} {Γ : List Ty} {Qs : Exits Ty} {P P' : Qs.At X → R → Type}
+    {Z Z' : E → Type} {L : R → Type} {d : Diagram S Γ Qs} {env : All X Γ} {s : R}
+    (f : (x : Qs.At X) → (s' : R) → P x s' → P' x s') (g : (e : E) → Z e → Z' e)
+    (dep : d.StateDep r n P Z L env s) : d.StateDep r n P' Z' L env s :=
+  fun stops limit _ done =>
+    dep (fun e z => stops e (g e z)) limit (fun x s' p => done x s' (f x s' p))
+
+/-- A verified diagram, for a specification of its interface with a runtime: a map into the
+specification of the diagram. At each input with a witness of the precondition of the
+specification, it has a witness of the precondition of the diagram, and the postcondition of
+the specification at the result of each run over that witness. -/
+abbrev Diagram.Verified {Γ : List Ty} {Qs : Exits Ty}
+    (q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)) (d : Diagram S Γ Qs) :
+    Type 1 :=
+  (a : All X Γ × R) → (pre : q.Pre a) →
+    (w : (d.spec r).Pre a) × ((o : E ⊕ (Qs.At X × R)) → (d.spec r).Post a w o → q.Post a pre o)
+
+/-- The bound of a verified diagram, for a number of unrollings and a condition at the limit:
+the bound of the diagram over each of its witnesses. -/
+abbrev Diagram.Verified.Bounded {Γ : List Ty} {Qs : Exits Ty}
+    {q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)} {d : Diagram S Γ Qs}
+    (v : d.Verified r q) (n : Nat) : Type :=
+  (a : All X Γ × R) → (pre : q.Pre a) → d.Within r L n a (v a pre).1
+
+/-- A verified diagram has the lift of a diagram with a runtime for each number of unrollings,
+with no condition at the limit. -/
+def Diagram.Verified.stateLift {Γ : List Ty} {Qs : Exits Ty}
+    {q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)} {d : Diagram S Γ Qs}
+    (v : d.Verified r q) (n : Nat) : d.StateLift r n q (fun _ _ _ => PUnit) :=
+  fun env s pre =>
+    Diagram.StateDep.imp r (fun x s' run => (v (env, s) pre).2 (.inr (x, s')) run)
+      (fun e run => (v (env, s) pre).2 (.inl e) run)
+      (Diagram.verified r n d env s (v (env, s) pre).1)
+
+/-- A verified diagram with a bound has the lift of a diagram with a runtime, with the
+condition of the bound at the limit. -/
+def Diagram.Verified.stateLiftAt {Γ : List Ty} {Qs : Exits Ty}
+    {q : DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E)} {d : Diagram S Γ Qs}
+    (v : d.Verified r q) (n : Nat) (bound : v.Bounded r L n) :
+    d.StateLift r n q (fun _ _ => L) :=
+  fun env s pre =>
+    Diagram.StateDep.imp r (fun x s' run => (v (env, s) pre).2 (.inr (x, s')) run)
+      (fun e run => (v (env, s) pre).2 (.inl e) run)
+      (Diagram.verifiedAt r L n d env s (v (env, s) pre).1 (bound (env, s) pre))
+
+end Draft
+
+#print axioms Prelude.Container.Impl.specDep
+#print axioms Prelude.Container.Impl.specPost
+#print axioms Draft.Diagram.verified
+#print axioms Draft.Diagram.StateDep.toEvidence
+#print axioms Draft.Diagram.Verified.stateLift
+#print axioms Draft.Diagram.Verified.stateLiftAt
+
+/-! ### The graph of a machine -/
+
+namespace Draft
+
+section Graph
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (m : Machine (S.interface X) R E) {Γ : List Ty} {Qs : Exits Ty}
+  (call : (S.interface (Port Γ)).Shape)
+  (next : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs) (a : All X Γ × R)
+
+abbrev StepPre : E ⊕ ((S.output call.1).At X × R) → Type 1 :=
+  Spec.resumePre fun (y : (S.output call.1).At X × R) =>
+    ((next y.1.1).spec m.graph).Pre (y.1.2.append a.1, y.2)
+
+abbrev StepPost (x : E ⊕ ((S.output call.1).At X × R)) (p : StepPre m call next a x)
+    (o : E ⊕ (Qs.At X × R)) : Type :=
+  Spec.resumePost
+    (fun (y : (S.output call.1).At X × R) p o =>
+      ((next y.1.1).spec m.graph).Post (y.1.2.append a.1, y.2) p o) x p o
+
+/-- For the graph of a machine, a witness of the precondition of a step is a witness of the
+precondition after the response of the machine. -/
+def stepPre (h : StepPre m call next a (m (⟨call.1, a.1.select call.2⟩, a.2))) :
+    ((Diagram.step call next).spec m.graph).Pre a :=
+  ⟨PUnit.unit, fun _ e => Identity.transport (StepPre m call next a) e h⟩
+
+/-- For the graph of a machine, a run of a step over that witness is a run after the response
+of the machine. -/
+def stepPost (h : StepPre m call next a (m (⟨call.1, a.1.select call.2⟩, a.2)))
+    (o : E ⊕ (Qs.At X × R))
+    (run : ((Diagram.step call next).spec m.graph).Post a
+      (stepPre m call next a h) o) :
+    StepPost m call next a (m (⟨call.1, a.1.select call.2⟩, a.2)) h o :=
+  Identity.ind
+    (fun (x : E ⊕ ((S.output call.1).At X × R)) (e : m (⟨call.1, a.1.select call.2⟩, a.2) ≡ x) =>
+      StepPost m call next a x (Identity.transport (StepPre m call next a) e h) o →
+        StepPost m call next a (m (⟨call.1, a.1.select call.2⟩, a.2)) h o)
+    (fun run => run) run.2.1 run.2.2
+
+end Graph
+
+section GraphBound
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
+  (m : Machine (S.interface X) R E)
+
+mutual
+
+/-- The witness of the precondition of a diagram, for the graph of a machine: each step has
+the witness after the response of the machine. -/
+def Diagram.graphWitness : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) →
+    (a : All X Γ × R) → (d.spec m.graph).Pre a
+  | _, _, .exit _, _ => PUnit.unit
+  | _, _, .step call next, a =>
+      stepPre m call next a
+        (Sum.casesOn (motive := fun x => StepPre m call next a x)
+          (m (⟨call.1, a.1.select call.2⟩, a.2)) (fun _ => PUnit.unit)
+          (fun y => Diagram.graphWitness (next y.1.1) (y.1.2.append a.1, y.2)))
+  | _, Qs, .seq (K := K) first next, a =>
+      ⟨Diagram.graphWitness first a, fun x _ =>
+        Sum.casesOn
+          (motive := fun x =>
+            Spec.resumePre (fun (y : Exits.At (K :: Qs) X × R) =>
+              Spec.exitPre (fun k => (next.spec m.graph).Pre (k, y.2)) y.1) x)
+          x (fun _ => PUnit.unit)
+          (fun y =>
+            Exits.At.cases
+              (motive := fun e =>
+                Spec.exitPre (fun k => (next.spec m.graph).Pre (k, y.2)) e)
+              (fun k => Continuation.graphWitness next (k, y.2)) (fun _ => PUnit.unit) y.1)⟩
+
+def Continuation.graphWitness : {P : Boundary Ty} → {Qs : Exits Ty} →
+    (k : Continuation S P Qs) → (a : P.At X × R) → (k.spec m.graph).Pre a
+  | _, _, .copair each, a => Diagram.graphWitness (each a.1.1) (a.1.2, a.2)
+  | _, _, .frame (K := K) kept args shared next, a =>
+      ⟨Diagram.graphWitness shared (a.1.2.select (args a.1.1), a.2), fun x _ =>
+        Sum.casesOn
+          (motive := fun x =>
+            Spec.resumePre (fun (y : Exits.At [K] X × R) =>
+              Spec.exitPre (fun out =>
+                (next.spec m.graph).Pre
+                  (⟨Boundary.pair (kept a.1.1).1 out.1,
+                    out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2)) y.1) x)
+          x (fun _ => PUnit.unit)
+          (fun y =>
+            Exits.At.cases
+              (motive := fun e =>
+                Spec.exitPre (fun out =>
+                  (next.spec m.graph).Pre
+                    (⟨Boundary.pair (kept a.1.1).1 out.1,
+                      out.2.append (a.1.2.select (kept a.1.1).2)⟩, y.2)) e)
+              (fun out => Continuation.graphWitness next _) (fun _ => PUnit.unit) y.1)⟩
+  | _, _, .loop body, _ =>
+      ⟨fun _ => PUnit, PUnit.unit, fun a' _ =>
+        ⟨Continuation.graphWitness body a', fun _ _ => PUnit.unit⟩⟩
+
+end
+
+variable (L : R → Type) (n : Nat) {Γ : List Ty} {Qs : Exits Ty}
+  (call : (S.interface (Port Γ)).Shape)
+  (next : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs) (a : All X Γ × R)
+
+/-- For the graph of a machine, the bound of a step is the bound after the response of the
+machine. -/
+def stepWithin (h : StepPre m call next a (m (⟨call.1, a.1.select call.2⟩, a.2)))
+    (w : Spec.resumeOn
+      (fun (y : (S.output call.1).At X × R) p =>
+        (next y.1.1).Within m.graph L n (y.1.2.append a.1, y.2) p)
+      (m (⟨call.1, a.1.select call.2⟩, a.2)) h) :
+    (Diagram.step call next).Within m.graph L n a (stepPre m call next a h) :=
+  fun _ e =>
+    Identity.ind
+      (fun (x : E ⊕ ((S.output call.1).At X × R))
+          (e : m (⟨call.1, a.1.select call.2⟩, a.2) ≡ x) =>
+        Spec.resumeOn
+          (fun (y : (S.output call.1).At X × R) p =>
+            (next y.1.1).Within m.graph L n (y.1.2.append a.1, y.2) p)
+          x (Identity.transport (StepPre m call next a) e h))
+      w e
+
+end GraphBound
+
+/-- The result of an iteration that a result of the body of a loop gives. -/
+def result {Ty : Type} {X : Ty → Type} {R E : Type} {K : Boundary Ty} {Qs : Exits Ty} :
+    E ⊕ (Exits.At (K :: Qs) X × R) → (E ⊕ (Qs.At X × R)) ⊕ (K.At X × R)
+  | .inl e => .inl (.inl e)
+  | .inr m => Exits.At.elim (fun k => .inr (k, m.2)) (fun q => .inl (.inr (q, m.2))) m.1
+
+
+end Draft
+
+namespace Draft.Checks.Specification
+
+open Draft Draft.Checks.Countdown
+
+/-! The countdown with a name for each rest, and an arbitrary computation at the limit. -/
+
+def afterEmit : (c : (sig.output .emit).Case) → Diagram sig (c.1 ++ [(), (), ()]) [Entry, Out] :=
+  Diagram.one
+    (.exit (Exits.At.here ⟨Boundary.only _, .cons (.there .here) (.cons .here .nil)⟩))
+
+def afterPred : (c : (sig.output .pred).Case) → Diagram sig (c.1 ++ [(), ()]) [Entry, Out] :=
+  Diagram.one (.step ⟨.emit, .cons (.there (.there .here)) .nil⟩ afterEmit)
+
+def afterTest : (c : (sig.output .isZero).Case) → Diagram sig (c.1 ++ [(), ()]) [Entry, Out]
+  | ⟨_, .here⟩ => .exit ⟨_, .there .here, Boundary.only _, .cons (.there .here) .nil⟩
+  | ⟨_, .there .here⟩ => .step ⟨.pred, .cons .here .nil⟩ afterPred
+
+def bodyN : Continuation sig Entry [Entry, Out] :=
+  .one (.step ⟨.isZero, .cons .here .nil⟩ afterTest)
+
+def loopN : Continuation sig Entry [Out] := .loop bodyN
+
+def keepsN : (iterSpec G bodyN).Keeps fun _ => PUnit :=
+  fun a' _ => ⟨Continuation.graphWitness machine bodyN a', fun _ _ => PUnit.unit⟩
+
+def witN (c a s : Nat) : (loopN.spec G).Pre (entry c a, s) :=
+  ⟨fun _ => PUnit, PUnit.unit, keepsN⟩
+
+abbrev Never : Nat → Type := fun _ => PEmpty
+
+set_option smartUnfolding false in
+def bodyIn (n c a s : Nat) :
+    bodyN.Within G Never n (entry (c + 1) a, s)
+      (Continuation.graphWitness machine bodyN (entry (c + 1) a, s)) :=
+  stepWithin machine Never n ⟨.isZero, .cons .here .nil⟩ afterTest (inputs (c + 1) a, s) _
+    (stepWithin machine Never n ⟨.pred, .cons .here .nil⟩ afterPred (inputs (c + 1) a, s) _
+      (stepWithin machine Never n ⟨.emit, .cons (.there (.there .here)) .nil⟩ afterEmit
+        (.cons c (inputs (c + 1) a), s) _ PUnit.unit))
+
+set_option smartUnfolding false in
+def bodyIn0 (n a s : Nat) :
+    bodyN.Within G Never n (entry 0 a, s)
+      (Continuation.graphWitness machine bodyN (entry 0 a, s)) :=
+  stepWithin machine Never n ⟨.isZero, .cons .here .nil⟩ afterTest (inputs 0 a, s) _ PUnit.unit
+
+set_option smartUnfolding false in
+/-- Each run of the body from a counter that is not zero gives the next entrance. -/
+def bodyNext (c a s : Nat) (m : Unit ⊕ (Exits.At [Entry, Out] Value × Nat))
+    (run : (bodyN.spec G).Post (entry (c + 1) a, s)
+      (Continuation.graphWitness machine bodyN (entry (c + 1) a, s)) m) :
+    (Sum.inr (Exits.At.here (entry c (s + a)), s + 1) :
+      Unit ⊕ (Exits.At [Entry, Out] Value × Nat)) ≡ m :=
+  stepPost machine ⟨.emit, .cons (.there (.there .here)) .nil⟩ afterEmit
+    (.cons c (inputs (c + 1) a), s) _ m
+    (stepPost machine ⟨.pred, .cons .here .nil⟩ afterPred (inputs (c + 1) a, s) _ m
+      (stepPost machine ⟨.isZero, .cons .here .nil⟩ afterTest (inputs (c + 1) a, s) _ m run))
+
+set_option smartUnfolding false in
+/-- Each run of the body from the counter zero is the exit of the loop. -/
+def bodyDone (a s : Nat) (m : Unit ⊕ (Exits.At [Entry, Out] Value × Nat))
+    (run : (bodyN.spec G).Post (entry 0 a, s)
+      (Continuation.graphWitness machine bodyN (entry 0 a, s)) m) :
+    (Sum.inr ((out a).there Entry, s) : Unit ⊕ (Exits.At [Entry, Out] Value × Nat)) ≡ m :=
+  stepPost machine ⟨.isZero, .cons .here .nil⟩ afterTest (inputs 0 a, s) _ m run
+
+/-- The bound of the loop: from the counter `c`, `c + 1` unrollings are sufficient, for an
+arbitrary value and an arbitrary runtime. -/
+def bound (n : Nat) : (c a s : Nat) →
+    LoopBound G Never n bodyN keepsN (c + 1) ⟨(entry c a, s), PUnit.unit⟩
+  | 0, a, s =>
+      ⟨bodyIn0 n a s, fun _ post =>
+        (Identity.inlNotInr
+          (Identity.cong (result (X := Value) (R := Nat) (E := Unit) (K := Entry) (Qs := [Out]))
+            (bodyDone a s _ post))).elim⟩
+  | c + 1, a, s =>
+      ⟨bodyIn n c a s, fun _ post =>
+        Identity.transport
+          (fun a' => LoopBound G Never n bodyN keepsN (c + 1) ⟨a', PUnit.unit⟩)
+          (Identity.inrInject
+            (Identity.cong (result (X := Value) (R := Nat) (E := Unit) (K := Entry) (Qs := [Out]))
+              (bodyNext c a s _ post)))
+          (bound n c (s + a) (s + 1))⟩
+
+/-- The evidence of the loop with the empty condition at the limit. -/
+def evidenceN (c a s : Nat) :
+    loopN.StateDep G (c + 1)
+      (fun x s' => (loopN.spec G).Post (entry c a, s) (witN c a s) (.inr (x, s')))
+      (fun e => (loopN.spec G).Post (entry c a, s) (witN c a s) (.inl e)) Never (entry c a) s :=
+  Continuation.verifiedAt G Never (c + 1) loopN (entry c a) s (witN c a s) (bound (c + 1) c a s)
+
+/-- The result of the function meaning on the machine has a run of the loop, for an arbitrary
+computation at the limit. -/
+def resultRun (stop : Free (sig.interface Value) (Exits.At [Out] Value)) (c a s : Nat) :
+    (loopN.spec G).Post (entry c a, s) (witN c a s)
+      (((loopN.run stop (c + 1) (entry c a) .pure).thread s).run machine) :=
+  FreeDep.run (Section.graphEvidence machine)
+    (evidenceN c a s
+      (F := fun o => (loopN.spec G).Post (entry c a, s) (witN c a s) o)
+      (stop := stop) (cont := .pure) (fun _ z => z) (fun _ e => nomatch e)
+      (fun x s' p =>
+        FreeDep.pure (Q := fun o => (loopN.spec G).Post (entry c a, s) (witN c a s) o)
+          (value := Sum.inr (x, s')) p))
+
+def lengthAt {c a s : Nat} {o : Unit ⊕ (Exits.At [Out] Value × Nat)}
+    (run : (loopN.spec G).Post (entry c a, s) (witN c a s) o) : Nat :=
+  Loop.length (F := (iterSpec G bodyN).iterate keepsN) run
+
+set_option smartUnfolding false in
+/-- From the counter 2 with three unrollings, the run has three runs of the body, for an
+arbitrary computation at the limit, an arbitrary value, and an arbitrary runtime. -/
+def limitFree (stop : Free (sig.interface Value) (Exits.At [Out] Value)) (a s : Nat) :
+    lengthAt (resultRun stop 2 a s) ≡ 3 := .refl
+
+end Draft.Checks.Specification
+
+#print axioms Draft.Checks.Specification.limitFree
+
+namespace Draft.Checks.Specification
+
+open Draft Draft.Checks.Countdown
+
+/-! A loop in a loop: the inner loop has the body with no exit to its own entrance. -/
+
+abbrev mapped : Continuation sig Entry [Entry, Entry, Out] :=
+  Continuation.mapExit (Exits.Map.there Entry [Entry, Out]) body
+
+abbrev innerLoop : Continuation sig Entry [Entry, Out] := .loop mapped
+
+def nested : Continuation sig Entry [Out] := .loop innerLoop
+
+def keepsInner : (iterSpec G mapped).Keeps fun _ => PUnit :=
+  fun a' _ => ⟨Continuation.witness G (fun _ => PUnit.unit) mapped a', fun _ _ => PUnit.unit⟩
+
+def keepsOuter : (iterSpec G innerLoop).Keeps fun _ => PUnit :=
+  fun _ _ => ⟨⟨fun _ => PUnit, PUnit.unit, keepsInner⟩, fun _ _ => PUnit.unit⟩
+
+def witNested (c a s : Nat) : (nested.spec G).Pre (entry c a, s) :=
+  ⟨fun _ => PUnit, PUnit.unit, keepsOuter⟩
+
+abbrev StepInner := (iterSpec G mapped).iterate keepsInner
+
+abbrev StepOuter := (iterSpec G innerLoop).iterate keepsOuter
+
+set_option smartUnfolding false in
+/-- A run of the inner loop to the entrance of the outer loop: one run of the body. -/
+def innerGoes (c a s : Nat) :
+    Loop StepInner ⟨(entry (c + 1) a, s), PUnit.unit⟩
+      (.inr (Exits.At.here (entry c (s + a)), s + 1)) :=
+  .exit
+    ⟨.inr (⟨⟨_, .there .here⟩, .nil⟩, s), .refl, .inr (value c, s), .refl,
+      .inr (value (s + a), s + 1), .refl, .refl⟩
+
+set_option smartUnfolding false in
+/-- A run of the inner loop to the exit of the outer loop. -/
+def innerEnds (a s : Nat) :
+    Loop StepInner ⟨(entry 0 a, s), PUnit.unit⟩ (.inr (Exits.At.there Entry (out a), s)) :=
+  .exit ⟨.inr (⟨⟨_, .here⟩, .nil⟩, s), .refl, .refl⟩
+
+set_option smartUnfolding false in
+def outerGoes (c a s : Nat) :
+    StepOuter ⟨(entry (c + 1) a, s), PUnit.unit⟩ (.inr ⟨(entry c (s + a), s + 1), PUnit.unit⟩) :=
+  ⟨innerGoes c a s, .refl⟩
+
+set_option smartUnfolding false in
+def outerEnds (a s : Nat) : StepOuter ⟨(entry 0 a, s), PUnit.unit⟩ (.inl (.inr (out a, s))) :=
+  innerEnds a s
+
+def runsNested : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) ×
+    Loop StepOuter ⟨(entry c a, s), PUnit.unit⟩ (.inr r)
+  | 0, a, s => ⟨(out a, s), .exit (outerEnds a s)⟩
+  | c + 1, a, s =>
+      ⟨(runsNested c (s + a) (s + 1)).1,
+        .next (outerGoes c a s) (runsNested c (s + a) (s + 1)).2⟩
+
+/-- Completeness at the run of the loop in a loop from the counter 2. -/
+def alongNested (a s : Nat) :=
+  Continuation.along G (limitEv nested (entry 2 a, s) (witNested 2 a s)) nested (entry 2 a) s
+    (witNested 2 a s) (.inr (runsNested 2 a s).1) (runsNested 2 a s).2
+
+set_option smartUnfolding false in
+/-- The threshold is a sum over the runs of the two bodies: it is 6, and three unrollings are
+sufficient for the run. -/
+def thresholdNested (a s : Nat) : (alongNested a s).1 ≡ 6 := .refl
+
+end Draft.Checks.Specification
+
+#print axioms Draft.Checks.Specification.thresholdNested
+
+namespace Draft.Checks.Specification
+
+open Draft Draft.Checks.Countdown
+
+set_option smartUnfolding false in
+/-- The run of the approximant of the loop in a loop with six unrollings, along the evidence. -/
+def treeNested (a s : Nat) :=
+  (alongNested a s).2 6 (Nat.le_refl 6) (fun q => .pure (some q))
+    (returns nested (entry 2 a, s) (witNested 2 a s))
+    (.inr (some (runsNested 2 a s).1.1, (runsNested 2 a s).1.2)) .refl
+
+set_option smartUnfolding false in
+/-- The round trip for the loop in a loop. -/
+def roundTripNested (a s : Nat) :
+    FreeDep.atRun _ _ (treeNested a s) ≡ (runsNested 2 a s).2 := .refl
+
+end Draft.Checks.Specification
+
+#print axioms Draft.Checks.Specification.roundTripNested

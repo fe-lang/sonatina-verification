@@ -372,6 +372,12 @@ of `Int(Poly_*)` with a box for each step, and its runs.
 [Probes/DepPoly.lean](Probes/DepPoly.lean) has the relation of calls with a
 runtime as a specification, and the continuation of a frame at the pairs of a
 bypass case and an exit case.
+[Probes/Specification.lean](Probes/Specification.lean) has the specification
+of a diagram from a specification of its calls with a runtime, the
+specification of an implementation, the evidence of the computation of a
+diagram with each number of unrollings from a witness of the precondition, the
+completeness of that evidence against the runs, the verified diagram as a map
+into the specification of the diagram, and the bound of a verified diagram.
 
 The text below describes the plain part.
 
@@ -772,7 +778,9 @@ completeness of the function meaning against the runs, and the rules of the
 feedback equation set.
 
 These results are pending, and they take the place of the run family of a
-diagram. A specification of the calls with a runtime gives a specification of
+diagram and of the present definition of a verified diagram.
+[Probes/Specification.lean](Probes/Specification.lean) has them with their
+checks. A specification of the calls with a runtime gives a specification of
 a diagram. A response of a call is a response with the next runtime, or a
 stop, and a result of a run is an exit with a runtime, or a stop. A witness of
 the precondition of a diagram has a witness of the precondition of each call
@@ -781,20 +789,37 @@ graph of a machine is a specification of the calls. An implementation has a
 specification from the specification of its calls: the implementation is
 verified for it, and each specification with a lift of the implementation maps
 to it. The evidence of a computation gives the condition at the result of
-each run along that evidence. The function meaning and the specification of a
-diagram are two recursions on the diagram, and their connection is the
-soundness and the completeness of the function meaning against the runs. The
-precondition of a loop is an invariant: a family on the entrances that the
+each run along that evidence.
+
+The precondition of a loop is an invariant: a family on the entrances that the
 body keeps, with a witness of the precondition of the body at each entrance of
 the family. The runs of the loop are the loop of
 [Prelude/Relation.lean](Prelude/Relation.lean) on the entrances with the
-family, so a loop that does not stop has a witness and no run. A diagram is
-verified for its own specification, for each number of unrollings: over a
-witness of its precondition, it has the evidence of a diagram with a runtime,
-for the runs to each exit and to each stop. The form of the converse is open.
-The evidence of a diagram for each number of unrollings does not give one
-witness of the precondition, because the evidence at two numbers can have
-different witnesses at one call.
+family, so a loop that does not stop has a witness and no run. One iteration
+of a loop has the runs of the body at the result that the next entrance, the
+exit, or the stop names.
+
+The function meaning and the specification of a diagram are two recursions on
+the diagram, and their connection has two halves. A witness of the
+precondition of a diagram gives the evidence of the computation of the diagram
+with each number of unrollings, for evidence of the rest at each result of a
+run. The evidence of a diagram with a runtime is this evidence with the
+condition at an exit and the condition at a stop as one family. The second
+half is the completeness: a run of the diagram, and then a run of the rest, is
+a run of the computation along its evidence, from a threshold of the number of
+unrollings.
+
+A verified diagram, for a specification of its interface with a runtime, is a
+map into the specification of the diagram: a witness of the precondition of
+the diagram, and the postcondition at the result of each run over that
+witness. It has the lift of a diagram with a runtime for each number of
+unrollings. A bound is second evidence: each run over the witness reaches the
+limit of a loop only at a runtime with a given condition. With the empty
+condition, the lift needs no evidence for the computation at the limit.
+
+These parts are open: the least threshold of a run, the two round trips of the
+connection for each diagram, and independent universe levels for the
+specification of a whole diagram.
 
 ## D7: the frontend fragment
 
