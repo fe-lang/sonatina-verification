@@ -375,7 +375,7 @@ def twiceSpecRun (A : Type) (a : A) (pre : (twiceSpec A).Pre a) :
 -- of the lift has the postcondition of that specification.
 def twiceSpecPost (A : Type) (a : A) :
     Identity
-      (Container.Impl.specPost (twiceLift A) a Nat a ⟨a, .refl, a, .refl, ⟨.refl⟩⟩) .refl :=
+      ((Container.Impl.specMap (twiceLift A) a Nat).2 a ⟨a, .refl, a, .refl, ⟨.refl⟩⟩) .refl :=
   .refl
 
 /-- info: 'PreludeTests.Containers.FreeChecks.twiceAtRun' does not depend on any axioms -/
@@ -407,6 +407,44 @@ def twiceSpecPost (A : Type) (a : A) :
 #print axioms Container.Free.Agreement.run
 
 end FreeChecks
+
+section SpecificationMaps
+
+open Container
+universe w z w' z' w'' z''
+variable {C : Container.{s, p}} {P : DepPoly.{s, p, w, z} C}
+  {Q : DepPoly.{s, p, w', z'} C} {T : DepPoly.{s, p, w'', z''} C}
+
+set_option smartUnfolding false in
+def mapRoundPost (f : P.Map Q) (g : Q.Cartesian T) (a : C.Shape) (pre : P.Pre a)
+    (o : C.Pos a) (post : T.Post a (g a (f a pre).1).1 o) :
+    (((f.trans g.toMap).toImplDep.toMap a pre).2 o post) ≡
+      (f a pre).2 o (((g a (f a pre).1).2 o).to post) := .refl
+
+set_option smartUnfolding false in
+def liftRoundPost (h : ImplDep P Q (Impl.id C)) (a : C.Shape) (pre : P.Pre a)
+    (o : C.Pos a) (post : Q.Post a (h a pre).parts.1 o) :
+    ((h.toMap.toImplDep a pre).parts.2 o post).result ≡ ((h a pre).parts.2 o post).result := .refl
+
+set_option smartUnfolding false in
+def mapTransLift (f : P.Map Q) (g : Q.Map T) (a : C.Shape) (pre : P.Pre a)
+    (o : C.Pos a) (post : T.Post a (g a (f a pre).1).1 o) :
+    ((f.toImplDep.trans g.toImplDep a pre).parts.2 o post).result ≡
+      ((f.trans g).toImplDep.toMap a pre).2 o post := .refl
+
+end SpecificationMaps
+
+/-- info: 'PreludeTests.Containers.mapRoundPost' does not depend on any axioms -/
+#guard_msgs in
+#print axioms mapRoundPost
+
+/-- info: 'PreludeTests.Containers.liftRoundPost' does not depend on any axioms -/
+#guard_msgs in
+#print axioms liftRoundPost
+
+/-- info: 'PreludeTests.Containers.mapTransLift' does not depend on any axioms -/
+#guard_msgs in
+#print axioms mapTransLift
 
 /-- info: 'Prelude.Container.Hom.natural' does not depend on any axioms -/
 #guard_msgs in

@@ -153,36 +153,51 @@ private def Spec.copair {P : Boundary Ty} {Qs : Exits Ty}
   ⟨fun x => (each x.1.1).Pre (x.1.2, x.2),
     fun x p o => (each x.1.1).Post (x.1.2, x.2) p o⟩
 
-private def Spec.frame {P M K : Boundary Ty} {Δ : List Ty} {Qs : Exits Ty}
-    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+/-- The input of the continuation of a frame, after an exit of its diagram: the case of the
+bypass with the case of the exit, the values of the exit, and the kept values. -/
+abbrev After {M B K : Boundary Ty} (kept : (c : B.Case) → M.At (Port c.1)) (x : B.At X × R)
+    (y : K.At X × R) : (M.product K).At X × R :=
+  (⟨Boundary.pair (kept x.1.1).1 y.1.1, y.1.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2)
+
+/-- The specification of one case of a frame, with its saved ports and its shared call inputs. -/
+def Spec.frameAt {M K : Boundary Ty} {Γ Δ : List Ty} {Qs : Exits Ty}
+    (kept : M.At (Port Γ)) (args : PortMap Γ Δ)
     (shared : Spec.{a, b} (All X Δ × R) (E ⊕ (Exits.At [K] X × R)))
     (next : Spec.{a, b} ((M.product K).At X × R) (E ⊕ (Qs.At X × R))) :
-    Spec.{max a b, b} (P.At X × R) (E ⊕ (Qs.At X × R)) :=
+    Spec.{max a b, b} (All X Γ × R) (E ⊕ (Qs.At X × R)) :=
   ⟨fun x =>
-    (p : shared.Pre (x.1.2.select (args x.1.1), x.2)) ×
+    (p : shared.Pre (x.1.select args, x.2)) ×
       ((m : E ⊕ (Exits.At [K] X × R)) →
-        shared.Post (x.1.2.select (args x.1.1), x.2) p m →
+        shared.Post (x.1.select args, x.2) p m →
         Spec.resumePre (fun (y : Exits.At [K] X × R) =>
           Spec.exitPre (fun out =>
             next.Pre
-              (⟨Boundary.pair (kept x.1.1).1 out.1,
-                out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2)) y.1) m),
+              (⟨Boundary.pair kept.1 out.1,
+                out.2.append (x.1.select kept.2)⟩, y.2)) y.1) m),
     fun x pre o =>
       (m : E ⊕ (Exits.At [K] X × R)) ×
-        (post : shared.Post (x.1.2.select (args x.1.1), x.2) pre.1 m) ×
+        (post : shared.Post (x.1.select args, x.2) pre.1 m) ×
           Spec.resumePost
             (fun (y : Exits.At [K] X × R) p o =>
               Spec.atExit
                 (fun out =>
                   next.Pre
-                    (⟨Boundary.pair (kept x.1.1).1 out.1,
-                      out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2))
+                    (⟨Boundary.pair kept.1 out.1,
+                      out.2.append (x.1.select kept.2)⟩, y.2))
                 (fun out p o =>
                   next.Post
-                    (⟨Boundary.pair (kept x.1.1).1 out.1,
-                      out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2) p o)
+                    (⟨Boundary.pair kept.1 out.1,
+                      out.2.append (x.1.select kept.2)⟩, y.2) p o)
                 (fun q _ => Exits.At.ofNil q) y.1 p o)
             m (pre.2 m post) o⟩
+
+private def Spec.frame {P M K : Boundary Ty} {Δ : List Ty} {Qs : Exits Ty}
+    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+    (shared : Spec.{a, b} (All X Δ × R) (E ⊕ (Exits.At [K] X × R)))
+    (next : Spec.{a, b} ((M.product K).At X × R) (E ⊕ (Qs.At X × R))) :
+    Spec.{max a b, b} (P.At X × R) (E ⊕ (Qs.At X × R)) :=
+  ⟨fun x => (Spec.frameAt (kept x.1.1) (args x.1.1) shared next).Pre (x.1.2, x.2),
+    fun x => (Spec.frameAt (kept x.1.1) (args x.1.1) shared next).Post (x.1.2, x.2)⟩
 
 private def Spec.iteration {K : Boundary Ty} {Qs : Exits Ty}
     (body : Spec.{a, b} (K.At X × R) (E ⊕ (Exits.At (K :: Qs) X × R))) :

@@ -98,22 +98,14 @@ def Continuation.peelRun (o : E ⊕ (Qs.At X × R)) : (m : E ⊕ (Exits.At (K ::
 
 end Maps
 
-variable (x : K.At X × R)
-
-/-- A witness of the precondition of the loop gives a witness of the precondition of one copy
-of the body, and then the loop. -/
-def Continuation.peelPre (p : (Continuation.spec r (Continuation.loop (.copair each))).Pre x) :
-    (Continuation.spec r (Continuation.peeled each)).Pre x :=
-  ⟨(p.2.2 x p.2.1).1, Continuation.peelWitness r each p.2.2 x p.2.1⟩
-
-/-- A run of one copy of the body, and then the loop, over that witness gives a run of the
-loop over the first witness. -/
-def Continuation.peelPost (p : (Continuation.spec r (Continuation.loop (.copair each))).Pre x)
-    (o : E ⊕ (Qs.At X × R))
-    (run : (Continuation.spec r (Continuation.peeled each)).Post x
-      (Continuation.peelPre r each x p) o) :
-    (Continuation.spec r (Continuation.loop (.copair each))).Post x p o :=
-  Continuation.peelRun r each p.2.2 x p.2.1 o run.1 run.2.1 run.2.2
+/-- Peeling carries the loop invariant forward and turns a run of the peeled continuation
+into a run of the loop over that invariant. -/
+def Continuation.peelMap :
+    DepPoly.Map (Continuation.spec r (Continuation.loop (.copair each)))
+      (Continuation.spec r (Continuation.peeled each)) :=
+  fun x p =>
+    ⟨⟨(p.2.2 x p.2.1).1, Continuation.peelWitness r each p.2.2 x p.2.1⟩,
+      fun o run => Continuation.peelRun r each p.2.2 x p.2.1 o run.1 run.2.1 run.2.2⟩
 
 section Evidence
 
@@ -128,8 +120,8 @@ def Continuation.Holds.peel (each : (c : K.Case) → Diagram S c.1 (K :: Qs))
     (always : (s : R) → L s) {P : E ⊕ (Qs.At X × R) → Type v} {x : K.At X × R} {m : Nat}
     (h : (Continuation.loop (.copair each)).Holds r L m P x) :
     (Continuation.peeled each).Holds r L n P x :=
-  Continuation.Holds.ofAlways always (Continuation.peelPre r each x h.parts.1.1)
-    fun o run => (h.parts.2 o (Continuation.peelPost r each x h.parts.1.1 o run)).result
+  let ⟨pre, back⟩ := Continuation.peelMap r each x h.parts.1.1
+  Continuation.Holds.ofAlways always pre fun o run => (h.parts.2 o (back o run)).result
 
 end Evidence
 

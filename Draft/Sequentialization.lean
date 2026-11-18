@@ -808,11 +808,6 @@ def Diagram.readyAt : (k : Nat) → {Γ : List Ty} → {Qs : Exits Ty} → (d : 
           ((Call.at a first env last).next last) done (fun x i j => fresh x (.there i) j) m.1
           m.2.1 operands' effect')
 
-/-- The type with a value at each list that has an element. -/
-def HasElement {α : Type} : List α → Type
-  | [] => Empty
-  | _ :: _ => Unit
-
 /-- An admissible order of the occurrences of a diagram of the fragment is the word of an order
 of the diagram, when no occurrence has two positions and no occurrence is done. The step of
 each run is ready, and the order has the ready steps of the runs. -/
@@ -825,7 +820,7 @@ def Diagram.Order.ofAdmissible : (w : List Nat) → {Γ : List Ty} → {Qs : Exi
     (e : Diagram S Γ Qs) × ((o : Diagram.Order e d) × (Diagram.Order.depths e d o h ≡ w))
   | [], _, _, .exit out, _, _, _, _, _, _ => ⟨.exit out, .refl, .refl⟩
   | [], _, _, .step _ _, _, _, _, _, _, ev =>
-      (Identity.transport HasElement (FreeDep.result ev) ()).elim
+      (Identity.transport (Elem _) (FreeDep.result ev) .here).ofNil
   | [], _, _, .seq _ _, h, _, _, _, _, _ => nomatch h
   | k :: w, Γ, Qs, d, h, env, last, done, sep, ev =>
       let pre := (FreeDep.parts ev).1

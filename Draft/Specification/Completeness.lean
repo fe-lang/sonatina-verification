@@ -41,6 +41,23 @@ abbrev Continuation.Along {P : Boundary Ty} {Qs : Exits Ty} (k : Continuation S 
     FreeDep.Runs ((k.run stop n a cont).thread s)
       (Continuation.evidence r limit n k a s pre cont rest) o)
 
+/-- Evidence at an intermediate result of a composite whose cutoff is admitted everywhere. -/
+private abbrev seqRest (n : Nat) {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty}
+    (first : Diagram S Γ (K :: Qs)) (next : Continuation S K Qs) (env : All X Γ) (s : R)
+    (pre : (Diagram.spec r (Diagram.seq first next)).Pre (env, s)) :=
+  seqRestAt r (fun _ => Unit) n first next env s pre
+    ((Diagram.seq first next).withinAlways r (fun _ => Unit) n (fun _ => ()) (env, s) pre)
+    (Continuation.evidenceAt r (fun _ => Unit) (fun s _ => limit s) n next)
+
+/-- Evidence at the shared body's exit for a frame whose cutoff is admitted everywhere. -/
+private abbrev frameRest (n : Nat) {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
+    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+    (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs) (a : P.At X) (s : R)
+    (pre : (Continuation.spec r (Continuation.frame kept args shared next)).Pre (a, s)) :=
+  frameRestAt r (fun _ => Unit) n kept args shared next a s pre
+    ((Continuation.frame kept args shared next).withinAlways r (fun _ => Unit) n (fun _ => ()) (a, s) pre)
+    (Continuation.evidenceAt r (fun _ => Unit) (fun s _ => limit s) n next)
+
 /-- Completeness after the result of the first diagram of a composite. -/
 def seqAlong {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S Γ (K :: Qs))
     (next : Continuation S K Qs) (env : All X Γ) (s : R)
@@ -62,8 +79,7 @@ def seqAlong {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S
         FreeDep r F (Free.resume cont m)) →
       (o : E ⊕ (α × R)) → FreeDep.Runs (Free.resume cont m) (rest m ⟨m₁, run₁, tail⟩) o →
       FreeDep.Runs (Free.resume (Exits.At.elim (fun k => next.run stop n k cont) cont) m₁)
-        (seqRest r n first next env s pre
-          (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest m₁ run₁) o)
+        (seqRest r limit n first next env s pre cont rest m₁ run₁) o)
   | .inl e, run₁, tail =>
       ⟨0, fun _ _ cont rest o t =>
         Identity.ind
@@ -87,8 +103,7 @@ def seqAlong {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty} (first : Diagram S
             FreeDep.Runs (Free.resume cont m) (rest m ⟨.inr (x, y.2), run₁, tail⟩) o →
             FreeDep.Runs
               ((Exits.At.elim (fun k => next.run stop n k cont) cont x).thread y.2)
-              (seqRest r n first next env s pre
-                (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest
+              (seqRest r limit n first next env s pre cont rest
                 (.inr (x, y.2)) run₁) o))
         (fun k run₁ tail =>
           let ih := nextAlong k y.2 (pre.2 (.inr (Exits.At.here k, y.2)) run₁) m tail
@@ -141,8 +156,7 @@ def frameAlong {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
             next.run stop n
               ⟨Boundary.pair (kept a.1).1 out.1, out.2.append (a.2.select (kept a.1).2)⟩ cont)
           m₁)
-        (frameRest r n kept args shared next a s pre
-          (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest m₁ run₁) o)
+        (frameRest r limit n kept args shared next a s pre cont rest m₁ run₁) o)
   | .inl e, run₁, tail =>
       ⟨0, fun _ _ cont rest o t =>
         Identity.ind
@@ -175,8 +189,7 @@ def frameAlong {P M K : Boundary Ty} {Qs : Exits Ty} {Δ : List Ty}
                 next.run stop n
                   ⟨Boundary.pair (kept a.1).1 out.1,
                     out.2.append (a.2.select (kept a.1).2)⟩ cont) x).thread y.2)
-              (frameRest r n kept args shared next a s pre
-                (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest
+              (frameRest r limit n kept args shared next a s pre cont rest
                 (.inr (x, y.2)) run₁) o))
         (fun out run₁ tail =>
           let ih := nextAlong _ y.2 (pre.2 (.inr (Exits.At.here out, y.2)) run₁) m tail
@@ -199,6 +212,22 @@ section LoopAlong
 variable {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation S K (K :: Qs))
   {Inv : K.At X × R → Type z} (keeps : (iterSpec r body).Keeps Inv)
 
+/-- Each entrance has the bound when its cutoff is admitted at every runtime. -/
+private abbrev loopBound (n j : Nat) :=
+  Spec.boundAlways keeps (body.withinAlways r (fun _ => Unit) n (fun _ => ())) (fun _ => ()) j
+
+private abbrev loopEvidence (n : Nat) (cont : Qs.At X → Free (S.interface X) α)
+    (j : Nat) (y : (a : K.At X × R) × Inv a) :=
+  loopEvidenceAt r (fun _ => Unit) (fun s _ => limit s) n body keeps cont
+    (Continuation.evidenceAt r (fun _ => Unit) (fun s _ => limit s) n body)
+    j y (loopBound r body keeps n j y)
+
+private abbrev loopRest (n : Nat) (cont : Qs.At X → Free (S.interface X) α)
+    (j : Nat) (y : (a : K.At X × R) × Inv a) :=
+  loopRestAt r (fun _ => Unit) n body keeps cont j y (loopBound r body keeps n (j + 1) y).2
+    (loopEvidenceAt r (fun _ => Unit) (fun s _ => limit s) n body keeps cont
+      (Continuation.evidenceAt r (fun _ => Unit) (fun s _ => limit s) n body) j)
+
 /-- The evidence of the unrollings at the next entrance, for the witness that the body gives
 and for an identical witness. -/
 def nextAlign (n j : Nat) (y : (a : K.At X × R) × Inv a) (a' : K.At X × R)
@@ -209,15 +238,13 @@ def nextAlign (n j : Nat) (y : (a : K.At X × R) × Inv a) (a' : K.At X × R)
       FreeDep r F (Free.resume cont m)) →
     (o : E ⊕ (α × R)) →
     FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
-      (loopEvidence r limit n body keeps cont
-        (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j ⟨a', i'⟩
+      (loopEvidence r limit body keeps n cont j ⟨a', i'⟩
         (fun m l =>
           rest m
             (Loop.next (F := (iterSpec r body).iterate keeps)
               (a' := (⟨a', i'⟩ : (a : K.At X × R) × Inv a)) ⟨post, e₂⟩ l))) o →
     FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
-      (loopEvidence r limit n body keeps cont
-        (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j
+      (loopEvidence r limit body keeps n cont j
         ⟨a', (keeps y.1 y.2).2 a' post⟩
         (fun m l =>
           rest m
@@ -232,15 +259,13 @@ def nextAlign (n j : Nat) (y : (a : K.At X × R) × Inv a) (a' : K.At X × R)
           FreeDep r F (Free.resume cont m)) →
         (o : E ⊕ (α × R)) →
         FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
-          (loopEvidence r limit n body keeps cont
-            (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j ⟨a', i'⟩
+          (loopEvidence r limit body keeps n cont j ⟨a', i'⟩
             (fun m l =>
               rest m
                 (Loop.next (F := (iterSpec r body).iterate keeps)
                   (a' := (⟨a', i'⟩ : (a : K.At X × R) × Inv a)) ⟨post, e₂⟩ l))) o →
         FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j a'.1 cont).thread a'.2)
-          (loopEvidence r limit n body keeps cont
-            (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j
+          (loopEvidence r limit body keeps n cont j
             ⟨a', (keeps y.1 y.2).2 a' post⟩
             (fun m l =>
               rest m
@@ -261,8 +286,7 @@ def loopAlong
         FreeDep r F (Free.resume cont m)) →
       (o : E ⊕ (α × R)) → FreeDep.Runs (Free.resume cont m) (rest m l) o →
       FreeDep.Runs ((Continuation.unrolled stop (body.run stop n) j y.1.1 cont).thread y.1.2)
-        (loopEvidence r limit n body keeps cont
-          (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y rest) o)
+        (loopEvidence r limit body keeps n cont j y rest) o)
   | y, .inl e, .exit bodyRun =>
       let ihb := bodyAlong y.1.1 y.1.2 (keeps y.1 y.2).1 (.inl e) bodyRun
       ⟨ihb.1 + 1, fun n j hn hj cont rest o t =>
@@ -270,10 +294,7 @@ def loopAlong
         | 0, hj => absurd hj (Nat.not_succ_le_zero _)
         | j + 1, _ =>
             ihb.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
-              (loopRest r n body keeps cont j y
-                (fun y' rest' =>
-                  loopEvidence r limit n body keeps cont
-                    (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y' rest')
+              (loopRest r limit body keeps n cont j y
                 rest) o t⟩
   | y, .inr b, .exit bodyRun =>
       let ihb :=
@@ -283,10 +304,7 @@ def loopAlong
         | 0, hj => absurd hj (Nat.not_succ_le_zero _)
         | j + 1, _ =>
             ihb.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
-              (loopRest r n body keeps cont j y
-                (fun y' rest' =>
-                  loopEvidence r limit n body keeps cont
-                    (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y' rest')
+              (loopRest r limit body keeps n cont j y
                 rest) o t⟩
   | y, _, .next (a' := y') p l =>
       let ihb :=
@@ -298,10 +316,7 @@ def loopAlong
         | j + 1, hj =>
             ihb.2 n
               (Nat.le_trans (Nat.le_trans (Nat.le_add_right _ _) (Nat.le_add_right _ _)) hn) _
-              (loopRest r n body keeps cont j y
-                (fun y' rest' =>
-                  loopEvidence r limit n body keeps cont
-                    (fun a s₁ p => Continuation.evidence r limit n body a s₁ p) j y' rest')
+              (loopRest r limit body keeps n cont j y
                 rest) o
               (nextAlign r limit body keeps n j y y'.1 p.1 y'.2 p.2 cont rest o
                 (ihl.2 n j
@@ -354,8 +369,7 @@ def Diagram.along : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs)
           (fun k s₁ p m run => Continuation.along next k s₁ p m run) m run.1 run.2.1 run.2.2
       ⟨ih₁.1 + tl.1, fun n hn cont rest o t =>
         ih₁.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
-          (seqRest r n first next env s pre
-            (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest) o
+          (seqRest r limit n first next env s pre cont rest) o
           (tl.2 n (Nat.le_trans (Nat.le_add_left _ _) hn) cont rest o t)⟩
 
 def Continuation.along : {P : Boundary Ty} → {Qs : Exits Ty} → (k : Continuation S P Qs) →
@@ -369,8 +383,7 @@ def Continuation.along : {P : Boundary Ty} → {Qs : Exits Ty} → (k : Continua
           (fun k s₁ p m run => Continuation.along next k s₁ p m run) m run.1 run.2.1 run.2.2
       ⟨ih₁.1 + tl.1, fun n hn cont rest o t =>
         ih₁.2 n (Nat.le_trans (Nat.le_add_right _ _) hn) _
-          (frameRest r n kept args shared next a s pre
-            (fun k s₁ p => Continuation.evidence r limit n next k s₁ p) cont rest) o
+          (frameRest r limit n kept args shared next a s pre cont rest) o
           (tl.2 n (Nat.le_trans (Nat.le_add_left _ _) hn) cont rest o t)⟩
   | _, _, .loop body, _, _, pre, _, run =>
       let l :=

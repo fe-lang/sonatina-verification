@@ -1,4 +1,6 @@
-import Draft.Diagram
+import Draft.Specification.Derivation
+import Draft.Specification.Machine
+import Draft.Runtime
 
 /-! Source diagrams of the fragment with fixed occurrences.
 
@@ -67,6 +69,20 @@ set_option genInjectivity false
 open Prelude Container
 
 namespace Draft
+
+export Prelude (takeAt Separate Link)
+
+namespace takeAt
+export Prelude.takeAt (elems distinct)
+end takeAt
+
+namespace Separate
+export Prelude.Separate (take)
+end Separate
+
+namespace Link
+export Prelude.Link (cons skip)
+end Link
 
 variable {Ty : Type} {S : Signature Ty}
 
@@ -284,78 +300,6 @@ def Signature.producer (G : List (S.Occurrence Γ₀)) (s : (Signature.incidence
 
 /-! The specification of the runs. -/
 
-/-- The element at a number in a list, with the other elements in their order. -/
-def takeAt {α : Type} : Nat → List α → Option (α × List α)
-  | _, [] => none
-  | 0, a :: rest => some (a, rest)
-  | k + 1, a :: rest => (takeAt k rest).map fun found => (found.1, a :: found.2)
-
-section Take
-
-variable {α : Type}
-
-/-- The element of a take is an element of the list, and each other element of the take is an
-element of the list. -/
-def takeAt.elems : (k : Nat) → (xs : List α) → {y : α} → {ys : List α} →
-    takeAt k xs ≡ some (y, ys) → Elem y xs × ((x : α) → Elem x ys → Elem x xs)
-  | 0, [], _, _, p => (Identity.noneNotSome p).elim
-  | _ + 1, [], _, _, p => (Identity.noneNotSome p).elim
-  | 0, z :: rest, _, _, p =>
-      Identity.ind (a := (z, rest))
-        (fun (r : α × List α) _ =>
-          Elem r.1 (z :: rest) × ((x : α) → Elem x r.2 → Elem x (z :: rest)))
-        (.here, fun _ i => .there i) (Identity.someInject p)
-  | k + 1, z :: rest, _, _, p =>
-      let m := Identity.ofMapSome (takeAt k rest) p
-      let ih := takeAt.elems k rest (y := m.1.1) (ys := m.1.2) m.2.1
-      Identity.ind (a := (m.1.1, z :: m.1.2))
-        (fun (r : α × List α) _ =>
-          Elem r.1 (z :: rest) × ((x : α) → Elem x r.2 → Elem x (z :: rest)))
-        (.there ih.1, fun x i =>
-          match Elem.uncons i with
-          | .inl same => Identity.transport (fun w => Elem w (z :: rest)) same.symm .here
-          | .inr j => .there (ih.2 x j))
-        m.2.2
-
-/-- The other elements of a take of a list with no element at two positions have no element at
-two positions, and the element of the take is not one of them. -/
-def takeAt.distinct : (k : Nat) → (xs : List α) → {y : α} → {ys : List α} →
-    takeAt k xs ≡ some (y, ys) → Elem.Distinct xs → Elem.Distinct ys × (Elem y ys → Empty)
-  | 0, [], _, _, p, _ => (Identity.noneNotSome p).elim
-  | _ + 1, [], _, _, p, _ => (Identity.noneNotSome p).elim
-  | 0, z :: rest, _, _, p, d =>
-      Identity.ind (a := (z, rest))
-        (fun (r : α × List α) _ => Elem.Distinct r.2 × (Elem r.1 r.2 → Empty))
-        (d.tail, d.fresh) (Identity.someInject p)
-  | k + 1, z :: rest, _, _, p, d =>
-      let m := Identity.ofMapSome (takeAt k rest) p
-      let e := takeAt.elems k rest (y := m.1.1) (ys := m.1.2) m.2.1
-      let ih := takeAt.distinct k rest (y := m.1.1) (ys := m.1.2) m.2.1 d.tail
-      Identity.ind (a := (m.1.1, z :: m.1.2))
-        (fun (r : α × List α) _ => Elem.Distinct r.2 × (Elem r.1 r.2 → Empty))
-        (Elem.Distinct.cons ih.1 (fun i => d.fresh (e.2 z i)), fun i =>
-          match Elem.uncons i with
-          | .inl same => d.fresh (Identity.transport (fun w => Elem w rest) same e.1)
-          | .inr j => ih.2 j)
-        m.2.2
-
-/-- No element of the first list has two positions, and no element has a position in each of
-the two lists. -/
-def Separate (xs done : List α) : Type :=
-  Elem.Distinct xs × ((x : α) → Elem x xs → Elem x done → Empty)
-
-/-- The lists after a take are separate: the other elements, and the done elements with the
-element of the take. -/
-def Separate.take {k : Nat} {xs done : List α} {y : α} {ys : List α}
-    (p : takeAt k xs ≡ some (y, ys)) (s : Separate xs done) : Separate ys (y :: done) :=
-  ((takeAt.distinct k xs p s.1).1, fun x i j =>
-    match Elem.uncons j with
-    | .inl same =>
-        (takeAt.distinct k xs p s.1).2 (Identity.transport (fun z => Elem z ys) same i)
-    | .inr j' => s.2 x ((takeAt.elems k xs p).2 x i) j')
-
-end Take
-
 /-- A history is produced for a list of done occurrences: it is an input, or its call is in the
 list. -/
 def History.Produced (done : List (S.Occurrence Γ₀)) : {t : Ty} → History S Γ₀ t → Type
@@ -553,7 +497,7 @@ def Diagram.mergeWith [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} →
   | _, _, _, _, _, .seq _ _, h => nomatch h
 
 /-- The merge of the equal calls of a diagram of the fragment. -/
-def Diagram.merge [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
+private abbrev Diagram.mergeSyntax [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
     (h : d.Straight) : Diagram S Γ Qs :=
   Diagram.mergeWith [] (PortMap.id Γ) d h
 
@@ -768,7 +712,7 @@ def Diagram.mergeWithDerivation [DecEq S.Op] (inter : Rules.Map (Rules.interchan
 rule set that has the interchange rule and the copy rule. -/
 def Diagram.mergeDerivation [DecEq S.Op] (inter : Rules.Map (Rules.interchange S) R)
     (copy : Rules.Map (Rules.copy S) R) {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
-    (h : d.Straight) : Diagram.Derivation R d (d.merge h) :=
+    (h : d.Straight) : Diagram.Derivation R d (d.mergeSyntax h) :=
   .trans (.symm (.agree d.renameId))
     (Diagram.mergeWithDerivation inter copy (fun D => D) (fun der => der) [] .nil
       (PortMap.id Γ) d h)
@@ -1209,51 +1153,13 @@ def Diagram.mergeWithSeparate [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits T
 
 /-- The merged diagram of a diagram of the fragment is a diagram of the fragment. -/
 def Diagram.mergeStraight [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
-    (h : d.Straight) : (d.merge h).Straight :=
+    (h : d.Straight) : (d.mergeSyntax h).Straight :=
   Diagram.mergeWithStraight [] (PortMap.id Γ) d h
 
 /-- The dependency graph of the merged diagram has no element at two positions. -/
 def Diagram.mergeDistinct [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
-    (h : d.Straight) (hM : (d.merge h).Straight) : Elem.Distinct ((d.merge h).graph hM) :=
+    (h : d.Straight) (hM : (d.mergeSyntax h).Straight) : Elem.Distinct ((d.mergeSyntax h).graph hM) :=
   (Diagram.mergeWithSeparate [] (PortMap.id Γ) d h (S.inputs Γ) none [] (Merged.start Γ) hM).1
-
-/-- A link of two lists for a third list: each element of the first list is an element of the
-second list or of the third list, and each element of the second list is an element of the
-first list. -/
-abbrev Link {α : Type} (source merged prior : List α) : Type :=
-  ((x : α) → Elem x source → Elem x merged ⊕ Elem x prior) ×
-    ((x : α) → Elem x merged → Elem x source)
-
-/-- The link of two lists with one more first element each, when the two elements are one
-element. -/
-def Link.cons {α : Type} {source merged prior : List α} {y y' : α} (same : y ≡ y')
-    (rest : Link source merged (y' :: prior)) : Link (y :: source) (y' :: merged) prior :=
-  (fun x i =>
-    match Elem.uncons i with
-    | .inl e =>
-        .inl (Identity.transport (fun z => Elem z (y' :: merged)) (e.trans same).symm .here)
-    | .inr j =>
-        match rest.1 x j with
-        | .inl m => .inl (.there m)
-        | .inr k =>
-            match Elem.uncons k with
-            | .inl e => .inl (Identity.transport (fun z => Elem z (y' :: merged)) e.symm .here)
-            | .inr k' => .inr k',
-    fun x i =>
-      match Elem.uncons i with
-      | .inl e =>
-          Identity.transport (fun z => Elem z (y :: source)) (e.trans same.symm).symm .here
-      | .inr j => .there (rest.2 x j))
-
-/-- The link of a list with one more first element, when that element is an element of the
-third list. -/
-def Link.skip {α : Type} {source merged prior : List α} {y : α} (known : Elem y prior)
-    (rest : Link source merged prior) : Link (y :: source) merged prior :=
-  (fun x i =>
-    match Elem.uncons i with
-    | .inl e => .inr (Identity.transport (fun z => Elem z prior) e.symm known)
-    | .inr j => rest.1 x j,
-    fun x i => .there (rest.2 x i))
 
 section
 
@@ -1499,12 +1405,12 @@ def Diagram.mergeWithLink [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} �
 that occurrence in the graph of its merged diagram, and a position in the graph of the merged
 diagram gives a position in the graph of the diagram. -/
 def Diagram.mergeLink [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs)
-    (h : d.Straight) (hM : (d.merge h).Straight) :
-    ((x : S.Occurrence Γ) → Elem x (d.graph h) → Elem x ((d.merge h).graph hM)) ×
-      ((x : S.Occurrence Γ) → Elem x ((d.merge h).graph hM) → Elem x (d.graph h)) :=
+    (h : d.Straight) (hM : (d.mergeSyntax h).Straight) :
+    ((x : S.Occurrence Γ) → Elem x (d.graph h) → Elem x ((d.mergeSyntax h).graph hM)) ×
+      ((x : S.Occurrence Γ) → Elem x ((d.mergeSyntax h).graph hM) → Elem x (d.graph h)) :=
   let link :=
     Identity.transport
-      (fun vals => Link (d.occurrences h vals none) ((d.merge h).graph hM) [])
+      (fun vals => Link (d.occurrences h vals none) ((d.mergeSyntax h).graph hM) [])
       (PortMap.selectId (S.inputs Γ))
       (Diagram.mergeWithLink [] (PortMap.id Γ) d h (S.inputs Γ) none [] .nil hM)
   (fun x i =>
@@ -1514,5 +1420,86 @@ def Diagram.mergeLink [DecEq S.Op] {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S
     link.2)
 
 end Merged
+
+section VerifiedMerge
+
+universe w z v u
+variable {X : Ty → Type} {State Error : Type} {Γ : List Ty} {Qs : Exits Ty}
+  {r : DepPoly.{0, 0, w, z} ((S.interface X).runtime State Error)}
+  {q : DepPoly.{0, 0, v, u} ((Diagram.interface X Γ Qs).runtime State Error)}
+
+/-- A straight diagram reaches no loop cutoff. The bound follows the supplied admission
+through every response allowed by the call specification. -/
+def Diagram.Straight.within (L : State → Type v) (n : Nat) :
+    {Δ : List Ty} → (d : Diagram S Δ Qs) → d.Straight →
+    (x : All X Δ × State) → (p : (d.spec r).Pre x) → d.Within r L n x p
+  | _, .exit _, _, _, _ => PUnit.unit
+  | _, .step call next, h, x, p => fun i post =>
+      Sum.casesOn (motive := fun i => (a : Spec.resumePre (fun y : (S.output call.1).At X × State =>
+          ((next y.1.1).spec r).Pre (y.1.2.append x.1, y.2)) i) →
+          Spec.resumeOn (fun (y : (S.output call.1).At X × State) a =>
+            (next y.1.1).Within r L n (y.1.2.append x.1, y.2) a) i a) i
+        (fun _ _ => PUnit.unit)
+        (fun y a => Diagram.Straight.within L n (next y.1.1)
+          (Identity.transport (fun c => (next c).Straight) (h.1.2 y.1.1) h.2) _ a)
+        (p.2 i post)
+  | _, .seq _ _, h, _, _ => nomatch h
+
+/-- A straight diagram implements its external contract at every unrolling.
+Its cutoff computation is unreachable. -/
+def VerifiedDiagram.implementStraight (src : VerifiedDiagram r q) (h : src.diagram.Straight)
+    (stop : Free (S.interface X) (Qs.At X)) (n : Nat) : VerifiedImpl q r :=
+  src.implement stop n (L := fun _ => Empty)
+    (fun x pre => Diagram.Straight.within _ n src.diagram h x (src.verification x pre).1)
+    (fun _ _ _ impossible => impossible.elim)
+
+/-- On the graph of a machine, runs of a straight diagram over any admission are
+equivalent to the identity of the machine result and the reported result. -/
+def Diagram.Straight.graphRuns (m : Machine (S.interface X) State Error)
+    (stop : Free (S.interface X) (Qs.At X)) :
+    {Δ : List Ty} → (d : Diagram S Δ Qs) → d.Straight → (x : All X Δ × State) →
+    (p : (d.spec m.graph).Pre x) → (o : Error ⊕ (Qs.At X × State)) →
+    Iso ((d.spec m.graph).Post x p o) (m.impl (d.impl stop 0) x ≡ o)
+  | _, .exit _, _, _, _, _ => ⟨ULift.down, ULift.up, fun _ => .refl, fun _ => .refl⟩
+  | _, .step call next, h, x, pre, o =>
+      let k := fun (b : (S.output call.1).At X) => (next b.1).meaning stop 0 (b.2.append x.1)
+      let atResponse : (i : Error ⊕ ((S.output call.1).At X × State)) →
+          (p : StepPre m call next x i) → Iso (StepPost m call next x i p o) ((Free.resume k i).run m ≡ o)
+        | .inl _, _ => ⟨ULift.down, ULift.up, fun _ => .refl, fun _ => .refl⟩
+        | .inr y, p => Diagram.Straight.graphRuns m stop (next y.1.1)
+            (Identity.transport (fun c => (next c).Straight) (h.1.2 y.1.1) h.2) _ p o
+      (Identity.contractAt (fun i e => StepPost m call next x i (pre.2 i e) o)).trans
+        (atResponse _ (pre.2 _ .refl))
+  | _, .seq _ _, h, _, _, _ => nomatch h
+
+/-- The semantic action of derivations between straight diagrams at this interface. -/
+abbrev Rules.StraightSound (T : Rules S)
+    (r : DepPoly.{0, 0, w, z} ((S.interface X).runtime State Error)) (Γ : List Ty) (Qs : Exits Ty) :=
+  {d e : Diagram S Γ Qs} → d.Straight → e.Straight → d.Derivation T e →
+    DepPoly.Cartesian (d.spec r) (e.spec r)
+
+def Rules.SpecSound.straight {T : Rules S} (ok : T.SpecSound r) : T.StraightSound r Γ Qs :=
+  fun _ _ der => (der.spec ok).1
+
+/-- Soundness on a machine supplies the run isomorphisms for its graph in the straight fragment. -/
+def Rules.Sound.straightGraph {T : Rules S} (m : Machine (S.interface X) State Error)
+    (ok : T.Sound (α := Qs.At X) m.congruence) (stop : Free (S.interface X) (Qs.At X)) :
+    T.StraightSound m.graph Γ Qs :=
+  fun {d e} hd he der x pre =>
+    let p := e.graphWitness m x
+    let same := der.machine ok stop 0 x
+    ⟨p, fun o => (Diagram.Straight.graphRuns m stop e he x p o).trans
+      (Identity.transport (fun a => Iso (a ≡ o) ((d.spec m.graph).Post x pre o))
+        same (Diagram.Straight.graphRuns m stop d hd x pre o).symm)⟩
+
+/-- Merge equal calls in a verified straight diagram. The call contract must validate
+interchange and copy on the fragment. The source admission and postcondition move along
+the derivation produced by the merge. -/
+def Diagram.merge [DecEq S.Op] (src : VerifiedDiagram r q) (h : src.diagram.Straight)
+    (ok : ((Rules.interchange S).sum (Rules.copy S)).StraightSound r Γ Qs) : VerifiedDiagram r q :=
+  let der := src.diagram.mergeDerivation (Rules.Map.inl _ _) (Rules.Map.inr _ _) h
+  ⟨src.diagram.mergeSyntax h, src.verification.trans ((ok h (src.diagram.mergeStraight h) der).toMap)⟩
+
+end VerifiedMerge
 
 end Draft

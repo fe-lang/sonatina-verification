@@ -353,6 +353,14 @@ def Identity.contract {α : Type u} {x₀ : α} (H : (m : α) → ULift.{v} (x�
       (fun _ => .refl) t.2.1.down t.2.2
   toInv _ := .refl
 
+/-- Contract the total space of identities at their common origin. -/
+def Identity.contractAt {α : Type u} {a : α} (H : (b : α) → a ≡ b → Type w) :
+    Iso ((b : α) × (e : a ≡ b) × H b e) (H a .refl) :=
+  let lift (b : α) : Iso (a ≡ b) (ULift.{0} (a ≡ b)) :=
+    ⟨ULift.up, ULift.down, fun _ => .refl, fun _ => .refl⟩
+  (Iso.sigmaFiber fun b => Iso.sigmaBase (lift b) (fun e => H b e.down)).trans
+    (Identity.contract fun b e => H b e.down)
+
 /-- Pointwise identity of dependent functions. -/
 abbrev Homotopy {α : Type u} {P : α → Type v} (f g : (x : α) → P x) :=
   (x : α) → f x ≡ g x

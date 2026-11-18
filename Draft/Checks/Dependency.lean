@@ -747,21 +747,23 @@ def rewiredFinished :
 /-- The interchange equation set with the copy equation set. -/
 abbrev both : Rules sig := (Rules.interchange sig).sum (Rules.copy sig)
 
+private abbrev twiceMerged := Diagram.mergeWith [] (PortMap.id _) twice twiceStraight
+
 set_option smartUnfolding false in
 /-- The merged diagram has one call of `A`: it has two steps, and the diagram with two calls has
 three. -/
-def mergedSize : (twice.size, (twice.merge twiceStraight).size) ≡ (3, 2) := .refl
+def mergedSize : (twice.size, twiceMerged.size) ≡ (3, 2) := .refl
 
 set_option smartUnfolding false in
 /-- The merged diagram gives the values of the diagram with two calls. -/
 def mergedRun (flag : Bool) (u v x y : Nat) :
-    observe stop count (twice.merge twiceStraight) flag u v x y ≡ (x + y + (x + y), x + y) :=
+    observe stop count twiceMerged flag u v x y ≡ (x + y + (x + y), x + y) :=
   .refl
 
 /-- The soundness of the derivation of the merged diagram. -/
 def mergedSound (x y : Nat) :
     Free.Agreement ((twice.meaning stop count (inputs x y)).subst lower)
-      (((twice.merge twiceStraight).meaning stop count (inputs x y)).subst lower) :=
+      ((twiceMerged.meaning stop count (inputs x y)).subst lower) :=
   (Diagram.mergeDerivation (R := both) (Rules.Map.inl _ _) (Rules.Map.inr _ _) twice
       twiceStraight).sound stop count (.sum (.interchange returns) (.copy returns))
     (inputs x y) .pure
@@ -776,14 +778,14 @@ def mergedPayload (flag : Bool) (u v x y : Nat) :
       ⟨x + y + (x + y), Nat.lt_succ_self _⟩).val ≡ x + y + (x + y) := .refl
 
 /-- The merged diagram of the diagram with two calls is a diagram of the fragment. -/
-def mergedStraight : (twice.merge twiceStraight).Straight := twice.mergeStraight twiceStraight
+def mergedStraight : twiceMerged.Straight := twice.mergeStraight twiceStraight
 
 set_option smartUnfolding false in
 /-- The graph of the merged diagram has the occurrence of `A` one time. -/
-def mergedGraph : (twice.merge twiceStraight).graph mergedStraight ≡ [occA, occD] := .refl
+def mergedGraph : twiceMerged.graph mergedStraight ≡ [occA, occD] := .refl
 
 /-- No two occurrences of the graph of the merged diagram are equal. -/
-def mergedDistinct : Elem.Distinct ((twice.merge twiceStraight).graph mergedStraight) :=
+def mergedDistinct : Elem.Distinct (twiceMerged.graph mergedStraight) :=
   Diagram.mergeDistinct twice twiceStraight mergedStraight
 
 /-- The first run of the merged graph is the call of `A`. -/
@@ -805,7 +807,7 @@ def mergedWord :
 /-- The theorem of the other direction gives an order of the merged diagram from that
 evidence, with the evidence of the merge that no two occurrences are equal. -/
 def mergedOrder :=
-  Diagram.Order.ofGraph (twice.merge twiceStraight) mergedStraight mergedDistinct [0, 0]
+  Diagram.Order.ofGraph twiceMerged mergedStraight mergedDistinct [0, 0]
     (Identity.transport
       (fun (g : List (sig.Occurrence [(), ()])) =>
         FreeDep (sig.admissible [(), ()]) (sig.Finished [(), ()])
@@ -816,7 +818,7 @@ set_option smartUnfolding false in
 /-- That order has the two steps of the merged diagram. -/
 def mergedOrderOps :
     Diagram.ops mergedOrder.1
-        (Diagram.Order.straight mergedOrder.1 (twice.merge twiceStraight) mergedOrder.2.1
+        (Diagram.Order.straight mergedOrder.1 twiceMerged mergedOrder.2.1
           mergedStraight) ≡
       [Op.add, Op.add] := .refl
 
@@ -861,23 +863,25 @@ def apart : Diagram sig [(), ()] Two :=
 /-- The diagram is a diagram of the fragment. -/
 def apartStraight : apart.Straight := ⟨oneCase, oneCase, oneCase, ()⟩
 
+private abbrev apartMerged := Diagram.mergeWith [] (PortMap.id _) apart apartStraight
+
 set_option smartUnfolding false in
 /-- The merged diagram has one call of `A`. -/
-def apartSize : (apart.size, (apart.merge apartStraight).size) ≡ (3, 2) := .refl
+def apartSize : (apart.size, apartMerged.size) ≡ (3, 2) := .refl
 
 set_option smartUnfolding false in
 /-- The merged diagram gives the values of the diagram, for arbitrary inputs and an arbitrary
 response of the store. -/
 def apartRun (flag : Bool) (u v x y : Nat) :
     (observe stop count apart flag u v x y,
-        observe stop count (apart.merge apartStraight) flag u v x y) ≡
+        observe stop count apartMerged flag u v x y) ≡
       ((x + y, u + x), (x + y, u + x)) := .refl
 
 /-- The soundness of the derivation of the merged diagram: the second call of `A` moves before
 `C` by one interchange, and the copy rule gives one call. -/
 def apartSound (x y : Nat) :
     Free.Agreement ((apart.meaning stop count (inputs x y)).subst lower)
-      (((apart.merge apartStraight).meaning stop count (inputs x y)).subst lower) :=
+      ((apartMerged.meaning stop count (inputs x y)).subst lower) :=
   (Diagram.mergeDerivation (R := both) (Rules.Map.inl _ _) (Rules.Map.inr _ _) apart
       apartStraight).sound stop count (.sum (.interchange returns) (.copy returns))
     (inputs x y) .pure

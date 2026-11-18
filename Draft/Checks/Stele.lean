@@ -159,6 +159,84 @@ def eitherZero (n : Nat) (s : Store) : run either n (args₂ 7 0) s ≡ .inr (so
 set_option smartUnfolding false in
 def eitherLarge (n : Nat) (s : Store) : run either n (args₂ 7 2) s ≡ .inr (some 2, s) := .refl
 
+section Pipeline
+
+/-- Store the negation of the argument and return the same negation. The write separates
+the two equal pure calls. -/
+def writeNegation : Stmt [.int] :=
+  .assignStorage 0 (.neg (.var .here)) (.ret (.neg (.var .here)))
+
+private def expected (x : All Val [.int] × Store) : Unit ⊕ (Option Int × Store) :=
+  let value := -(x.1.lookup .here : Int)
+  .inr (some value, x.2.write 0 value)
+
+abbrev Ticket := (bound : Nat) × Fin (bound + 1)
+
+/-- The caller chooses a bound and a ticket at that bound. A completed run gives the
+returned integer and the updated storage, together with a ticket at the supplied bound. -/
+def contract : DepPoly ((Diagram.interface Val [.int] [Ret]).runtime Store Unit) where
+  Pre _ := Ticket
+  Post x admission o := (outcome o ≡ expected x) × Fin (admission.1 + 1)
+
+set_option smartUnfolding false in
+def writeNegationRun (n : Nat) (v : Int) (s : Store) :
+    run writeNegation n (args₁ v) s ≡ expected (args₁ v, s) := .refl
+
+abbrev Issue := (k : Nat) → Fin (k + 1) → Fin (k + 1)
+
+/-- Source evidence consumes the Stele observation and issues a ticket at the admission's bound. -/
+def sourceEvidence (issue : Issue) : contract.Map writeNegation.behavior :=
+  fun ⟨.cons v .nil, s⟩ admission =>
+    ⟨(), fun _ completed =>
+      ⟨completed.2.symm.trans (writeNegationRun completed.1 v s), issue admission.1 admission.2⟩⟩
+
+private def uniqueCase (Γ : List Ty) : IsContr (Boundary.one Γ).Case :=
+  ⟨Boundary.only _, fun | ⟨_, .here⟩ => .refl⟩
+
+def straight (issue : Issue) : (writeNegation.compile (sourceEvidence issue)).diagram.Straight :=
+  ⟨uniqueCase _, uniqueCase _, uniqueCase _, ()⟩
+
+set_option smartUnfolding false in
+def mergeSizes (issue : Issue) :
+    let compiled := writeNegation.compile (sourceEvidence issue)
+    (compiled.diagram.size, (Diagram.merge compiled (straight issue) mergeSound).diagram.size) ≡
+      (3, 2) := .refl
+
+/-- The compiled implementation and its evidence, down to the residual storage interface. -/
+def lowered (issue : Issue) : VerifiedImpl contract storageMachine.graph :=
+  writeNegation.lowerStraight (sourceEvidence issue) (straight issue)
+
+set_option smartUnfolding false in
+def loweredWrite (issue : Issue) (v : Int) (s : Store) :
+    ((lowered issue).impl (args₁ v, s)).run storageMachine ≡
+      .inr (⟨_, .here, Boundary.only _, .cons (-v) .nil⟩, s.write 0 (-v)) := .refl
+
+set_option smartUnfolding false in
+def loweredReceipt (issue : Issue) (v : Int) (s : Store) (k : Nat) (ticket : Fin (k + 1)) :
+    ((lowered issue).verification.run storageMachine.graphEvidence (args₁ v, s) ⟨k, ticket⟩).2 ≡ issue k ticket := .refl
+
+set_option smartUnfolding false in
+def loweredObservation (issue : Issue) (v : Int) (s : Store) (admit : Ticket) :
+    Identity ((lowered issue).verification.run storageMachine.graphEvidence (args₁ v, s) admit).1 .refl := .refl
+
+set_option smartUnfolding false in
+/-- Falling off the end of a function produces a completed revert observation. -/
+def revertObservation (s : Store) :
+    let body : Stmt [] := .skip
+    let issued := (body.compile (DepPoly.Map.id body.behavior)).verification (.nil, s) ()
+    Identity (issued.2 (.inl ()) ⟨.inl (), .refl, ⟨.refl⟩⟩).2 .refl := .refl
+
+set_option smartUnfolding false in
+/-- An open statement receives the caller's fallthrough ports and exit observer. -/
+def fallthroughObservation (v : Int) (s : Store) :
+    let body : Stmt [.int] := .skip
+    let fall := fun (Δ : List Ty) (ports : PortMap Δ [.int]) => Diagram.exitOne ports
+    let compiled := body.compileIn .here [.int] (PortMap.id _) fall returned (DepPoly.Map.id _)
+    let issued := compiled.verification (args₁ v, s) ()
+    Identity (issued.2 (.inr (⟨_, .here, Boundary.only _, args₁ v⟩, s)) ⟨.refl⟩).2 .refl := .refl
+
+end Pipeline
+
 end Draft.Checks.Stele
 
 /-- info: 'Draft.Checks.Stele.updateRun' does not depend on any axioms -/
@@ -188,3 +266,27 @@ end Draft.Checks.Stele
 /-- info: 'Draft.Checks.Stele.eitherLarge' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Stele.eitherLarge
+
+/-- info: 'Draft.Checks.Stele.mergeSizes' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.mergeSizes
+
+/-- info: 'Draft.Checks.Stele.loweredWrite' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.loweredWrite
+
+/-- info: 'Draft.Checks.Stele.loweredReceipt' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.loweredReceipt
+
+/-- info: 'Draft.Checks.Stele.loweredObservation' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.loweredObservation
+
+/-- info: 'Draft.Checks.Stele.revertObservation' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.revertObservation
+
+/-- info: 'Draft.Checks.Stele.fallthroughObservation' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Stele.fallthroughObservation

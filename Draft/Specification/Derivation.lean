@@ -26,20 +26,15 @@ namespace Draft
 
 variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E : Type}
 
-/-- A cartesian map of specifications of one interface: a witness of the first precondition
-gives a witness of the second, and the runs over the second witness are the runs over the
-first, as an equivalence with its two round trips. -/
-abbrev Spec.Cartesian {A B : Type} (P Q : Spec.{a, b} A B) : Type (max a b) :=
-  (a : A) → (pre : P.Pre a) → (w : Q.Pre a) × ((o : B) → Iso (Q.Post a w o) (P.Post a pre o))
+namespace Spec
 
-/-- The identity map of a specification is cartesian. -/
-def Spec.Cartesian.id {A B : Type} (P : Spec.{a, b} A B) : Spec.Cartesian P P :=
-  fun _ pre => ⟨pre, fun _ => Iso.refl _⟩
+export Prelude.Container.DepPoly (Cartesian)
 
-/-- The composite of two cartesian maps. -/
-def Spec.Cartesian.comp {A B : Type} {P Q T : Spec.{a, b} A B} (f : Spec.Cartesian P Q)
-    (g : Spec.Cartesian Q T) : Spec.Cartesian P T :=
-  fun a pre => ⟨(g a (f a pre).1).1, fun o => ((g a (f a pre).1).2 o).trans ((f a pre).2 o)⟩
+namespace Cartesian
+export Prelude.Container.DepPoly.Cartesian (id comp toMap)
+end Cartesian
+
+end Spec
 
 /-- A cartesian map in each direction. -/
 abbrev Spec.Equiv {A B : Type} (P Q : Spec.{a, b} A B) : Type (max a b) :=
@@ -196,62 +191,33 @@ section Frame
 
 variable {M K : Boundary Ty} {Qs : Exits Ty} {Δ c : List Ty}
 
-/-- The precondition of a frame at the values of a case, with the kept ports and the port map
-of that case as arguments. -/
-abbrev FramePre (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs)
-    (vals : All X c) (s : R) (kp : M.At (Port c)) (ag : PortMap c Δ) :
-    Type (max w (z + 1)) :=
-  (p : (Diagram.spec r shared).Pre (vals.select ag, s)) ×
-    ((m : E ⊕ (Exits.At [K] X × R)) → (Diagram.spec r shared).Post (vals.select ag, s) p m →
-      Spec.resumePre (fun (y : Exits.At [K] X × R) =>
-        Spec.exitPre (fun out =>
-          (Continuation.spec r next).Pre
-            (⟨Boundary.pair kp.1 out.1, out.2.append (vals.select kp.2)⟩, y.2)) y.1) m)
-
-/-- The runs of a frame at the values of a case, over a witness. -/
-abbrev FramePost (shared : Diagram S Δ [K]) (next : Continuation S (M.product K) Qs)
-    (vals : All X c) (s : R) (kp : M.At (Port c)) (ag : PortMap c Δ)
-    (pre : FramePre r shared next vals s kp ag) (o : E ⊕ (Qs.At X × R)) :
-    Type z :=
-  (m : E ⊕ (Exits.At [K] X × R)) × (post : (Diagram.spec r shared).Post (vals.select ag, s) pre.1 m) ×
-    Spec.resumePost
-      (fun (y : Exits.At [K] X × R) p o =>
-        Spec.atExit
-          (fun out =>
-            (Continuation.spec r next).Pre
-              (⟨Boundary.pair kp.1 out.1, out.2.append (vals.select kp.2)⟩, y.2))
-          (fun out p o =>
-            (Continuation.spec r next).Post
-              (⟨Boundary.pair kp.1 out.1, out.2.append (vals.select kp.2)⟩, y.2) p o)
-          (fun q _ => Exits.At.ofNil q) y.1 p o)
-      m (pre.2 m post) o
-
 variable {shared shared' : Diagram S Δ [K]} {next next' : Continuation S (M.product K) Qs}
 
 /-- A cartesian map for the diagram of a frame and a cartesian map for its continuation give a
 cartesian map at the values of a case, for one choice of the kept ports and of the port map. -/
 def frameCartesianAt (body : Spec.Cartesian (Diagram.spec r shared) (Diagram.spec r shared'))
-    (tail : Spec.Cartesian (Continuation.spec r next) (Continuation.spec r next')) (vals : All X c) (s : R)
-    (kp : M.At (Port c)) (ag : PortMap c Δ) (pre : FramePre r shared next vals s kp ag) :
-    (w : FramePre r shared' next' vals s kp ag) ×
-      ((o : E ⊕ (Qs.At X × R)) →
-        Iso (FramePost r shared' next' vals s kp ag w o)
-          (FramePost r shared next vals s kp ag pre o)) :=
+    (tail : Spec.Cartesian (Continuation.spec r next) (Continuation.spec r next'))
+    (kp : M.At (Port c)) (ag : PortMap c Δ) :
+    Spec.Cartesian (Spec.frameAt kp ag (Diagram.spec r shared) (Continuation.spec r next))
+      (Spec.frameAt kp ag (Diagram.spec r shared') (Continuation.spec r next')) := fun x pre =>
+  let saved := x.1.select kp.2
+  let resumeAt (out : K.At X) : (M.product K).At X :=
+    ⟨Boundary.pair kp.1 out.1, out.2.append saved⟩
   ⟨⟨(body _ pre.1).1, fun m post =>
       Spec.resumeMapPre
         (fun (y : Exits.At [K] X × R) p =>
-          Spec.exitMapPre (fun _ p => (tail (_, y.2) p).1) y.1 p)
+          Spec.exitMapPre (fun out p => (tail (resumeAt out, y.2) p).1) y.1 p)
         m (pre.2 m (((body _ pre.1).2 m).to post))⟩,
     fun o =>
       Iso.sigmaFiber fun m =>
         Iso.sigma ((body _ pre.1).2 m) fun post =>
           Spec.resumeIso
             (fun (y : Exits.At [K] X × R) p =>
-              Spec.exitMapPre (fun _ p => (tail (_, y.2) p).1) y.1 p)
+              Spec.exitMapPre (fun out p => (tail (resumeAt out, y.2) p).1) y.1 p)
             (fun y p o =>
               Spec.exitIso (T := fun q _ => Exits.At.ofNil q)
-                (fun _ p => (tail (_, y.2) p).1)
-                (fun _ p o => (tail (_, y.2) p).2 o) y.1 p o)
+                (fun out p => (tail (resumeAt out, y.2) p).1)
+                (fun out p o => (tail (resumeAt out, y.2) p).2 o) y.1 p o)
             m (pre.2 m (((body _ pre.1).2 m).to post)) o⟩
 
 /-- A cartesian map for the diagram of a frame and a cartesian map for its continuation give a
@@ -264,21 +230,13 @@ def Continuation.frameCartesian {P : Boundary Ty} {kept kept' : (c : P.Case) →
     (tail : Spec.Cartesian (Continuation.spec r next) (Continuation.spec r next')) :
     Spec.Cartesian (Continuation.spec r (Continuation.frame kept args shared next))
       (Continuation.spec r (Continuation.frame kept' args' shared' next')) :=
-  fun a pre =>
-    Identity.transport
-      (fun kp' =>
-        (w : FramePre r shared' next' a.1.2 a.2 kp' (args' a.1.1)) ×
-          ((o : E ⊕ (Qs.At X × R)) →
-            Iso (FramePost r shared' next' a.1.2 a.2 kp' (args' a.1.1) w o)
-              (FramePost r shared next a.1.2 a.2 (kept a.1.1) (args a.1.1) pre o)))
-      (keptSame a.1.1)
-      (Identity.transport
-        (fun ag' =>
-          (w : FramePre r shared' next' a.1.2 a.2 (kept a.1.1) ag') ×
-            ((o : E ⊕ (Qs.At X × R)) →
-              Iso (FramePost r shared' next' a.1.2 a.2 (kept a.1.1) ag' w o)
-                (FramePost r shared next a.1.2 a.2 (kept a.1.1) (args a.1.1) pre o)))
-        (argsSame a.1.1) (frameCartesianAt r body tail a.1.2 a.2 (kept a.1.1) (args a.1.1) pre))
+  fun ⟨⟨c, vals⟩, s⟩ =>
+    let same := Identity.cong₂
+      (fun kp ag => Spec.frameAt kp ag (Diagram.spec r shared') (Continuation.spec r next'))
+      (keptSame c) (argsSame c)
+    (Identity.transport
+      (Spec.Cartesian (Spec.frameAt (kept c) (args c) (Diagram.spec r shared) (Continuation.spec r next)))
+      same (frameCartesianAt r body tail (kept c) (args c))) (vals, s)
 
 end Frame
 
@@ -369,9 +327,7 @@ def Diagram.Derivation.verified (ok : Rules.SpecSound r T) {Γ : List Ty} {Qs : 
     {d e : Diagram S Γ Qs} (h : Diagram.Derivation T d e)
     {q : DepPoly.{0, 0, w', z'} ((Diagram.interface X Γ Qs).runtime R E)} (v : d.Verified r q) :
     e.Verified r q :=
-  fun a pre =>
-    ⟨((h.spec ok).1 a (v a pre).1).1,
-      fun o run => (v a pre).2 o ((((h.spec ok).1 a (v a pre).1).2 o).to run)⟩
+  DepPoly.Map.trans v ((h.spec ok).1.toMap)
 
 end Draft
 

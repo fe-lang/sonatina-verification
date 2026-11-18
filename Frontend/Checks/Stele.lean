@@ -9,7 +9,7 @@ observation of a run has the returned integer and the values of the first storag
 limit of a loop, a stop at a `revert`, or the reason for which the translation rejects the
 transition.
 
-These checks are compiled observations. -/
+The checks of the verified pipeline consume the lowered function and its evidence in the kernel. -/
 
 set_option autoImplicit false
 
@@ -148,4 +148,43 @@ def steps (name : String) : Option Nat :=
 #guard steps "update" == some 13
 #guard steps "sum" == some 11
 
+namespace Pipeline
+
+open Draft Draft.Stele
+
+/-- Both additions use the same source argument. The verified merge reuses their result. -/
+def program : Stele.ContractDecl := solidity% contract Twice {
+  constructor() payable { }
+  function twice(uint256 x) external payable returns (uint256) {
+    uint256 y = x + x;
+    return x + x;
+  }
+}
+
+private def fn := (Frontend.elabFunction program "twice").toOption.get (by decide)
+private def single : IsContr (Boundary.one [Ty.int]).Case :=
+  ⟨Boundary.only _, fun | ⟨_, .here⟩ => .refl⟩
+private def straight : fn.body.diagram.Straight := ⟨single, single, ()⟩
+private def lowered := fn.body.lowerStraight (Container.DepPoly.Map.id fn.body.behavior) straight
+
+set_option smartUnfolding false in
+def translatedRun (v : Int) (s : Store) :
+    let x : All Val [Ty.int, Ty.int] × Store := (.cons 0 (.cons v .nil), s)
+    Identity (lowered.verification.run storageMachine.graphEvidence x ()).2 .refl := .refl
+
+set_option smartUnfolding false in
+def translatedValue (v : Int) (s : Store) :
+    let x : All Val [Ty.int, Ty.int] × Store := (.cons 0 (.cons v .nil), s)
+    outcome (lowered.impl.run storageMachine x) ≡ .inr (some (v + v), s) := .refl
+
+end Pipeline
+
 end Frontend.Checks
+
+/-- info: 'Frontend.Checks.Pipeline.translatedRun' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Frontend.Checks.Pipeline.translatedRun
+
+/-- info: 'Frontend.Checks.Pipeline.translatedValue' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Frontend.Checks.Pipeline.translatedValue

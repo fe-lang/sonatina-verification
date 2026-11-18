@@ -253,6 +253,116 @@ def Distinct.cons {b : α} {xs : List α} (tail : Distinct xs) (fresh : Elem b x
 
 end Elem
 
+/-- The element at a number in a list, with the other elements in their order. -/
+def takeAt {α : Type u} : Nat → List α → Option (α × List α)
+  | _, [] => none
+  | 0, a :: rest => some (a, rest)
+  | k + 1, a :: rest => (takeAt k rest).map fun found => (found.1, a :: found.2)
+
+section Take
+
+variable {α : Type u}
+
+/-- The element of a take is an element of the list, and each other element of the take is an
+element of the list. -/
+def takeAt.elems : (k : Nat) → (xs : List α) → {y : α} → {ys : List α} →
+    takeAt k xs ≡ some (y, ys) → Elem y xs × ((x : α) → Elem x ys → Elem x xs)
+  | 0, [], _, _, p => (Identity.noneNotSome p).elim
+  | _ + 1, [], _, _, p => (Identity.noneNotSome p).elim
+  | 0, z :: rest, _, _, p =>
+      Identity.ind (a := (z, rest))
+        (fun (r : α × List α) _ =>
+          Elem r.1 (z :: rest) × ((x : α) → Elem x r.2 → Elem x (z :: rest)))
+        (.here, fun _ i => .there i) (Identity.someInject p)
+  | k + 1, z :: rest, _, _, p =>
+      let m := Identity.ofMapSome (takeAt k rest) p
+      let ih := takeAt.elems k rest (y := m.1.1) (ys := m.1.2) m.2.1
+      Identity.ind (a := (m.1.1, z :: m.1.2))
+        (fun (r : α × List α) _ =>
+          Elem r.1 (z :: rest) × ((x : α) → Elem x r.2 → Elem x (z :: rest)))
+        (.there ih.1, fun x i =>
+          match Elem.uncons i with
+          | .inl same => Identity.transport (fun w => Elem w (z :: rest)) same.symm .here
+          | .inr j => .there (ih.2 x j))
+        m.2.2
+
+/-- The other elements of a take of a list with no element at two positions have no element at
+two positions, and the element of the take is not one of them. -/
+def takeAt.distinct : (k : Nat) → (xs : List α) → {y : α} → {ys : List α} →
+    takeAt k xs ≡ some (y, ys) → Elem.Distinct xs → Elem.Distinct ys × (Elem y ys → Empty)
+  | 0, [], _, _, p, _ => (Identity.noneNotSome p).elim
+  | _ + 1, [], _, _, p, _ => (Identity.noneNotSome p).elim
+  | 0, z :: rest, _, _, p, d =>
+      Identity.ind (a := (z, rest))
+        (fun (r : α × List α) _ => Elem.Distinct r.2 × (Elem r.1 r.2 → Empty))
+        (d.tail, d.fresh) (Identity.someInject p)
+  | k + 1, z :: rest, _, _, p, d =>
+      let m := Identity.ofMapSome (takeAt k rest) p
+      let e := takeAt.elems k rest (y := m.1.1) (ys := m.1.2) m.2.1
+      let ih := takeAt.distinct k rest (y := m.1.1) (ys := m.1.2) m.2.1 d.tail
+      Identity.ind (a := (m.1.1, z :: m.1.2))
+        (fun (r : α × List α) _ => Elem.Distinct r.2 × (Elem r.1 r.2 → Empty))
+        (Elem.Distinct.cons ih.1 (fun i => d.fresh (e.2 z i)), fun i =>
+          match Elem.uncons i with
+          | .inl same => d.fresh (Identity.transport (fun w => Elem w rest) same e.1)
+          | .inr j => ih.2 j)
+        m.2.2
+
+/-- No element of the first list has two positions, and no element has a position in each of
+the two lists. -/
+def Separate (xs done : List α) : Type u :=
+  Elem.Distinct xs × ((x : α) → Elem x xs → Elem x done → Empty)
+
+/-- The lists after a take are separate: the other elements, and the done elements with the
+element of the take. -/
+def Separate.take {k : Nat} {xs done : List α} {y : α} {ys : List α}
+    (p : takeAt k xs ≡ some (y, ys)) (s : Separate xs done) : Separate ys (y :: done) :=
+  ((takeAt.distinct k xs p s.1).1, fun x i j =>
+    match Elem.uncons j with
+    | .inl same =>
+        (takeAt.distinct k xs p s.1).2 (Identity.transport (fun z => Elem z ys) same i)
+    | .inr j' => s.2 x ((takeAt.elems k xs p).2 x i) j')
+
+end Take
+
+/-- A link of two lists for a third list: each element of the first list is an element of the
+second list or of the third list, and each element of the second list is an element of the
+first list. -/
+abbrev Link {α : Type u} (source merged prior : List α) : Type u :=
+  ((x : α) → Elem x source → Elem x merged ⊕ Elem x prior) ×
+    ((x : α) → Elem x merged → Elem x source)
+
+/-- The link of two lists with one more first element each, when the two elements are one
+element. -/
+def Link.cons {α : Type u} {source merged prior : List α} {y y' : α} (same : y ≡ y')
+    (rest : Link source merged (y' :: prior)) : Link (y :: source) (y' :: merged) prior :=
+  (fun x i =>
+    match Elem.uncons i with
+    | .inl e =>
+        .inl (Identity.transport (fun z => Elem z (y' :: merged)) (e.trans same).symm .here)
+    | .inr j =>
+        match rest.1 x j with
+        | .inl m => .inl (.there m)
+        | .inr k =>
+            match Elem.uncons k with
+            | .inl e => .inl (Identity.transport (fun z => Elem z (y' :: merged)) e.symm .here)
+            | .inr k' => .inr k',
+    fun x i =>
+      match Elem.uncons i with
+      | .inl e =>
+          Identity.transport (fun z => Elem z (y :: source)) (e.trans same.symm).symm .here
+      | .inr j => .there (rest.2 x j))
+
+/-- The link of a list with one more first element, when that element is an element of the
+third list. -/
+def Link.skip {α : Type u} {source merged prior : List α} {y : α} (known : Elem y prior)
+    (rest : Link source merged prior) : Link (y :: source) merged prior :=
+  (fun x i =>
+    match Elem.uncons i with
+    | .inl e => .inr (Identity.transport (fun z => Elem z prior) e.symm known)
+    | .inr j => rest.1 x j,
+    fun x i => .there (rest.2 x i))
+
 /-- One value of `P a` for each element `a` of a list. -/
 inductive All {α : Type u} (P : α → Type v) : List α → Type (max u v) where
   | nil : All P []

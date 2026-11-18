@@ -118,6 +118,12 @@ decision of the identity of two positions of one element, and
 one position. `Elem.Distinct xs`
 is the evidence that no element of `xs` has two positions, with
 `Elem.Distinct.tail`, `Elem.Distinct.fresh`, and `Elem.Distinct.cons`.
+`takeAt k xs` removes the element at index `k`. For a successful removal,
+`takeAt.elems` locates the removed and remaining elements in the input,
+and `takeAt.distinct` preserves distinctness and excludes the removed
+element from the rest. `Separate.take` transfers the element to a disjoint
+list of completed elements. `Link.cons` and `Link.skip` carry membership
+through retaining an element or reusing an earlier occurrence.
 `Elem.Same xs ys` is the evidence that two lists have the same elements, each
 the same number of times: a correspondence of the positions of each element,
 with the two round trips. It has `refl`, `symm`, `trans`, `ofIdentity`,
@@ -210,6 +216,11 @@ provider. `Container.DepPoly C` is a specification of `C`: `Pre` is a
 precondition on each shape, and `Post` is a postcondition on each response that
 depends on the witness of the precondition. `DepPoly.sigma r` is the
 specification of `Container.sigma F` that has `r i` at each index.
+`DepPoly.Map P Q` sends a witness of `P.Pre a` to a witness of `Q.Pre a`.
+At each response it takes evidence of `Q.Post` over the new witness back to
+evidence of `P.Post` over the original one. These maps have `id` and
+`trans`. A `DepPoly.Cartesian P Q` carries an isomorphism on each such
+pair of response types. Its `toMap` uses the backward response map.
 `Container.Evidence r provider` is the evidence that a closed provider satisfies
 `r`. `Evidence.reindex` transports response evidence while retaining the exact
 input and supplied precondition witness. `Section.graph f` is the graph of a
@@ -384,8 +395,11 @@ postcondition for that witness. The universe levels of the specification and of
 | `h.result`, `h.parts` | The evidence at a returned value; the precondition witness of a call with the evidence of its continuation |
 | `h.returned`, `h.returnedBind k` | For `h : FreeDep (DepPoly.noCall C) Q x`: the value that `x` returns, with the agreement of `x` with the computation that returns it and `Q` at the value; the agreement of `x.bind k` with `k` at that value |
 | `ImplDep r t f` | The lift of `f : Impl C D`: for each shape and each witness of its precondition in `r`, evidence that `f a` gives the postcondition, with `t` as the assumption on the calls |
+| `DepPoly.Map.toImplDep`, `ImplDep.toMap` | Convert between a specification map and a lift of the identity implementation. The identity makes one call with the mapped admission and returns the response with its evidence |
 | `h.subst gg` | Replace each call with its verified implementation; the evidence of `x.subst g` |
 | `ImplDep.id r`, `ff.trans gg` | The lift of `Impl.id`; the lift of `f.trans g` |
+| `VerifiedImpl r t` | An implementation `f.impl` paired with `f.verification : ImplDep r t f.impl` |
+| `VerifiedImpl.trans f g` | Substitutes the code and verification of `g` into those of `f`, preserving the outer contract |
 | `ImplDep.copair ff` | The lift of `Impl.copair f` for `DepPoly.sigma r`, from a lift at each index |
 | `ff.run e` | The evidence of the provider `f.run provider`, for `e : Evidence t provider` |
 | `ff.reindex agree` | The lift of `g` from the lift of `f` and `agree : Impl.Agreement f g` |
@@ -397,6 +411,7 @@ postcondition for that witness. The universe levels of the specification and of
 | `FreeDep.own x h` | The evidence of `x` for its own runs along `h` |
 | `f.spec t` | The specification of the implementation `f` from a specification `t` of its calls. A witness of its precondition has a witness of the precondition of each call that a run can make, and its postcondition has the runs along that witness |
 | `f.specDep t` | The lift of `f` between `f.spec t` and `t` |
+| `Impl.specMap ff` | The specification map from `q` to `f.spec t` supplied by a lift `ff : ImplDep q t f` |
 | `Impl.specPre ff a pre`, `Impl.specPost ff a pre b run` | For a lift `ff` of `f` between `q` and `t`: the witness of the precondition of `f.spec t` from a witness of `q`, and the postcondition of `q` at the result of each run along that witness |
 | `ImplDep.graph g f` | The lift of `g` between the graph of `g.run f` and the graph of `f` |
 

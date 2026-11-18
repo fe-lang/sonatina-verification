@@ -1069,6 +1069,30 @@ of the boundary of a continuation, with the present value of each variable at
 its ports. A `while` is a loop whose entrance has the variables. The module
 has the machine of the operations, with the storage as its runtime.
 
+`Stmt.compile` returns a `VerifiedDiagram handle.graph q`. The caller
+supplies a map from `q` to the program's operational contract. A completed
+run of that contract has a finite unrolling at which the typed Stele runner
+returns the observed integer and final storage, or reverts. The compiler
+constructs the admission for the diagram and uses the finite observation to
+obtain the caller's postcondition. `Stmt.compileIn` provides the same
+interface for open statements with a caller's ports and fallthrough.
+
+`Stmt.lowerStraight` composes the verified frontend, merge, and storage
+lowering. `Diagram.merge` consumes the frontend pair and returns a diagram
+with verification of the same `q`. On the graph of a machine, the runs of a
+straight diagram over each admission are equivalent to identities with its
+machine result. The interchange and copy laws of the Stele machine therefore
+transport the supplied evidence along the merge derivation. The merged
+diagram implements `q` without reaching a cutoff. Its composition with
+`Stele.lowering` is a `VerifiedImpl q storageMachine.graph`. Arithmetic and
+control decisions compute locally, and reads, writes, and reverts remain
+calls of the storage interface.
+
+The end-to-end check stores the negation of an argument and computes the
+same negation for the return. Merge removes the repeated computation across
+the write. Running the lowered verification produces the source observation
+and applies the caller's ticket function at the original admission and bound.
+
 [Draft/Checks/Stele.lean](Draft/Checks/Stele.lean) has kernel checks of
 compiled programs of the fragment: a declaration with a write and a read of
 storage, for arbitrary arguments and an arbitrary storage; an `if` with an
@@ -1090,7 +1114,10 @@ translation depends on no axiom.
 
 [Frontend/Checks/Stele.lean](Frontend/Checks/Stele.lean) has a contract in
 the notation of EquiVM, and compiled observations of the runs of its
-translated transitions.
+translated transitions. A payable function with a repeated addition goes
+from EquiVM syntax through elaboration, verified compilation, merge, and
+storage lowering. Kernel checks consume the returned value and the
+verification of its source observation.
 [Frontend/Checks/Agreement.lean](Frontend/Checks/Agreement.lean) runs each
 transition two times, from one value of the call, one list of arguments, and
 one storage: the diagram of the translated function, and the body by the
@@ -1099,9 +1126,10 @@ two observations are equal for each of the 16 cases.
 
 These parts are open:
 
-- The correspondence of the fragment: a semantics of the typed fragment, and
-  the proof that the run of the diagram of each program has the result of
-  that semantics. It is a part of the implementation.
+- The correspondence with an independent semantics of the typed fragment.
+  The operational contract of `Stmt.compile` uses the runner of the emitted
+  diagram. An independent source semantics and its correspondence with that
+  runner are part of the implementation.
 - The correspondence of the translation: the relation between the semantics
   of Stele in EquiVM and the semantics of the typed fragment, for each
   program that the translation accepts. It is an observational proof.
@@ -1109,11 +1137,7 @@ These parts are open:
   storage types, the range check of a cast, the other value types, mappings
   and arrays, calls, and the other values of the environment.
 - A function with no returned value, or with more than one.
-- The correspondence of the fragment has Aberlé's form: the semantics of the
-  fragment is a specification of the interface with a runtime, and the
-  diagram of each program is a verified implementation of it, with the graph
-  of the machine of the operations as the assumption on each call.
-- The backend.
+- Lowering the residual storage interface to the backend.
 
 ## Research scope after the bounded milestones
 

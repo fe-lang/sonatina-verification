@@ -141,6 +141,13 @@ def nat : (a b : Nat) → Dec (a ≡ b)
 
 instance : DecEq Nat := ⟨nat⟩
 
+instance : DecEq Int where
+  decEq x y := by
+    cases x <;> cases y
+    all_goals first
+      | exact (decideEq _ _).map (Identity.cong _) (fun p => by cases p; exact .refl)
+      | exact .no fun p => by cases p
+
 /-- Equal values give equal elements of `Fin n`; the bound is a proposition. -/
 def finExt {n : Nat} : {a b : Fin n} → a.val ≡ b.val → a ≡ b
   | ⟨x, hx⟩, ⟨_, hy⟩, p =>

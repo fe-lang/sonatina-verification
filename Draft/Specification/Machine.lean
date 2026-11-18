@@ -1,4 +1,5 @@
 import Draft.Specification.Verified
+import Draft.Specification.Completeness
 
 /-! The specification of a diagram for the graph of a machine.
 
@@ -141,5 +142,48 @@ def result {Ty : Type} {X : Ty → Type} {R E : Type} {K : Boundary Ty} {Qs : Ex
   | .inl e => .inl (.inl e)
   | .inr m => Exits.At.elim (fun k => .inr (k, m.2)) (fun q => .inl (.inr (q, m.2))) m.1
 
+
+section Observations
+
+variable {Ty : Type} {S : Signature Ty} {X : Ty → Type} {R E A : Type}
+  {Γ : List Ty} {Qs : Exits Ty} (m : Machine (S.interface X) R E) (observe : Qs.At X → A)
+
+/-- The observation of a completed exit or stop, in the result type of a bounded runner. -/
+def Diagram.observedResult : E ⊕ (Qs.At X × R) → E ⊕ (Option A × R)
+  | .inl err => .inl err
+  | .inr (out, state) => .inr (some (observe out), state)
+
+/-- A completed observation is witnessed by a finite evaluation that returns or stops.
+The loop cutoff returns `none`. -/
+def Diagram.observations (d : Diagram S Γ Qs) :
+    DepPoly.{0, 0, 0, 0} ((Diagram.interface X Γ Qs).runtime R E) where
+  Pre _ := Unit
+  Post x _ o := (n : Nat) ×
+    (m.run (d.run (.pure none) n x.1 (fun e => .pure (some (observe e)))) x.2 ≡ Diagram.observedResult observe o)
+
+private def observedExitEvidence (o : E ⊕ (Qs.At X × R)) :
+    FreeDep m.graph (fun _ => Unit) (Free.resume (fun e => .pure (some (observe e))) o) :=
+  match o with
+  | .inl _ => .pure ()
+  | .inr _ => .pure ()
+
+private def observedExitRun (o : E ⊕ (Qs.At X × R)) :
+    FreeDep.Runs _ (observedExitEvidence m observe o) (Diagram.observedResult observe o) :=
+  match o with
+  | .inl _ => ⟨.refl⟩
+  | .inr _ => ⟨.refl⟩
+
+/-- Each run under the graph of the machine gives a completed observation at its threshold. -/
+def Diagram.verifyObservations (d : Diagram S Γ Qs) : d.Verified m.graph (d.observations m observe) :=
+  fun x _ =>
+    let p := d.graphWitness m x
+    ⟨p, fun o path =>
+      let reaches := Diagram.along (F := fun _ => Unit) (stop := .pure none) m.graph
+        (fun _ => .pure ()) d x.1 x.2 p o path
+      let trace := reaches.2 reaches.1 (Nat.le_refl _) (fun e => .pure (some (observe e)))
+        (fun o _ => observedExitEvidence m observe o) _ (observedExitRun m observe o)
+      ⟨reaches.1, FreeDep.graphResult m _ _ trace⟩⟩
+
+end Observations
 
 end Draft

@@ -9,7 +9,7 @@ response. Reindexing consumes identities of responses, not of whole functions.
 set_option autoImplicit false
 set_option genInjectivity false
 
-universe s p s' p' s'' p'' u v w z
+universe s p s' p' s'' p'' u v w z w' z' w'' z''
 
 namespace Prelude.Container
 
@@ -55,6 +55,42 @@ response that depends on the witness of the precondition. -/
 structure DepPoly (C : Container.{s, p}) where
   Pre : C.Shape → Type w
   Post : (a : C.Shape) → Pre a → C.Pos a → Type z
+
+namespace DepPoly
+
+variable {P : DepPoly.{s, p, w, z} C} {Q : DepPoly.{s, p, w', z'} C}
+  {T : DepPoly.{s, p, w'', z''} C}
+
+/-- A map over one interface takes an admission forward and evidence for each response
+back to the postcondition of the supplied admission. -/
+abbrev Map (P : DepPoly.{s, p, w, z} C) (Q : DepPoly.{s, p, w', z'} C) :=
+  (a : C.Shape) → (pre : P.Pre a) →
+    (q : Q.Pre a) × ((o : C.Pos a) → Q.Post a q o → P.Post a pre o)
+
+def Map.id (P : DepPoly.{s, p, w, z} C) : Map P P :=
+  fun _ pre => ⟨pre, fun _ post => post⟩
+
+def Map.trans (f : Map P Q) (g : Map Q T) : Map P T :=
+  fun a pre =>
+    let ⟨q, back⟩ := f a pre
+    let ⟨t, back'⟩ := g a q
+    ⟨t, fun o post => back o (back' o post)⟩
+
+/-- A cartesian map identifies the two fibres of response evidence at the mapped admission. -/
+abbrev Cartesian (P : DepPoly.{s, p, w, z} C) (Q : DepPoly.{s, p, w', z'} C) :=
+  (a : C.Shape) → (pre : P.Pre a) →
+    (q : Q.Pre a) × ((o : C.Pos a) → Iso (Q.Post a q o) (P.Post a pre o))
+
+def Cartesian.toMap (f : Cartesian P Q) : Map P Q :=
+  fun a pre => ⟨(f a pre).1, fun o => ((f a pre).2 o).to⟩
+
+def Cartesian.id (P : DepPoly.{s, p, w, z} C) : Cartesian P P :=
+  fun _ pre => ⟨pre, fun _ => Iso.refl _⟩
+
+def Cartesian.comp (f : Cartesian P Q) (g : Cartesian Q T) : Cartesian P T :=
+  fun a pre => ⟨(g a (f a pre).1).1, fun o => ((g a (f a pre).1).2 o).trans ((f a pre).2 o)⟩
+
+end DepPoly
 
 /-- The specification of a family sum that has a given specification at each index. This is
 Aberlé's `sumDep`. -/

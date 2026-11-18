@@ -151,6 +151,14 @@ def Runs : (x : Free C α) → FreeDep r Q x → α → Type (max p z u)
   | .request s k, h, o =>
       (i : C.Pos s) × (post : r.Post s h.parts.1 i) × Runs (k i) (h.parts.2 i post) o
 
+/-- A run under the graph of a provider ends at the value of running the computation on it. -/
+def graphResult (f : Section C) : (x : Free C α) → (h : FreeDep f.graph Q x) →
+    {o : α} → Runs x h o → x.run f ≡ o
+  | .pure _, _, _, run => run.down
+  | .request _ k, h, _, ⟨i, same, tail⟩ =>
+      (Identity.cong (fun v => (k v).run f) same).trans
+        (graphResult f (k i) (h.parts.2 i same) tail)
+
 /-- The condition at the result of a run along the evidence. -/
 def atRun : (x : Free C α) → (h : FreeDep r Q x) → {o : α} → Runs x h o → Q o
   | .pure _, h, _, e => Identity.transport Q e.down h.result
@@ -185,6 +193,16 @@ assumption on the calls. An implementation with its lift is a verified implement
 def ImplDep {C : Container.{s, p}} {D : Container.{s', p'}} (r : DepPoly.{s, p, w, z} C)
     (t : DepPoly.{s', p', w', z'} D) (f : Impl C D) : Type (max s p s' p' w z w' z') :=
   (a : C.Shape) → (pre : r.Pre a) → FreeDep t (r.Post a pre) (f a)
+
+/-- A specification map verifies the identity implementation, which makes one call. -/
+def DepPoly.Map.toImplDep {C : Container.{s, p}} {P : DepPoly.{s, p, w, z} C}
+    {Q : DepPoly.{s, p, w', z'} C} (f : P.Map Q) : ImplDep P Q (Impl.id C) :=
+  fun a pre => .request (f a pre).1 fun o post => .pure ((f a pre).2 o post)
+
+/-- The admission and response map of a verified identity implementation. -/
+def ImplDep.toMap {C : Container.{s, p}} {P : DepPoly.{s, p, w, z} C}
+    {Q : DepPoly.{s, p, w', z'} C} (f : ImplDep P Q (Impl.id C)) : P.Map Q :=
+  fun a pre => ⟨(f a pre).parts.1, fun o post => ((f a pre).parts.2 o post).result⟩
 
 namespace FreeDep
 
@@ -237,6 +255,19 @@ def graph (g : Impl C D) (f : Section D) : ImplDep (g.run f).graph f.graph g :=
   fun a _ => FreeDep.graph f (g a)
 
 end ImplDep
+
+/-- A morphism of specifications pairs the implementation with the lift over that implementation. -/
+structure VerifiedImpl {C : Container.{s, p}} {D : Container.{s', p'}}
+    (r : DepPoly.{s, p, w, z} C) (t : DepPoly.{s', p', w', z'} D) where
+  impl : Impl C D
+  verification : ImplDep r t impl
+
+/-- Composition substitutes the second implementation and its evidence into the first. -/
+def VerifiedImpl.trans {C : Container.{s, p}} {D : Container.{s', p'}} {G : Container.{s'', p''}}
+    {r : DepPoly.{s, p, w, z} C} {t : DepPoly.{s', p', w', z'} D} {v : DepPoly.{s'', p'', w'', z''} G}
+    (f : VerifiedImpl r t) (g : VerifiedImpl t v) : VerifiedImpl r v :=
+  ⟨f.impl.trans g.impl, f.verification.trans g.verification⟩
+
 
 namespace FreeDep
 
@@ -308,6 +339,12 @@ def Impl.specPost {f : Impl C D} {t : DepPoly.{s', p', w', z'} D} {q : DepPoly.{
     (ff : ImplDep q t f) (a : C.Shape) (pre : q.Pre a) (b : C.Pos a)
     (run : (f.spec t).Post a (Impl.specPre ff a pre) b) : q.Post a pre b :=
   FreeDep.atRun (f a) (ff a pre) (FreeDep.runsOfMap (fun _ _ => PUnit.unit) (f a) (ff a pre) run)
+
+/-- A verified implementation maps its interface specification to the specification of its calls
+composed according to the implementation. -/
+def Impl.specMap {f : Impl C D} {t : DepPoly.{s', p', w', z'} D} {q : DepPoly.{s, p, w, z} C}
+    (ff : ImplDep q t f) : q.Map (f.spec t) :=
+  fun a pre => ⟨Impl.specPre ff a pre, Impl.specPost ff a pre⟩
 
 end Specification
 

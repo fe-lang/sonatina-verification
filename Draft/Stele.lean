@@ -1,5 +1,4 @@
-import Draft.Diagram
-import Draft.Runtime
+import Draft.Source
 
 /-! A typed fragment of Stele, and its translation to diagrams.
 
@@ -80,6 +79,27 @@ inductive Op where
   | store (slot : Nat)
   | revert
 
+private instance : DecEq Arith where
+  decEq x y := by
+    cases x <;> cases y <;> first | exact .yes .refl | exact .no fun p => by cases p
+
+private instance : DecEq Compare where
+  decEq x y := by
+    cases x <;> cases y <;> first | exact .yes .refl | exact .no fun p => by cases p
+
+private instance : DecEq Divide where
+  decEq x y := by
+    cases x <;> cases y <;> first | exact .yes .refl | exact .no fun p => by cases p
+
+/-- Decide operation identity by its constructor and the identity of its payload. -/
+instance : DecEq Op where
+  decEq x y := by
+    cases x <;> cases y
+    all_goals first
+      | exact .yes .refl
+      | exact (decideEq _ _).map (Identity.cong _) (fun p => by cases p; exact .refl)
+      | exact .no fun p => by cases p
+
 /-- The signature of the fragment. `divide` has a case with the result and a case for a zero
 divisor. `wrap` reduces an integer to a number of bits. `branch` has a case for `true` and a
 case for `false`. `load` and `store` are effectful. `revert` is effectful and has no output
@@ -125,6 +145,8 @@ def sig : Signature Ty where
     | .load _ => .one [.int]
     | .store _ => .one []
     | .revert => []
+
+instance : DecEq sig.Op := inferInstanceAs (DecEq Op)
 
 /-- An expression with a context of local variables and a type. -/
 inductive Expr (Γ : List Ty) : Ty → Type where
@@ -239,35 +261,35 @@ def Expr.compile {Γ : List Ty} : {t : Ty} → Expr Γ t → {Qs : Exits Ty} →
 /-- The translation of a statement list in a context `Δ`, with the port of each local
 variable and the position of the boundary of a return. The diagram of the end of the list has a
 context with more ports and the port of each local variable. -/
-def Stmt.compile : {Γ : List Ty} → Stmt Γ → {Qs : Exits Ty} → Elem Ret Qs → (Δ : List Ty) →
+private def Stmt.emit : {Γ : List Ty} → Stmt Γ → {Qs : Exits Ty} → Elem Ret Qs → (Δ : List Ty) →
     PortMap Δ Γ → ((Δ' : List Ty) → PortMap Δ' Γ → Diagram sig Δ' Qs) → Diagram sig Δ Qs
   | _, .skip, _, _, Δ, ρ, fall => fall Δ ρ
   | _, .letDecl e rest, _, out, Δ, ρ, fall =>
       e.compile Δ ρ fun Δ' up p =>
-        rest.compile out Δ' (.cons p (ρ.map fun _ q => up q)) fun Δ'' ρ' => fall Δ'' ρ'.tail
+        rest.emit out Δ' (.cons p (ρ.map fun _ q => up q)) fun Δ'' ρ' => fall Δ'' ρ'.tail
   | _, .assign x e rest, _, out, Δ, ρ, fall =>
       e.compile Δ ρ fun Δ' up p =>
-        rest.compile out Δ' ((ρ.map fun _ q => up q).set x p) fall
+        rest.emit out Δ' ((ρ.map fun _ q => up q).set x p) fall
   | _, .assignStorage slot e rest, _, out, Δ, ρ, fall =>
       e.compile Δ ρ fun Δ' up p =>
         .step ⟨Op.store slot, .cons p .nil⟩
-          (.one (rest.compile out Δ' (ρ.map fun _ q => up q) fall))
+          (.one (rest.emit out Δ' (ρ.map fun _ q => up q) fall))
   | _, .require e rest, _, out, Δ, ρ, fall =>
       e.compile Δ ρ fun Δ' up p =>
         .step ⟨Op.branch, .cons p .nil⟩ fun
-          | ⟨_, .here⟩ => rest.compile out Δ' (ρ.map fun _ q => up q) fall
+          | ⟨_, .here⟩ => rest.emit out Δ' (ρ.map fun _ q => up q) fall
           | ⟨_, .there .here⟩ => revert
   | Γ, .ite c yes no rest, _, out, Δ, ρ, fall =>
       .seq
         (c.compile Δ ρ fun Δ' up p =>
           .step ⟨Op.branch, .cons p .nil⟩ fun
             | ⟨_, .here⟩ =>
-                yes.compile (.there out) Δ' (ρ.map fun _ q => up q) fun _ ρ' =>
+                yes.emit (.there out) Δ' (ρ.map fun _ q => up q) fun _ ρ' =>
                   .exit (Exits.At.here ⟨Boundary.only Γ, ρ'⟩)
             | ⟨_, .there .here⟩ =>
-                no.compile (.there out) Δ' (ρ.map fun _ q => up q) fun _ ρ' =>
+                no.emit (.there out) Δ' (ρ.map fun _ q => up q) fun _ ρ' =>
                   .exit (Exits.At.here ⟨Boundary.only Γ, ρ'⟩))
-        (.one (rest.compile out Γ (PortMap.id Γ) fall))
+        (.one (rest.emit out Γ (PortMap.id Γ) fall))
   | Γ, .whileDo c body rest, _, out, _, ρ, fall =>
       .seq
         (.seq (.exit (Exits.At.here ⟨Boundary.only Γ, ρ⟩))
@@ -275,19 +297,19 @@ def Stmt.compile : {Γ : List Ty} → Stmt Γ → {Qs : Exits Ty} → Elem Ret Q
             (c.compile Γ (PortMap.id Γ) fun Δ' up p =>
               .step ⟨Op.branch, .cons p .nil⟩ fun
                 | ⟨_, .here⟩ =>
-                    body.compile (.there (.there out)) Δ' ((PortMap.id Γ).map fun _ q => up q)
+                    body.emit (.there (.there out)) Δ' ((PortMap.id Γ).map fun _ q => up q)
                       fun _ ρ' => .exit (Exits.At.here ⟨Boundary.only Γ, ρ'⟩)
                 | ⟨_, .there .here⟩ =>
                     .exit ⟨_, .there .here, Boundary.only Γ,
                       (PortMap.id Γ).map fun _ q => up q⟩))))
-        (.one (rest.compile out Γ (PortMap.id Γ) fall))
+        (.one (rest.emit out Γ (PortMap.id Γ) fall))
   | _, .ret e, _, out, Δ, ρ, _ =>
       e.compile Δ ρ fun _ _ p => .exit ⟨_, out, Boundary.only _, .cons p .nil⟩
 
 /-- The diagram of a function body. Its context has the parameters, and its one exit has the
 returned integer. The end of the list is a `revert`. -/
-def Stmt.diagram {Γ : List Ty} (body : Stmt Γ) : Diagram sig Γ [Ret] :=
-  body.compile .here Γ (PortMap.id Γ) fun _ _ => revert
+private def Stmt.emitBody {Γ : List Ty} (body : Stmt Γ) : Diagram sig Γ [Ret] :=
+  body.emit .here Γ (PortMap.id Γ) fun _ _ => revert
 
 /-! The machine of the operations. -/
 
@@ -323,35 +345,127 @@ def evalCompare : Compare → Int → Int → Bool
 two. -/
 def wrap (bits : Nat) (a : Int) : Int := a % ((2 ^ bits : Nat) : Int)
 
-/-- The machine of the operations, with the storage as its runtime. `divide` has the second
-case at a zero divisor. `load` and `store` read and write one slot. `revert` stops. -/
-def handle : Machine (sig.interface Val) Store Unit
-  | (⟨.intLit n, _⟩, s) => .inr (one (t := .int) n, s)
-  | (⟨.boolLit b, _⟩, s) => .inr (one (t := .bool) b, s)
-  | (⟨.arith f, args⟩, s) =>
-      .inr (one (t := .int) (evalArith f (args.lookup .here) (args.lookup (.there .here))), s)
-  | (⟨.divide f, args⟩, s) =>
-      match decide ((args.lookup (.there .here) : Int) = 0) with
-      | true => .inr (⟨⟨_, .there .here⟩, .nil⟩, s)
-      | false =>
-          .inr (⟨⟨_, .here⟩,
-            .cons (evalDivide f (args.lookup .here) (args.lookup (.there .here))) .nil⟩, s)
-  | (⟨.neg, args⟩, s) => .inr (one (t := .int) (-(args.lookup .here : Int)), s)
-  | (⟨.wrap bits, args⟩, s) => .inr (one (t := .int) (wrap bits (args.lookup .here)), s)
-  | (⟨.compare f, args⟩, s) =>
-      .inr (one (t := .bool) (evalCompare f (args.lookup .here) (args.lookup (.there .here))), s)
-  | (⟨.not, args⟩, s) => .inr (one (t := .bool) (!(args.lookup .here : Bool)), s)
-  | (⟨.branch, args⟩, s) =>
-      match (args.lookup .here : Bool) with
-      | true => .inr (⟨⟨_, .here⟩, .nil⟩, s)
-      | false => .inr (⟨⟨_, .there .here⟩, .nil⟩, s)
-  | (⟨.load slot, _⟩, s) => .inr (one (t := .int) (s slot), s)
-  | (⟨.store slot, args⟩, s) => .inr (⟨Boundary.only _, .nil⟩, s.write slot (args.lookup .here))
-  | (⟨.revert, _⟩, _) => .inl ()
+/-- The residual calls after lowering arithmetic and control decisions. -/
+inductive StorageCall where
+  | load (slot : Nat)
+  | store (slot : Nat) (value : Int)
+  | revert
+
+def storage : Container where
+  Shape := StorageCall
+  Pos
+    | .load _ => Int
+    | .store _ _ => Unit
+    | .revert => Empty
+
+def storageMachine : Machine storage Store Unit
+  | (.load slot, s) => .inr (s slot, s)
+  | (.store slot v, s) => .inr ((), s.write slot v)
+  | (.revert, _) => .inl ()
+
+/-- Interpret the value operations, with a handler for each observable storage operation. -/
+private def evalOp {F : Type → Type} (done : {A : Type} → A → F A)
+    (load : Nat → F ((Boundary.one [.int]).At Val))
+    (write : Nat → Int → F ((Boundary.one []).At Val))
+    (fail : F ((sig.output .revert).At Val)) :
+    (a : (sig.interface Val).Shape) → F ((sig.interface Val).Pos a)
+  | ⟨.intLit n, _⟩ => done (one (t := .int) n)
+  | ⟨.boolLit b, _⟩ => done (one (t := .bool) b)
+  | ⟨.arith f, args⟩ =>
+      done (one (t := .int) (evalArith f (args.lookup .here) (args.lookup (.there .here))))
+  | ⟨.divide f, args⟩ =>
+      done (bif decide ((args.lookup (.there .here) : Int) = 0) then ⟨⟨_, .there .here⟩, .nil⟩
+        else ⟨⟨_, .here⟩, .cons (evalDivide f (args.lookup .here) (args.lookup (.there .here))) .nil⟩)
+  | ⟨.neg, args⟩ => done (one (t := .int) (-(args.lookup .here : Int)))
+  | ⟨.wrap bits, args⟩ => done (one (t := .int) (wrap bits (args.lookup .here)))
+  | ⟨.compare f, args⟩ =>
+      done (one (t := .bool) (evalCompare f (args.lookup .here) (args.lookup (.there .here))))
+  | ⟨.not, args⟩ => done (one (t := .bool) (!(args.lookup .here : Bool)))
+  | ⟨.branch, args⟩ =>
+      done (bif (args.lookup .here : Bool) then ⟨⟨_, .here⟩, .nil⟩ else ⟨⟨_, .there .here⟩, .nil⟩)
+  | ⟨.load slot, _⟩ => load slot
+  | ⟨.store slot, args⟩ => write slot (args.lookup .here)
+  | ⟨.revert, _⟩ => fail
+
+/-- The Stele machine reads and writes its own storage and stops on revert. -/
+def handle : Machine (sig.interface Val) Store Unit :=
+  fun (a, s) => evalOp (F := fun A => Unit ⊕ (A × Store)) (fun v => .inr (v, s))
+    (fun slot => .inr (one (t := .int) (s slot), s))
+    (fun slot v => .inr (⟨Boundary.only _, .nil⟩, s.write slot v)) (.inl ()) a
+
+/-- Lower value operations to returns and storage operations to residual requests. -/
+private def lowerOp : Impl (sig.interface Val) storage :=
+  evalOp (F := Free storage) Free.pure
+    (fun slot => .request (.load slot) fun v => .pure (one (t := .int) v))
+    (fun slot v => .request (.store slot v) fun _ => .pure ⟨Boundary.only _, .nil⟩)
+    (.request .revert Empty.elim)
+
+/-- Each lowered call implements the Stele machine's response and state transition. -/
+private def lowerCorrect : Homotopy handle (storageMachine.impl lowerOp)
+  | (⟨op, _⟩, _) => by cases op <;> exact .refl
+
+/-- Lowering pairs the code for every state-threaded call with its verification. -/
+def lowering : VerifiedImpl handle.graph storageMachine.graph :=
+  ⟨lowerOp.thread, fun a pre =>
+    FreeDep.mapQ (fun _ response => (lowerCorrect a).trans response) _
+      (ImplDep.graph lowerOp.thread storageMachine a pre)⟩
+
+private def pureReturns : ImplDep (sig.pureSpec Val) (DepPoly.noCall.{0, 0, 0, 0} storage) lowerOp
+  | ⟨.intLit _, _⟩, _ | ⟨.boolLit _, _⟩, _ | ⟨.arith _, _⟩, _ | ⟨.neg, _⟩, _
+  | ⟨.wrap _, _⟩, _ | ⟨.compare _, _⟩, _ | ⟨.not, _⟩, _ => .pure PUnit.unit
+  | ⟨.divide _, _⟩, _ | ⟨.branch, _⟩, _ => .pure PUnit.unit
+  | ⟨.load _, _⟩, h | ⟨.store _, _⟩, h | ⟨.revert, _⟩, h => (Kind.pureNotEffectful h.symm).elim
+
+private def abort {α : Type} : Free (sig.interface Val) α :=
+  .request ⟨Op.revert, .nil⟩ fun r => r.1.2.ofNil
+
+/-- The Stele operation machine validates merge on the straight fragment. -/
+def mergeSound {Γ : List Ty} {Qs : Exits Ty} :
+    ((Rules.interchange sig).sum (Rules.copy sig)).StraightSound handle.graph Γ Qs :=
+  let ok := Rules.Sound.machine (lower := lowerOp) (α := Qs.At Val)
+    ((Rules.Sound.interchange pureReturns).sum (.copy pureReturns)) storageMachine
+  Rules.Sound.straightGraph handle (ok.map fun {x y} same s =>
+    (Machine.runCongr (.refl x) lowerCorrect s).trans
+      ((same s).trans (Machine.runCongr (.refl y) lowerCorrect.symm s))) abort
 
 /-- The returned integer of the one exit. -/
 def returned : Exits.At [Ret] Val → Int
   | ⟨_, .here, ⟨_, .here⟩, out⟩ => out.lookup .here
+
+/-- The observable result of a completed run. A return carries its integer and final storage. -/
+abbrev outcome : Unit ⊕ (Exits.At [Ret] Val × Store) → Unit ⊕ (Option Int × Store) :=
+  Diagram.observedResult returned
+
+/-- The operational contract of a function body. A completed return or revert is observed
+by the Stele runner at a finite unrolling. A loop cutoff has no returned integer. -/
+def Stmt.behavior {Γ : List Ty} (body : Stmt Γ) :=
+  body.emitBody.observations handle returned
+
+/-- The operational contract in a caller's port context, with explicit return and
+fallthrough destinations. The observer chooses what to retain at each exit. -/
+def Stmt.behaviorIn {Γ : List Ty} (body : Stmt Γ) {Qs : Exits Ty} (out : Elem Ret Qs)
+    (Δ : List Ty) (ports : PortMap Δ Γ) (fall : (Δ' : List Ty) → PortMap Δ' Γ → Diagram sig Δ' Qs)
+    {A : Type} (observe : Qs.At Val → A) :=
+  (body.emit out Δ ports fall).observations handle observe
+
+/-- Compile an open statement at its supplied contract in the caller's context. -/
+def Stmt.compileIn {Γ : List Ty} (body : Stmt Γ) {Qs : Exits Ty} (out : Elem Ret Qs)
+    (Δ : List Ty) (ports : PortMap Δ Γ) (fall : (Δ' : List Ty) → PortMap Δ' Γ → Diagram sig Δ' Qs)
+    {A : Type} (observe : Qs.At Val → A) {q : DepPoly ((Diagram.interface Val Δ Qs).runtime Store Unit)}
+    (source : q.Map (body.behaviorIn out Δ ports fall observe)) : VerifiedDiagram handle.graph q :=
+  let d := body.emit out Δ ports fall
+  ⟨d, source.trans (d.verifyObservations handle observe)⟩
+
+/-- Compile with a supplied external contract. Its proof consumes completed Stele observations,
+including the storage at return. The diagram admits calls using the graph of the Stele machine. -/
+def Stmt.compile {Γ : List Ty} (body : Stmt Γ)
+    {q : DepPoly ((Diagram.interface Val Γ [Ret]).runtime Store Unit)}
+    (source : q.Map body.behavior := by exact DepPoly.Map.id _) : VerifiedDiagram handle.graph q :=
+  body.compileIn .here Γ (PortMap.id Γ) (fun _ _ => revert) returned source
+
+/-- The syntax projection of compilation at the operational contract. -/
+def Stmt.diagram {Γ : List Ty} (body : Stmt Γ) : Diagram sig Γ [Ret] :=
+  body.compile.diagram
 
 /-- The run of a function body with a number of unrollings of each loop, from the arguments
 and a storage: a stop at a `revert`, or the returned integer with the last storage. The
@@ -359,5 +473,15 @@ integer has no value at the limit of a loop. -/
 def run {Γ : List Ty} (body : Stmt Γ) (n : Nat) (args : All Val Γ) (s : Store) :
     Unit ⊕ (Option Int × Store) :=
   handle.run (body.diagram.run (.pure none) n args fun r => .pure (some (returned r))) s
+
+/-- Compile, merge repeated pure calls, and lower a straight function body to storage calls.
+Each stage consumes the verified pair produced by the preceding stage. -/
+def Stmt.lowerStraight {Γ : List Ty} (body : Stmt Γ)
+    {q : DepPoly ((Diagram.interface Val Γ [Ret]).runtime Store Unit)}
+    (source : q.Map body.behavior) (straight : (body.compile source).diagram.Straight) :
+    VerifiedImpl q storageMachine.graph :=
+  let compiled := body.compile source
+  let merged := Diagram.merge compiled straight mergeSound
+  (merged.implementStraight (compiled.diagram.mergeStraight straight) abort 0).trans lowering
 
 end Draft.Stele
