@@ -57,6 +57,12 @@ diagram, so the diagram after a ready step of the list takes the place of the di
 the given ready step. The bound of the list is the number of the steps, and the diagram after
 a ready step has one step less.
 
+An order of a verified diagram of the fragment is a verified diagram of the same
+specification. The verified diagram moves along the derivation of the order, for a
+specification of the calls that has the action of the interchange equation set on the fragment.
+The orders of a verified diagram are a list: each order of the list of the orders of its
+diagram, as a verified diagram with the evidence that its diagram is an order.
+
 A test with two cases has a list of ready steps, when the rest of each case is a diagram of
 the fragment. The list has the test, and each step that is ready in the rest of the two cases
 with one operation and the same operands. The operands are ports of the context of the test,
@@ -1081,5 +1087,34 @@ def Diagram.Order.listed {Γ : List Ty} {Qs : Exits Ty} (e d : Diagram S Γ Qs)
     (r : (e' : Diagram S Γ Qs) × Diagram.Order e' d) ×
       (Elem r (d.orders h) × Diagram.Agreement e r.1) :=
   Diagram.Order.listedWithin e d o d (Diagram.Agreement.refl d) h _ .refl
+
+/-! The verification of an order. -/
+
+section Verified
+
+universe w z v u
+
+variable {X : Ty → Type} {State Error : Type} {Γ : List Ty} {Qs : Exits Ty}
+  {r : DepPoly.{0, 0, w, z} ((S.interface X).runtime State Error)}
+  {q : DepPoly.{0, 0, v, u} ((Diagram.interface X Γ Qs).runtime State Error)}
+
+/-- An order of a verified diagram of the fragment is a verified diagram of the same
+specification. The specification of the calls has the action of the derivations of the
+interchange equation set on the fragment. The witness of the precondition and the postcondition
+of the source diagram move along the derivation of the order. -/
+def VerifiedDiagram.order (src : VerifiedDiagram r q) (h : src.diagram.Straight)
+    (ok : (Rules.interchange S).StraightSound r Γ Qs) (e : Diagram S Γ Qs)
+    (o : Diagram.Order e src.diagram) : VerifiedDiagram r q :=
+  src.along h ok (Diagram.Order.straight e src.diagram o h)
+    (Diagram.Order.derivation (Rules.Map.id _) e src.diagram o)
+
+/-- The orders of a verified diagram of the fragment: each order of the list of the orders of
+its diagram, as a verified diagram with the evidence that its diagram is an order. -/
+def VerifiedDiagram.orders (src : VerifiedDiagram r q) (h : src.diagram.Straight)
+    (ok : (Rules.interchange S).StraightSound r Γ Qs) :
+    List ((v : VerifiedDiagram r q) × Diagram.Order v.diagram src.diagram) :=
+  (src.diagram.orders h).map fun x => ⟨src.order h ok x.1 x.2, x.2⟩
+
+end Verified
 
 end Draft

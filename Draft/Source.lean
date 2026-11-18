@@ -61,7 +61,18 @@ the graph of the source diagram. The proof has a link for each available call: i
 call of a step before, and its output ports have the histories of the output ports of that
 call. A step of the merged diagram has the occurrence of the step of the source diagram. A step
 that the search finds has the occurrence of the available call, and the rest has the histories
-of the source diagram at the output ports of that call. -/
+of the source diagram at the output ports of that call.
+
+A diagram of the fragment reaches no limit of a loop, so a verified diagram of the fragment
+gives a verified implementation for each number of unrollings. A rule set has an action on the
+fragment, for a specification of the calls, when each derivation between two diagrams of the
+fragment gives a cartesian map of their specifications. A verified diagram of the fragment
+moves along a derivation by that action: the second diagram is the plain part, and the witness
+of the precondition and the postcondition of the first diagram move along the cartesian map.
+For the graph of a machine, the runs of a diagram of the fragment over each witness are
+equivalent to the identities of the result of the machine, so a rule set that holds on the
+machine has the action. The merge of a verified diagram is the move along the derivation of the
+merged diagram. -/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -1481,6 +1492,12 @@ abbrev Rules.StraightSound (T : Rules S)
 def Rules.SpecSound.straight {T : Rules S} (ok : T.SpecSound r) : T.StraightSound r Γ Qs :=
   fun _ _ der => (der.spec ok).1
 
+/-- The action of the derivations of a rule set is the action of the derivations of each rule
+set that has a map to it. -/
+def Rules.StraightSound.map {T T' : Rules S} (f : Rules.Map T T')
+    (ok : T'.StraightSound r Γ Qs) : T.StraightSound r Γ Qs :=
+  fun hd he der => ok hd he (der.map f)
+
 /-- Soundness on a machine supplies the run isomorphisms for its graph in the straight fragment. -/
 def Rules.Sound.straightGraph {T : Rules S} (m : Machine (S.interface X) State Error)
     (ok : T.Sound (α := Qs.At X) m.congruence) (stop : Free (S.interface X) (Qs.At X)) :
@@ -1492,13 +1509,21 @@ def Rules.Sound.straightGraph {T : Rules S} (m : Machine (S.interface X) State E
       (Identity.transport (fun a => Iso (a ≡ o) ((d.spec m.graph).Post x pre o))
         same (Diagram.Straight.graphRuns m stop d hd x pre o).symm)⟩
 
+/-- A verified diagram of the fragment moves along a derivation to a diagram of the fragment.
+The second diagram is the plain part. The witness of the precondition and the postcondition of
+the first diagram move along the action of the derivation. -/
+def VerifiedDiagram.along {T : Rules S} (src : VerifiedDiagram r q) (h : src.diagram.Straight)
+    (ok : T.StraightSound r Γ Qs) {e : Diagram S Γ Qs} (he : e.Straight)
+    (der : src.diagram.Derivation T e) : VerifiedDiagram r q :=
+  ⟨e, src.verification.trans (ok h he der).toMap⟩
+
 /-- Merge equal calls in a verified straight diagram. The call contract must validate
 interchange and copy on the fragment. The source admission and postcondition move along
 the derivation produced by the merge. -/
 def Diagram.merge [DecEq S.Op] (src : VerifiedDiagram r q) (h : src.diagram.Straight)
     (ok : ((Rules.interchange S).sum (Rules.copy S)).StraightSound r Γ Qs) : VerifiedDiagram r q :=
-  let der := src.diagram.mergeDerivation (Rules.Map.inl _ _) (Rules.Map.inr _ _) h
-  ⟨src.diagram.mergeSyntax h, src.verification.trans ((ok h (src.diagram.mergeStraight h) der).toMap)⟩
+  src.along h ok (src.diagram.mergeStraight h)
+    (src.diagram.mergeDerivation (Rules.Map.inl _ _) (Rules.Map.inr _ _) h)
 
 end VerifiedMerge
 

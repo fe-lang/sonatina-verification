@@ -385,10 +385,10 @@ documents refer to, and the SHA-256 of that file.
 
 | Source | File | SHA-256 |
 | --- | --- | --- |
-| [Lawrence, UCAM-CL-TR-705, 2007](https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-705.pdf) | The PDF | `94342fb7e365ef9fcb46093026bbf175a5c5d72dafe9fc32474c9272239f86a6` |
-| [Kondyrev–Spivak, arXiv:2509.05462](https://arxiv.org/abs/2509.05462) | `int-poly-control.tex` in the TeX source | `291c7032c7712680713b8b17c48059fc3f825348834216eaff3f6a0b22ae1588` |
-| [Román–Sobociński, arXiv:2305.06075](https://arxiv.org/abs/2305.06075) | `arxivmain.tex` in the TeX source | `22ab11b9727b5bd4acef1dc282957441308679a054d94cdd0d741eb84ae4a855` |
-| [Aberlé, arXiv:2604.01303](https://arxiv.org/abs/2604.01303) | `paper-eptcs.tex` in the TeX source | `297915e3565d0e9c782ac2552d4963dbc0b9bb88ede4752f73e518611f4aefc2` |
+| [Lawrence, Optimizing compilation with the Value State Dependence Graph, University of Cambridge Computer Laboratory Technical Report UCAM-CL-TR-705, 2007](https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-705.pdf) | The PDF | `94342fb7e365ef9fcb46093026bbf175a5c5d72dafe9fc32474c9272239f86a6` |
+| [Kondyrev–Spivak, The compact double category Int(Poly\*) models control flow and data transformations, 2025, arXiv:2509.05462](https://arxiv.org/abs/2509.05462) | `int-poly-control.tex` in the TeX source | `291c7032c7712680713b8b17c48059fc3f825348834216eaff3f6a0b22ae1588` |
+| [Román–Sobociński, String diagrams for premonoidal categories, 2023, arXiv:2305.06075](https://arxiv.org/abs/2305.06075) | `arxivmain.tex` in the TeX source | `22ab11b9727b5bd4acef1dc282957441308679a054d94cdd0d741eb84ae4a855` |
+| [Aberlé, Compositional program verification with polynomial functors in dependent type theory, 2026, arXiv:2604.01303](https://arxiv.org/abs/2604.01303) | `paper-eptcs.tex` in the TeX source | `297915e3565d0e9c782ac2552d4963dbc0b9bb88ede4752f73e518611f4aefc2` |
 
 ### Reference files
 

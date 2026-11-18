@@ -685,6 +685,34 @@ number of the steps, and the diagram after a ready step has one step less.
 [Prelude/Indexed.lean](Prelude/Indexed.lean) has the positions in the list of
 the values of a partial function and in a concatenation of lists of values.
 
+[Draft/Source.lean](Draft/Source.lean) has the verification on the fragment,
+for a specification of the calls with a runtime. A diagram of the fragment
+reaches no limit of a loop, so a verified diagram of the fragment gives a
+verified implementation for each number of unrollings. A rule set has an
+action on the fragment, for a specification of the calls, when each
+derivation between two diagrams of the fragment gives a cartesian map of
+their specifications. `VerifiedDiagram.along` moves a verified diagram of the
+fragment along a derivation: the second diagram is the plain part, and the
+witness of the precondition and the postcondition of the first diagram move
+along the cartesian map. The specification of the interface does not change.
+For the graph of a machine, the runs of a diagram of the fragment over each
+witness are equivalent to the identities of the result of the machine. A rule
+set that holds on a machine thus has the action on the fragment for the graph
+of that machine.
+
+The merge and the orders are two uses of `VerifiedDiagram.along`.
+`Diagram.merge` gives the merged diagram of a verified diagram as a verified
+diagram, with the derivation of the merge. It needs the action of the
+interchange equation set with the copy equation set.
+[Draft/Sequentialization.lean](Draft/Sequentialization.lean) has
+`VerifiedDiagram.order`: an order of a verified diagram is a verified diagram
+of the same specification, with the derivation of the order. It needs the
+action of the interchange equation set. `VerifiedDiagram.orders` is the list
+of the orders of a verified diagram: each order of the list of the orders of
+its diagram, as a verified diagram with the evidence that its diagram is an
+order. That evidence gives the fragment evidence, the derivation, and the
+word of each element.
+
 [Draft/Checks/Dependency.lean](Draft/Checks/Dependency.lean) has the three
 required checks. The first source diagram has three steps. `A` and `B` are
 pure, and `B` uses the output of `A`. `C` is effectful and uses one input
@@ -704,6 +732,19 @@ gives the verified implementation of each order. The receipt at the exit of
 each of the two orders gives the payload of the source diagram through its
 identity, for an arbitrary admission. A check consumes the postcondition of
 `B` in the evidence of the order `C A B` through a dependent payload.
+
+The source diagram is also a verified diagram, for the graph of the machine of
+the lowering on a machine of the store. Its specification has a runtime and an
+admission: a result has the two values and the next runtime as functions of
+the inputs and the runtime, with a receipt for the admission at the runtime.
+The evidence is by the constructors of the diagram. The interchange equation
+set holds on the machine, so it has the action on the fragment. The order
+`C A B` is a verified diagram of the same specification. Its verified
+implementation runs on the machine, and a check consumes the identity of its
+result through a dependent payload that has the response of `C`. The list of
+the verified orders has the three orders, and the receipt of each has the
+payload of the admission. The two checks are for an arbitrary admission,
+arbitrary inputs, and an arbitrary runtime.
 
 The dependency graph of the first source diagram has the occurrences of its
 three steps. The orders `A C B` and `C A B` have the same occurrences in the
@@ -765,6 +806,17 @@ These parts are open:
   operation as central for the interchange rule, and it names the operation
   for copy naturality in these three places. An operation that is central
   only is not in the copy equation set.
+- The action of the interchange equation set and of the copy equation set on
+  the fragment, for a specification of the calls that is not the graph of a
+  machine. The merge and the order of a verified diagram have the action as a
+  premise. The condition on the specification of each pure operation is not
+  stated.
+- The action of a rule set on the diagrams that are not of the fragment. The
+  equivalence of the runs with the identities of the result of a machine is
+  constructed for the fragment only. For a diagram with a test, a composite,
+  a frame, or a loop, only the second exit equation has cartesian maps of
+  specifications. The evidence of each other rule moves along a derivation
+  after a lowering, or on a machine.
 
 ## D4: the ready steps of a test with two cases
 

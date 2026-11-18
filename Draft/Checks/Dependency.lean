@@ -28,6 +28,15 @@ of the source diagram, of the order `A C B`, and of the order `C A B` gives the 
 through its identity, for an arbitrary admission. A check consumes the postcondition of `B` in
 the evidence of the order `C A B` through a dependent payload.
 
+The source diagram is a verified diagram for the graph of the machine of the lowering on a
+machine of the store. Its specification has a runtime and an admission, and its evidence is by
+the constructors of the diagram. The interchange equation set holds on the machine, so it has
+the action on the fragment. The order `C A B` is a verified diagram of the same specification.
+Its verified implementation runs on the machine, and a check consumes the identity of its
+result through a dependent payload that has the response of `C`. The list of the verified
+orders has the three orders, and the receipt of each has the payload of the admission, for an
+arbitrary admission, arbitrary inputs, and an arbitrary runtime.
+
 The dependency graph of the source diagram has the occurrences of its three steps at the
 histories of its inputs. The orders `A C B` and `C A B` have the same occurrences in the other
 order: no occurrence changes. A check consumes the identity of the theorem of the move of `C`
@@ -339,6 +348,100 @@ def frontSum (flag : Bool) (u v x y : Nat) (pre : Admission) :
       (((lowered stop count front frontOrder).run (Verified.verify flag u v))
         (inputs x y) pre).1
       ⟨x + y + y, Nat.lt_succ_self _⟩).val ≡ x + y + y := .refl
+
+/-! The verified orders. -/
+
+/-- A machine of the store: the response of the call of a number is the runtime, and the next
+runtime is one more. -/
+def storeMachine : Machine store Nat Empty
+  | (.flag, s) => .inr (false, s)
+  | (.one, s) => .inr (s, s + 1)
+  | (.two, s) => .inr ((s, s), s)
+
+/-- The machine of the calls: the machine of the lowering on the machine of the store. -/
+abbrev calls : Machine (sig.interface Value) Nat Empty := storeMachine.impl lower
+
+/-- The two values and the runtime at a result. -/
+def seen : Empty ⊕ (Exits.At Two Value × Nat) → (Nat × Nat) × Nat
+  | .inr y => (values y.1, y.2)
+
+/-- The specification of the source diagram with a runtime. The witness of its precondition is
+an admission. A result has the output of `B`, the response of `C`, and the next runtime as
+functions of the two inputs and the runtime, with a receipt for the admission at the
+runtime. -/
+def contract :
+    DepPoly.{0, 0, 0, 0} ((Diagram.interface Value [(), ()] Two).runtime Nat Empty) where
+  Pre _ := Admission
+  Post x pre o :=
+    (seen o ≡
+        ((x.1.lookup .here + x.1.lookup (.there .here) + x.1.lookup (.there .here),
+          x.2 + x.1.lookup .here), x.2 + 1)) ×
+      Receipt (expected pre x.2)
+
+/-- The evidence of the source diagram at each input, by the constructors of the diagram, for
+the graph of the machine of the calls. -/
+def sourceHolds : (x : All Value [(), ()] × Nat) → (pre : contract.Pre x) →
+    source.Holds calls.graph (fun _ => Empty) 0 (contract.Post x pre) x
+  | (.cons x (.cons y .nil), s), pre =>
+      Diagram.Holds.stepResponse calls ⟨Op.add, .cons .here (.cons (.there .here) .nil)⟩ _
+        (b := (⟨⟨_, .here⟩, .cons (x + y) .nil⟩, s)) .refl
+        (Diagram.Holds.stepResponse calls
+          ⟨Op.add, .cons .here (.cons (.there (.there .here)) .nil)⟩ _
+          (b := (⟨⟨_, .here⟩, .cons (x + y + y) .nil⟩, s)) .refl
+          (Diagram.Holds.stepResponse calls ⟨Op.emit, .cons (.there (.there .here)) .nil⟩ _
+            (b := (⟨⟨_, .here⟩, .cons (s + x) .nil⟩, s + 1)) .refl
+            (Diagram.Holds.exit _ ⟨.refl, ⟨expected pre s, .refl⟩⟩)))
+
+/-- The verified source diagram. -/
+def sourceVerified : VerifiedDiagram calls.graph contract :=
+  ⟨source, Diagram.Holds.verified sourceHolds⟩
+
+/-- The graph of the machine of the calls has the action of the derivations of the interchange
+equation set on the fragment: the rule holds after the lowering, and thus on the machine. -/
+def interchangeOn : (Rules.interchange sig).StraightSound calls.graph [(), ()] Two :=
+  Rules.Sound.straightGraph calls ((Rules.Sound.interchange returns).machine storeMachine) stop
+
+/-- The verified order `C A B`, with the evidence that its diagram is an order. -/
+def frontVerified :
+    (v : VerifiedDiagram calls.graph contract) × Diagram.Order v.diagram source :=
+  ⟨sourceVerified.order straight (interchangeOn stop) front frontOrder, frontOrder⟩
+
+/-- The verified implementation of a verified order. An order has no loop, so it has no
+computation at a limit. -/
+def implemented
+    (v : (v : VerifiedDiagram calls.graph contract) × Diagram.Order v.diagram source) :
+    VerifiedImpl contract calls.graph :=
+  v.1.implementStraight (Diagram.Order.straight v.1.diagram source v.2 straight) stop count
+
+/-- The receipt of a verified implementation, from a run on the machine of the calls. -/
+def ticket (f : VerifiedImpl contract calls.graph) (x y s : Nat) (pre : Admission) : Nat :=
+  (f.verification.run calls.graphEvidence (inputs x y, s) pre).2.read
+
+set_option smartUnfolding false in
+/-- The identity of the result of the verified order `C A B` is consumed through a dependent
+payload that has the response of `C`, for an arbitrary admission, arbitrary inputs, and an
+arbitrary runtime. -/
+def frontSeen (x y s : Nat) (pre : Admission) :
+    (Identity.transport (fun (r : (Nat × Nat) × Nat) => Fin (r.1.2 + 1))
+      ((implemented stop count (frontVerified stop)).verification.run calls.graphEvidence
+        (inputs x y, s) pre).1
+      ⟨s + x, Nat.lt_succ_self _⟩).val ≡ s + x := (Identity.refl : _)
+
+set_option smartUnfolding false in
+/-- The list of the verified orders has the three orders. -/
+def verifiedOps :
+    ((sourceVerified.orders straight (interchangeOn stop)).map fun v =>
+        Diagram.ops v.1.diagram (Diagram.Order.straight v.1.diagram source v.2 straight)) ≡
+      [[Op.add, Op.add, Op.emit], [Op.add, Op.emit, Op.add], [Op.emit, Op.add, Op.add]] :=
+  .refl
+
+set_option smartUnfolding false in
+/-- The receipt of each verified order of the list has the payload of the admission at the
+runtime, for an arbitrary admission, arbitrary inputs, and an arbitrary runtime. -/
+def allTickets (x y s : Nat) (pre : Admission) :
+    ((sourceVerified.orders straight (interchangeOn stop)).map fun v =>
+        ticket (implemented stop count v) x y s pre) ≡
+      [expected pre s, expected pre s, expected pre s] := (Identity.refl : _)
 
 /-! The dependency graph. -/
 
@@ -900,6 +1003,18 @@ end Draft.Checks.Dependency
 /-- info: 'Draft.Checks.Dependency.orders' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Dependency.orders
+
+/-- info: 'Draft.Checks.Dependency.frontSeen' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.frontSeen
+
+/-- info: 'Draft.Checks.Dependency.verifiedOps' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.verifiedOps
+
+/-- info: 'Draft.Checks.Dependency.allTickets' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Dependency.allTickets
 
 /-- info: 'Draft.Checks.Dependency.sourceRun' does not depend on any axioms -/
 #guard_msgs in
