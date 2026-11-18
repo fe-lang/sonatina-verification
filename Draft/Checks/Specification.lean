@@ -100,7 +100,7 @@ def alongTwo (a s : Nat) :=
 
 set_option smartUnfolding false in
 /-- The threshold of the run is the number of its runs of the body. -/
-def thresholdTwo (a s : Nat) : (alongTwo a s).1 ≡ 3 := .refl
+def thresholdTwo (a s : Nat) : (alongTwo a s).1 ≡ 3 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The run of the approximant with three unrollings, along the evidence. -/
@@ -112,7 +112,7 @@ def treeTwo (a s : Nat) :=
 set_option smartUnfolding false in
 /-- The round trip: the condition at the result of that run of the approximant is the run of
 the loop, for an arbitrary value and an arbitrary runtime. -/
-def roundTrip (a s : Nat) : FreeDep.atRun _ _ (treeTwo a s) ≡ (runsS 2 a s).2 := .refl
+def roundTrip (a s : Nat) : FreeDep.atRun _ _ (treeTwo a s) ≡ (runsS 2 a s).2 := (Identity.refl : _)
 
 end Draft.Checks.Specification
 
@@ -225,7 +225,7 @@ set_option smartUnfolding false in
 /-- From the counter 2 with three unrollings, the run has three runs of the body, for an
 arbitrary computation at the limit, an arbitrary value, and an arbitrary runtime. -/
 def limitFree (stop : Free (sig.interface Value) (Exits.At [Out] Value)) (a s : Nat) :
-    lengthAt (resultRun stop 2 a s) ≡ 3 := .refl
+    lengthAt (resultRun stop 2 a s) ≡ 3 := (Identity.refl : _)
 
 end Draft.Checks.Specification
 
@@ -295,7 +295,7 @@ def alongNested (a s : Nat) :=
 set_option smartUnfolding false in
 /-- The threshold is a sum over the runs of the two bodies: it is 6, and three unrollings are
 sufficient for the run. -/
-def thresholdNested (a s : Nat) : (alongNested a s).1 ≡ 6 := .refl
+def thresholdNested (a s : Nat) : (alongNested a s).1 ≡ 6 := (Identity.refl : _)
 
 end Draft.Checks.Specification
 
@@ -314,7 +314,7 @@ def treeNested (a s : Nat) :=
 set_option smartUnfolding false in
 /-- The round trip for the loop in a loop. -/
 def roundTripNested (a s : Nat) :
-    FreeDep.atRun _ _ (treeNested a s) ≡ (runsNested 2 a s).2 := .refl
+    FreeDep.atRun _ _ (treeNested a s) ≡ (runsNested 2 a s).2 := (Identity.refl : _)
 
 end Draft.Checks.Specification
 
@@ -342,34 +342,34 @@ set_option smartUnfolding false in
 def loopOfWhole (a s : Nat) :
     (Diagram.exitSeqSpecRuns G ⟨Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩ loop
       (inputs 2 a, s) (whole a s) _).to (fromTwo a s) ≡ (runsS 2 a s).2 :=
-  .refl
+  (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip of the first exit equation at that run is the reflexivity. -/
 def loopOfWholeBack (a s : Nat) :
     (Diagram.exitSeqSpecRuns G ⟨Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩ loop
       (inputs 2 a, s) (whole a s) _).invTo (fromTwo a s) ≡ .refl :=
-  .refl
+  (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The run from the counter 2 has three runs of the body. -/
-def runsLength (a s : Nat) : (runsS 2 a s).2.length ≡ 3 := .refl
+def runsLength (a s : Nat) : (runsS 2 a s).2.length ≡ 3 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The unrolling law gives two runs of the body run twice. -/
 def unrolledLength (a s : Nat) :
-    ((Loop.unrolling StepS _ _).to (runsS 2 a s).2).length ≡ 2 := .refl
+    ((Loop.unrolling StepS _ _).to (runsS 2 a s).2).length ≡ 2 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The inverse of the unrolling gives the first run. -/
 def unrolledBack (a s : Nat) :
     (Loop.unrolling StepS _ _).inv ((Loop.unrolling StepS _ _).to (runsS 2 a s).2) ≡
       (runsS 2 a s).2 :=
-  .refl
+  (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip of the fixpoint law at the run is the reflexivity. -/
-def fixpointBack (a s : Nat) : (Loop.fixpoint StepS _ _).invTo (runsS 2 a s).2 ≡ .refl := .refl
+def fixpointBack (a s : Nat) : (Loop.fixpoint StepS _ _).invTo (runsS 2 a s).2 ≡ .refl := (Identity.refl : _)
 
 end Draft.Checks.Specification.ExitEquations
 
@@ -424,23 +424,23 @@ def runsM : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) ×
 set_option smartUnfolding false in
 /-- The run over the moved witness maps to the run over the first witness. -/
 def movedRun (a s : Nat) :
-    ((moved 2 a s).2 (.inr (runsM 2 a s).1)).to (runsM 2 a s).2 ≡ (runsS 2 a s).2 := .refl
+    ((moved 2 a s).2 (.inr (runsM 2 a s).1)).to (runsM 2 a s).2 ≡ (runsS 2 a s).2 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The run over the first witness maps back to the run over the moved witness. -/
 def movedBack (a s : Nat) :
-    ((moved 2 a s).2 (.inr (runsS 2 a s).1)).inv (runsS 2 a s).2 ≡ (runsM 2 a s).2 := .refl
+    ((moved 2 a s).2 (.inr (runsS 2 a s).1)).inv (runsS 2 a s).2 ≡ (runsM 2 a s).2 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip at the run over the first witness is the reflexivity. -/
 def movedRound (a s : Nat) :
-    ((moved 2 a s).2 (.inr (runsS 2 a s).1)).toInv (runsS 2 a s).2 ≡ .refl := .refl
+    ((moved 2 a s).2 (.inr (runsS 2 a s).1)).toInv (runsS 2 a s).2 ≡ .refl := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip at the run over the moved witness is reflexivity for the composite
 of the two loop derivations. -/
 def movedRoundBack (a s : Nat) :
-    ((moved 2 a s).2 (.inr (runsM 2 a s).1)).invTo (runsM 2 a s).2 ≡ .refl := .refl
+    ((moved 2 a s).2 (.inr (runsM 2 a s).1)).invTo (runsM 2 a s).2 ≡ .refl := (Identity.refl : _)
 
 /-- A derivation from the loop to the loop with one loop form. -/
 def single : Continuation.Derivation noRule loop loop :=
@@ -476,7 +476,7 @@ set_option smartUnfolding false in
 /-- The round trip at the run over the moved witness is the reflexivity, for the derivation
 with one loop form. -/
 def roundOne (a s : Nat) :
-    ((movedOne 2 a s).2 (.inr (runsOne 2 a s).1)).invTo (runsOne 2 a s).2 ≡ .refl := .refl
+    ((movedOne 2 a s).2 (.inr (runsOne 2 a s).1)).invTo (runsOne 2 a s).2 ≡ .refl := (Identity.refl : _)
 
 /-- A derivation from the whole diagram to the whole diagram, with the form of a composite. -/
 def wholeOne : Diagram.Derivation noRule countdown countdown :=
@@ -496,19 +496,19 @@ set_option smartUnfolding false in
 witness. -/
 def wholeBack (a s : Nat) :
     ((movedWhole a s).2 (.inr (runsS 2 a s).1)).inv (ExitEquations.fromTwo a s) ≡ wholeRun a s :=
-  .refl
+  (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip of the whole diagram at the run over the first witness is the
 reflexivity. -/
 def wholeRound (a s : Nat) :
-    ((movedWhole a s).2 (.inr (runsS 2 a s).1)).toInv (ExitEquations.fromTwo a s) ≡ .refl := .refl
+    ((movedWhole a s).2 (.inr (runsS 2 a s).1)).toInv (ExitEquations.fromTwo a s) ≡ .refl := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip of the whole diagram at the run over the moved witness is the
 reflexivity. -/
 def wholeRoundBack (a s : Nat) :
-    ((movedWhole a s).2 (.inr (runsOne 2 a s).1)).invTo (wholeRun a s) ≡ .refl := .refl
+    ((movedWhole a s).2 (.inr (runsOne 2 a s).1)).invTo (wholeRun a s) ≡ .refl := (Identity.refl : _)
 
 end Draft.Checks.Specification
 
@@ -608,22 +608,22 @@ def runsP : (c a s : Nat) → (r : Exits.At [Out] Value × Nat) ×
 set_option smartUnfolding false in
 /-- The run of the first loop maps to the run of the countdown loop. -/
 def pastRun (a s : Nat) :
-    ((movedPast 2 a s).2 (.inr (runsP 2 a s).1)).to (runsP 2 a s).2 ≡ (runsN 2 a s).2 := .refl
+    ((movedPast 2 a s).2 (.inr (runsP 2 a s).1)).to (runsP 2 a s).2 ≡ (runsN 2 a s).2 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The run of the countdown loop maps back to the run of the first loop. -/
 def pastBack (a s : Nat) :
-    ((movedPast 2 a s).2 (.inr (runsN 2 a s).1)).inv (runsN 2 a s).2 ≡ (runsP 2 a s).2 := .refl
+    ((movedPast 2 a s).2 (.inr (runsN 2 a s).1)).inv (runsN 2 a s).2 ≡ (runsP 2 a s).2 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip at the run of the countdown loop is the reflexivity. -/
 def pastRound (a s : Nat) :
-    ((movedPast 2 a s).2 (.inr (runsN 2 a s).1)).toInv (runsN 2 a s).2 ≡ .refl := .refl
+    ((movedPast 2 a s).2 (.inr (runsN 2 a s).1)).toInv (runsN 2 a s).2 ≡ .refl := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The round trip at the run of the first loop is the reflexivity. -/
 def pastRoundBack (a s : Nat) :
-    ((movedPast 2 a s).2 (.inr (runsP 2 a s).1)).invTo (runsP 2 a s).2 ≡ .refl := .refl
+    ((movedPast 2 a s).2 (.inr (runsP 2 a s).1)).invTo (runsP 2 a s).2 ≡ .refl := (Identity.refl : _)
 
 end Draft.Checks.Specification
 
@@ -722,7 +722,7 @@ runtime at the entrance plus 2, for an arbitrary value and an arbitrary runtime.
 goes through the invariant of each of the two iterations. -/
 def runtimeAtExit (a s : Nat) :
     ((holds a s).parts.2 (.inr (out ((s + 1) + (s + a)), s + 2)) (loopRun a s)).result ≡
-      (Identity.refl : s + 2 ≡ s + 2) := .refl
+      (Identity.refl : s + 2 ≡ s + 2) := (Identity.refl : _)
 
 end Draft.Checks.Specification.Invariant
 
@@ -795,7 +795,7 @@ def atExit (k a s : Nat) :
 set_option smartUnfolding false in
 def runtimeAtExit (k a s : Nat) :
     (Identity.transport (fun j => Fin (j + 1)) (atExit stop k a s)
-      ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := .refl
+      ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- From a smaller counter with the same specification: the counter 1 with three or more
@@ -808,7 +808,7 @@ def atExitOne (k a s : Nat) :
 set_option smartUnfolding false in
 def runtimeAtExitOne (k a s : Nat) :
     (Identity.transport (fun j => Fin (j + 1)) (atExitOne stop k a s)
-      ⟨s + 1, Nat.lt_succ_self _⟩).val ≡ s + 1 := .refl
+      ⟨s + 1, Nat.lt_succ_self _⟩).val ≡ s + 1 := (Identity.refl : _)
 
 /-! A loop in a loop, with a real bound. The inner loop counts the value down. At the value
 zero, the outer step tests the counter: at zero it exits, and at a successor it exits to the
@@ -935,7 +935,7 @@ set_option smartUnfolding false in
 runtime and an arbitrary computation at the limit. -/
 def twoLoopsRuntime (k s : Nat) :
     (Identity.transport (fun j => Fin (j + 1)) (twoLoopsAtExit stop k s)
-      ⟨s, Nat.lt_succ_self _⟩).val ≡ s := .refl
+      ⟨s, Nat.lt_succ_self _⟩).val ≡ s := (Identity.refl : _)
 
 end Draft.Checks.Specification.Bound
 
@@ -1066,7 +1066,7 @@ value and an arbitrary runtime. The run goes back along the map of the derivatio
 the first diagram, and through the invariant of each iteration. -/
 def movedRuntime (a s : Nat) :
     (movedVerified (inputs 2 a, s) ()).2 (.inr (out ((s + 1) + (s + a)), s + 2))
-      (movedRun a s) ≡ (Identity.refl : s + 2 ≡ s + 2) := .refl
+      (movedRun a s) ≡ (Identity.refl : s + 2 ≡ s + 2) := (Identity.refl : _)
 
 /-! The second chain: the evidence of the loop alone moves, gets the bound again, and is a
 part under the constructor of a composite. -/
@@ -1141,7 +1141,7 @@ set_option smartUnfolding false in
 witness. The moved evidence of the loop is a part of it. -/
 def partRuntime (a s : Nat) :
     ((partHolds 0 (inputs 2 a) s ()).parts.2 (.inr (out ((s + 1) + (s + a)), s + 2))
-      (partRun a s)).result ≡ (Identity.refl : s + 2 ≡ s + 2) := .refl
+      (partRun a s)).result ≡ (Identity.refl : s + 2 ≡ s + 2) := (Identity.refl : _)
 
 end Draft.Checks.Specification.Optimize
 
@@ -1231,13 +1231,13 @@ set_option smartUnfolding false in
 /-- From the counter 2, the countdown has `pred` before `emit` in each iteration. -/
 def countdownOps (k a s : Nat) :
     opsOf (countdownN.run stop (k + 3) (inputs 2 a) .pure) s ≡
-      [.isZero, .pred, .emit, .isZero, .pred, .emit, .isZero] := .refl
+      [.isZero, .pred, .emit, .isZero, .pred, .emit, .isZero] := (Identity.refl : _)
 
 set_option smartUnfolding false in
 /-- The second diagram has `emit` before `pred`: the two computations are different. -/
 def lateOps (k a s : Nat) :
     opsOf (countdownLate.run stop (k + 3) (inputs 2 a) .pure) s ≡
-      [.isZero, .emit, .pred, .isZero, .emit, .pred, .isZero] := .refl
+      [.isZero, .emit, .pred, .isZero, .emit, .pred, .isZero] := (Identity.refl : _)
 
 /-- Each pure operation of the lowering returns without a call. -/
 def returns : ImplDep (sig.pureSpec Value) (DepPoly.noCall.{0, 0, 0, 0} store) lower
@@ -1286,7 +1286,7 @@ set_option smartUnfolding false in
 arbitrary runtime, and an arbitrary computation at the limit. -/
 def boundedLateRuntime (k a s : Nat) :
     (Identity.transport (fun j => Fin (j + 1)) (boundedLateAtExit stop k a s)
-      ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := .refl
+      ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := (Identity.refl : _)
 
 end Draft.Checks.Specification.Interchange
 
@@ -1370,7 +1370,7 @@ diagram: the identity of the runtime at the exit, for an arbitrary value and an 
 runtime. The run goes back along the peel to a run of the loop. -/
 def peeledRuntime (a s : Nat) :
     ((peeledHolds 0 (inputs 2 a) s ()).parts.2 (.inr (out ((s + 1) + (s + a)), s + 2))
-      (peeledRun a s)).result ≡ (Identity.refl : s + 2 ≡ s + 2) := .refl
+      (peeledRun a s)).result ≡ (Identity.refl : s + 2 ≡ s + 2) := (Identity.refl : _)
 
 variable (stop : Free (sig.interface Value) (Exits.At [Out] Value))
 
@@ -1417,7 +1417,7 @@ set_option smartUnfolding false in
 computation at the limit. -/
 def boundedRuntime (k a s : Nat) :
     (Identity.transport (fun j => Fin (j + 1)) (boundedAtExit stop k a s)
-      ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := .refl
+      ⟨s + 2, Nat.lt_succ_self _⟩).val ≡ s + 2 := (Identity.refl : _)
 
 end Draft.Checks.Specification.Peel
 
