@@ -1,6 +1,9 @@
 import Prelude.Container.Free
 
-/-! Evidence that a computation satisfies a specification of its interface, and verified
+/-!
+# Verified computations and implementations
+
+Evidence that a computation satisfies a specification of its interface, and verified
 implementations. This is Aberlé's `FreeDep` with `>>=Dep`, `FreeDep⇒`, `∘Dep`, and `compDep`.
 The evidence has a witness of the precondition at each call. Its continuation receives the
 evidence of the postcondition of the response, for that witness. A run with a provider that
@@ -23,10 +26,14 @@ universe s p s' p' s'' p'' u v w z w' z' w'' z'' u' v' i
 namespace Prelude.Container
 
 /-- Evidence of `Q` at each value that a computation returns, with the specification `r` as
-the assumption on each call. -/
+the assumption on each call. Its constructors follow the constructors of the computation. The
+universe levels of the specification and of `Q` are independent. -/
 inductive FreeDep {C : Container.{s, p}} (r : DepPoly.{s, p, w, z} C) {α : Type u}
     (Q : α → Type v) : Free C α → Type (max s p u v w z) where
+  /-- The evidence at a returned value. -/
   | pure {value : α} (result : Q value) : FreeDep r Q (.pure value)
+  /-- A witness of the precondition of a call, and the evidence of the continuation at each
+  response, which receives the evidence of the postcondition for that witness. -/
   | request {shape : C.Shape} {next : C.Pos shape → Free C α} (pre : r.Pre shape)
       (verified : (i : C.Pos shape) → r.Post shape pre i → FreeDep r Q (next i)) :
       FreeDep r Q (.request shape next)
@@ -194,7 +201,8 @@ def ImplDep {C : Container.{s, p}} {D : Container.{s', p'}} (r : DepPoly.{s, p, 
     (t : DepPoly.{s', p', w', z'} D) (f : Impl C D) : Type (max s p s' p' w z w' z') :=
   (a : C.Shape) → (pre : r.Pre a) → FreeDep t (r.Post a pre) (f a)
 
-/-- A specification map verifies the identity implementation, which makes one call. -/
+/-- A specification map verifies the identity implementation, which makes one call. The call
+has the mapped witness, and the response has the evidence that the map takes back. -/
 def DepPoly.Map.toImplDep {C : Container.{s, p}} {P : DepPoly.{s, p, w, z} C}
     {Q : DepPoly.{s, p, w', z'} C} (f : P.Map Q) : ImplDep P Q (Impl.id C) :=
   fun a pre => .request (f a pre).1 fun o post => .pure ((f a pre).2 o post)
@@ -259,7 +267,9 @@ end ImplDep
 /-- A morphism of specifications pairs the implementation with the lift over that implementation. -/
 structure VerifiedImpl {C : Container.{s, p}} {D : Container.{s', p'}}
     (r : DepPoly.{s, p, w, z} C) (t : DepPoly.{s', p', w', z'} D) where
+  /-- The implementation. -/
   impl : Impl C D
+  /-- The lift of the implementation. -/
   verification : ImplDep r t impl
 
 /-- Composition substitutes the second implementation and its evidence into the first. -/

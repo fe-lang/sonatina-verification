@@ -1,6 +1,17 @@
 import Prelude.Identity
 
-/-! Type-valued relations: execution paths, accessibility, computations, and loops. -/
+/-!
+# Relations in `Type`
+
+Type-valued relations: execution paths, accessibility, computations, and loops.
+
+`Steps R a b` is a path of steps of a relation. `Accessible R x` is accessibility with its
+evidence in `Type`. `Rel A B` is a computation from `A` to `B`: an element of `F a b` is a run
+from the input `a` with the result `b`. `Loop F` is the loop of a body `F : Rel A (B ⊕ A)`: the
+family of its finite runs. The loop has its initial property, the agreement with paths, the
+fixpoint law, the unrolling, and the maps of strength, naturality, uniformity, and the
+codiagonal. The loop of a function body has its domain evidence and its function with fuel.
+-/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -9,27 +20,35 @@ universe u v w z r r'
 
 namespace Prelude
 
-/-- Reflexive transitive closure retaining every step witness. -/
+/-- Reflexive transitive closure retaining every step witness. Two paths with the same ends can
+have different lengths and different steps. -/
 inductive Steps {α : Type u} (R : α → α → Type v) : α → α → Type (max u v) where
+  /-- The path with no step. -/
   | refl {a : α} : Steps R a a
+  /-- One step, and then a path. -/
   | cons {a b c : α} : R a b → Steps R b c → Steps R a c
 
 namespace Steps
 
 variable {α : Type u} {R : α → α → Type v} {a b c d : α}
 
+/-- The path of one step. -/
 def single (step : R a b) : Steps R a b := .cons step .refl
 
+/-- Composition in traversal order: first `p`, then `q`. -/
 def append {a b c : α} (p : Steps R a b) (q : Steps R b c) : Steps R a c :=
   match p with
   | .refl => q
   | .cons step rest => .cons step (rest.append q)
 
+/-- The number of steps. -/
 def length {a b : α} (p : Steps R a b) : Nat :=
   match p with
   | .refl => 0
   | .cons _ rest => rest.length + 1
 
+/-- The path of the images of the steps, for a function of the elements and a map of the
+steps. -/
 def map {β : Type w} {S : β → β → Type z} {a b : α} (f : α → β)
     (onStep : {x y : α} → R x y → S (f x) (f y)) (p : Steps R a b) :
     Steps S (f a) (f b) :=
@@ -80,6 +99,7 @@ def fold {P : α → Sort w}
 
 end Accessible
 
+/-- A relation is well-founded when each element is accessible. -/
 abbrev TypeWellFounded {α : Type u} (R : α → α → Type v) :=
   (x : α) → Accessible R x
 
@@ -177,7 +197,9 @@ result, or it continues to a next input and the rest runs from that input. A run
 inputs, a result, and runs of the body, so its level is the maximum of the three levels. -/
 inductive Loop {A : Type u} {B : Type v} (F : Rel.{u, max v u, r} A (B ⊕ A)) :
     A → B → Type (max u v r) where
+  /-- An exit run of the body. -/
   | exit {a : A} {b : B} : F a (.inl b) → Loop F a b
+  /-- A continue run of the body, and the run from the next input. -/
   | next {a a' : A} {b : B} : F a (.inr a') → Loop F a' b → Loop F a b
 
 namespace Loop
@@ -361,6 +383,8 @@ def unrolling (F : Rel A (B ⊕ A)) : Rel.Agreement (Loop F) (Loop F.twice) := f
 
 /-! #### Strength -/
 
+/-- A run of the loop of a body beside a context is a run of the loop of the body, with the
+identity of the context at the input and at the result. -/
 def strengthTo {F : Rel A (B ⊕ A)} :
     {x : C × A} → {y : C × B} → Loop (Rel.withContext F) x y → (x.1 ≡ y.1) × Loop F x.2 y.2
   | x, y, .exit p =>
@@ -370,6 +394,7 @@ def strengthTo {F : Rel A (B ⊕ A)} :
     let q : (x.1 ≡ x'.1) × F x.2 (.inr x'.2) := p
     ⟨q.1.trans (strengthTo r).1, .next q.2 (strengthTo r).2⟩
 
+/-- A run of the loop of a body is a run of the loop of the body beside each context. -/
 def strengthFrom {F : Rel A (B ⊕ A)} (c : C) :
     {a : A} → {b : B} → Loop F a b → Loop (Rel.withContext F) (c, a) (c, b)
   | a, b, .exit p =>
@@ -407,6 +432,7 @@ def naturalTo {F : Rel A (B ⊕ A)} {K : Rel B C} :
   | _, _, .exit p => naturalExit p.1 p.2.1 p.2.2
   | _, _, .next p r => naturalNext (naturalTo r) p.1 p.2.1 p.2.2
 
+/-- A run of the loop of `F` and then a run of `K` is a run of the loop of `F ; (K + id)`. -/
 def naturalFrom {F : Rel A (B ⊕ A)} {K : Rel B C} {c : C} :
     {a : A} → {b : B} → Loop F a b → K b c → Loop (Rel.seq F (Rel.onExit K)) a c
   | _, b, .exit p, k => .exit ⟨.inl b, p, ⟨k⟩⟩
@@ -434,6 +460,9 @@ def uniformNext (h : C → A) {G : Rel C (B ⊕ C)} {z : C} {b : B} {a' : A}
   | .inl _, _, e => (Identity.inlNotInr e).elim
   | .inr z', g, e => .next g (rest z' (Identity.inrInject e).symm)
 
+/-- The converse map. Each run of the body `F` from `h z` has a run of the body `G` from `z`
+whose case goes to its case under `h`. Then each run of the loop of `F` from `h z` is a run of
+the loop of `G` from `z`. -/
 def uniformFrom (h : C → A) {F : Rel A (B ⊕ A)} {G : Rel C (B ⊕ C)}
     (backward : (z : C) → (t : B ⊕ A) → F (h z) t →
       (s : B ⊕ C) × (G z s × (Sum.map id h s ≡ t))) :
@@ -484,6 +513,7 @@ def codiagonalInner {G : Rel A ((B ⊕ A) ⊕ A)} {b : B} :
     .next ⟨.inr a'', g, (Identity.refl : (Sum.inr a'' : B ⊕ A) ≡ .inr a'')⟩
       (codiagonalInner s p k)
 
+/-- A run of the loop of the inner loop is a run of the loop of the merged body. -/
 def codiagonalFrom {G : Rel A ((B ⊕ A) ⊕ A)} :
     {a : A} → {b : B} → Loop (Loop G) a b → Loop (Rel.merged G) a b
   | _, b, .exit p => codiagonalInner (.inl b) p ⟨(Identity.refl : b ≡ b)⟩
@@ -503,6 +533,7 @@ def eval {f : A → B ⊕ A} : {a : A} → Domain f a → B
   | _, .exit (b := b) _ => b
   | _, .next _ d => d.eval
 
+/-- The run of the loop that the domain evidence gives, with the result `d.eval`. -/
 def run {f : A → B ⊕ A} : {a : A} → (d : Domain f a) → Loop (Rel.graph f) a d.eval
   | _, .exit p => .exit p
   | _, .next p d => .next p d.run
@@ -556,6 +587,7 @@ def domain {f : A → B ⊕ A} : {a : A} → {b : B} → Loop (Rel.graph f) a b 
   | _, _, .exit p => .exit p
   | _, _, .next p r => .next p r.domain
 
+/-- The result from the domain evidence of a run is the result of the run. -/
 def domainEval {f : A → B ⊕ A} :
     {a : A} → {b : B} → (r : Loop (Rel.graph f) a b) → r.domain.eval ≡ b
   | _, _, .exit _ => .refl

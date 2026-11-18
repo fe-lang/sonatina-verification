@@ -1,6 +1,9 @@
 import Prelude.Decision
 
-/-! Adapters from Lean's Prop-valued equality to Type-valued identity.
+/-!
+# Adapters from Lean's equality
+
+Adapters from Lean's Prop-valued equality to Type-valued identity.
 `import Prelude` does not include this module. An identity built by `ofEq`
 carries a proof that the kernel does not inspect: it reduces only when its
 endpoints are definitionally equal. Its use is at boundaries with libraries
@@ -23,9 +26,11 @@ def ofEq (p : a = b) : a ≡ b :=
   match p with
   | rfl => .refl
 
+/-- The round trip from an identity through Lean's equality. -/
 def ofEqToEq (p : a ≡ b) : ofEq p.toEq ≡ p :=
   ind (fun _ p => ofEq p.toEq ≡ p) .refl p
 
+/-- The round trip from a Lean equality through an identity. -/
 @[simp] theorem toEq_ofEq (p : a = b) : (ofEq p).toEq = p := rfl
 
 theorem nonempty_iff : Nonempty (a ≡ b) ↔ a = b :=
@@ -44,9 +49,11 @@ abbrev ofDecidableEq {α : Type u} [DecidableEq α] : DecEq α where
   decEq a b := if h : a = b then .yes (Identity.ofEq h)
     else .no (fun p => (h p.toEq).elim)
 
+/-- An existing `DecidableEq α` supplies a `DecEq α` instance at low priority. -/
 instance (priority := low) {α : Type u} [DecidableEq α] : DecEq α := ofDecidableEq
 
-/-- Install locally with `letI := DecEq.toDecidableEq (α := α)`. -/
+/-- Lean's decidable equality from a `DecEq` instance. Install it locally with
+`letI := DecEq.toDecidableEq (α := α)`. -/
 def toDecidableEq {α : Type u} [DecEq α] : DecidableEq α := fun a b =>
   match decEq a b with
   | .yes p => isTrue p.toEq

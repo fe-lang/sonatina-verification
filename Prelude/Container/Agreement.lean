@@ -1,6 +1,9 @@
 import Prelude.Container.Core
 
-/-! Identity of container extensions from shape and position identities.
+/-!
+# Agreement of extensions and of morphisms
+
+Identity of container extensions from shape and position identities.
 
 Agreement of two elements of an extension has an identity of the shapes and an identity of the
 values at each position. A shape of a composite has a function, so agreement at a composite
@@ -21,9 +24,13 @@ namespace Ext
 
 variable (C : Container.{s, p})
 
-/-- Agreement of the shape and every value, retaining the position transport. -/
+/-- Agreement of the shape and every value, retaining the position transport. Agreement is
+reflexive, symmetric, and transitive (`refl`, `symm`, `trans`), and a map of the values keeps it
+(`map`). -/
 structure Agreement (x y : C.Ext α) where
+  /-- The identity of the two shapes. -/
   shape : x.1 ≡ y.1
+  /-- The identity of the two values at each position, across the transport of the position. -/
   values : (i : C.Pos x.1) → x.2 i ≡ y.2 (Identity.transport C.Pos shape i)
 
 namespace Agreement
@@ -54,10 +61,13 @@ def trans {x y z : C.Ext α} (first : Agreement C x y) (second : Agreement C y z
     (fun _ _ _ h _ second => ⟨second.shape, fun i => (h i).trans (second.values i)⟩)
     first z second
 
+/-- A function of the values keeps the agreement. -/
 def map {β : Type v} {x y : C.Ext α} (same : Agreement C x y) (f : α → β) :
     Agreement C (C.map f x) (C.map f y) :=
   ⟨same.shape, fun i => Identity.cong f (same.values i)⟩
 
+/-- Two functions that are identical at each value give maps that agree, at two elements that
+agree. -/
 def mapCongr {β : Type v} {x y : C.Ext α} {f g : α → β}
     (same : Agreement C x y) (h : Homotopy f g) :
     Agreement C (C.map f x) (C.map g y) :=
@@ -74,7 +84,8 @@ end Agreement
 
 /-- Agreement of two elements of the extension of a composite, at the two layers: the outer
 shapes are identical, the inner shapes are identical at each position of the outer shape, and
-the values are identical. -/
+the values are identical. It needs no identity of two functions. The relation is reflexive and
+transitive (`refl`, `trans`). -/
 structure CompAgreement {D : Container.{s, p}} {E : Container.{s', p'}}
     (x y : (D.comp E).Ext α) where
   outer : x.1.1 ≡ y.1.1
@@ -137,7 +148,9 @@ namespace Hom
 def component (f : Hom C D) (a : C.Shape) : D.Ext (C.Pos a) :=
   ⟨f.shape a, f.position a⟩
 
-/-- Agreement compares each routing decision using the existing extension relation. -/
+/-- Agreement compares each routing decision using the existing extension relation: the shape
+and the backward position map of the two morphisms agree at each source shape, in
+`Ext.Agreement`. -/
 def Agreement (f g : Hom C D) :=
   (a : C.Shape) → Ext.Agreement D (f.component a) (g.component a)
 
@@ -162,6 +175,7 @@ def apply {f g : Hom C D} {x y : C.Ext α} (h : Agreement f g)
 
 end Agreement
 
+/-- Composition respects agreement of the two morphisms. -/
 def transCongr {E : Container.{s'', p''}} {f f' : Hom C D} {g g' : Hom D E}
     (h : Agreement f f') (k : Agreement g g') : Agreement (f.trans g) (f'.trans g') :=
   fun a => k.apply (h a)
@@ -196,7 +210,8 @@ def Ext.CompAgreement.comp {E : Container.{s, p}} {C' : Container.{s'', p''}}
             (g.positionTransport (inner (f.position d i)) j))⟩)
     h
 
-/-- The second round trip of the product holds at each position. -/
+/-- The second round trip of the product holds at each position: it is an agreement, with an
+identity at each left position and at each right position. -/
 def productInOut (x : (C.product D).Ext α) : Ext.Agreement _ (productIn (productOut x)) x :=
   ⟨.refl, fun i => match i with
     | .inl _ => .refl

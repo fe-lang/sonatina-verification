@@ -1,7 +1,8 @@
 import Prelude.Container.Verified
 import Prelude.Container.Comonoid
 
-/-! Interfaces with a runtime, and machines.
+/-!
+# Interfaces with a runtime, and machines
 
 The interface with a runtime has a runtime in each call. A response has the next runtime, or
 the call stops with a value. A machine is a closed provider of that interface: Aberlé's
@@ -25,7 +26,9 @@ of computations. It has the agreement after the substitution of an implementatio
 machine of that implementation.
 
 A specification of the interface with a runtime relates the runtime before a call to the
-response and the runtime after it. Evidence of such a specification for a machine, and a
+response and the runtime after it. The graph of a machine is such a specification, and
+`ImplDep.graph f.thread m` is the lift of `f.thread` between the graph of `m.impl f` and the
+graph of `m`. Evidence of such a specification for a machine, and a
 verified implementation, give evidence for the machine of the implementation
 (`prop:prog-mealy-dep`): this is the run of a verified implementation with a provider that has
 evidence. The evidence of a bind and of a substitution moves along the two laws.
@@ -56,7 +59,8 @@ universe s p s' p' s'' p'' u v r e w z w' z' v' v''
 namespace Prelude.Container
 
 /-- The interface with a runtime. A call has a runtime. Its response has the next runtime, or
-the call stops with a value of `E`. -/
+the call stops with a value of `E`. The runtime, the stop, the shapes, and the positions have
+independent universe levels. -/
 def runtime (C : Container.{s, p}) (R : Type r) (E : Type e) : Container.{max s r, max p r e} where
   Shape := C.Shape × R
   Pos a := E ⊕ (C.Pos a.1 × R)

@@ -1,9 +1,18 @@
 import Prelude.Container.Agreement
 
-/-! Closed providers, specifications, and dependent evidence for container interfaces.
+/-!
+# Closed providers, specifications, and evidence
+
+Closed providers, specifications, and dependent evidence for container interfaces.
 `DepPoly` is Aberlé's `def:deppoly`, and `Evidence` is the one-call case of `⇒Dep`:
 verification retains the supplied precondition witness and depends on the actual
 response. Reindexing consumes identities of responses, not of whole functions.
+
+A closed provider `Section C` gives a response at each shape. A specification `DepPoly C` has
+a precondition on each shape, and a postcondition on each response that depends on the witness
+of the precondition. `DepPoly.Map` is a map of two specifications of one interface, and
+`DepPoly.Cartesian` is a map with an isomorphism at each response. `Evidence r provider` is
+the evidence that a closed provider satisfies a specification.
 -/
 
 set_option autoImplicit false
@@ -13,12 +22,14 @@ universe s p s' p' s'' p'' u v w z w' z' w'' z''
 
 namespace Prelude.Container
 
+/-- A closed provider of an interface: a response at each shape. -/
 def Section (C : Container.{s, p}) := (a : C.Shape) → C.Pos a
 
 namespace Ext
 
 variable {C : Container.{s, p}} {α : Type u}
 
+/-- The value of an element of an extension at the response of a closed provider. -/
 def run (x : C.Ext α) (provider : Section C) : α := x.2 (provider x.1)
 
 def Agreement.run {x y : C.Ext α} {f g : Section C}
@@ -32,6 +43,8 @@ namespace Hom
 
 variable {C : Container.{s, p}} {D : Container.{s', p'}}
 
+/-- The interpretation of a morphism: the closed provider of its source, from a closed provider
+of its target. -/
 def run (f : Hom C D) (provider : Section D) : Section C :=
   fun a => (f.component a).run provider
 
@@ -53,7 +66,9 @@ variable {C : Container.{s, p}}
 /-- A specification of an interface: a precondition on each shape, and a postcondition on each
 response that depends on the witness of the precondition. -/
 structure DepPoly (C : Container.{s, p}) where
+  /-- The precondition on each shape. -/
   Pre : C.Shape → Type w
+  /-- The postcondition on each response, over a witness of the precondition. -/
   Post : (a : C.Shape) → Pre a → C.Pos a → Type z
 
 namespace DepPoly
@@ -62,25 +77,32 @@ variable {P : DepPoly.{s, p, w, z} C} {Q : DepPoly.{s, p, w', z'} C}
   {T : DepPoly.{s, p, w'', z''} C}
 
 /-- A map over one interface takes an admission forward and evidence for each response
-back to the postcondition of the supplied admission. -/
+back to the postcondition of the supplied admission. It sends a witness of `P.Pre a` to a
+witness of `Q.Pre a`. At each response, it takes evidence of `Q.Post` over the new witness back
+to evidence of `P.Post` over the first witness. -/
 abbrev Map (P : DepPoly.{s, p, w, z} C) (Q : DepPoly.{s, p, w', z'} C) :=
   (a : C.Shape) → (pre : P.Pre a) →
     (q : Q.Pre a) × ((o : C.Pos a) → Q.Post a q o → P.Post a pre o)
 
+/-- The identity map of a specification. -/
 def Map.id (P : DepPoly.{s, p, w, z} C) : Map P P :=
   fun _ pre => ⟨pre, fun _ post => post⟩
 
+/-- Composition in traversal order: first `f`, then `g`. -/
 def Map.trans (f : Map P Q) (g : Map Q T) : Map P T :=
   fun a pre =>
     let ⟨q, back⟩ := f a pre
     let ⟨t, back'⟩ := g a q
     ⟨t, fun o post => back o (back' o post)⟩
 
-/-- A cartesian map identifies the two fibres of response evidence at the mapped admission. -/
+/-- A cartesian map identifies the two fibres of response evidence at the mapped admission: it
+has an isomorphism of the two types of response evidence at each response. -/
 abbrev Cartesian (P : DepPoly.{s, p, w, z} C) (Q : DepPoly.{s, p, w', z'} C) :=
   (a : C.Shape) → (pre : P.Pre a) →
     (q : Q.Pre a) × ((o : C.Pos a) → Iso (Q.Post a q o) (P.Post a pre o))
 
+/-- The map of a cartesian map. Its backward response map is the direction of each isomorphism
+from `Q.Post` to `P.Post`. -/
 def Cartesian.toMap (f : Cartesian P Q) : Map P Q :=
   fun a pre => ⟨(f a pre).1, fun o => ((f a pre).2 o).to⟩
 
@@ -133,22 +155,28 @@ namespace Evidence
 
 variable {r : DepPoly.{s, p, w, z} C} {f g h : Section C}
 
+/-- Evidence moves along an identity of two providers at each shape. The transport moves the
+evidence of the response, and it keeps the shape and the witness of the precondition. -/
 def reindex (same : Homotopy f g) (e : Evidence r f) : Evidence r g :=
   fun a pre => Identity.transport (r.Post a pre) (same a) (e a pre)
 
+/-- The move along the reflexivity is the identity, by computation. -/
 def reindexRefl (e : Evidence r f) (a : C.Shape) (pre : r.Pre a) :
     reindex (Homotopy.refl f) e a pre ≡ e a pre := .refl
 
+/-- The move along a composite is the two moves in sequence. -/
 def reindexTrans (same : Homotopy f g) (next : Homotopy g h)
     (e : Evidence r f) (a : C.Shape) (pre : r.Pre a) :
     reindex (same.trans next) e a pre ≡ reindex next (reindex same e) a pre :=
   Identity.transportTrans (r.Post a pre) (same a) (next a) (e a pre)
 
+/-- The move along an identity and then along its inverse is the identity. -/
 def reindexSymm (same : Homotopy f g) (e : Evidence r f)
     (a : C.Shape) (pre : r.Pre a) :
     reindex same.symm (reindex same e) a pre ≡ e a pre :=
   Identity.transportSymm (r.Post a pre) (same a) (e a pre)
 
+/-- The move respects an identity of the evidence at each shape and witness. -/
 def reindexCongr (same : Homotopy f g) {e e' : Evidence r f}
     (k : (a : C.Shape) → (pre : r.Pre a) → e a pre ≡ e' a pre)
     (a : C.Shape) (pre : r.Pre a) : reindex same e a pre ≡ reindex same e' a pre :=

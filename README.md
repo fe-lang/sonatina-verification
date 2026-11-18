@@ -43,7 +43,8 @@ It features a Type-valued identity, decisions, indexed data, Type-valued
 relations and loops, containers as polynomial interfaces, computations and
 implementations on an interface, and specifications with verified
 implementations. Its declarations depend on no axiom, and its evidence
-computes. See the [API reference](docs/API.md).
+computes. See the [overview of the library](docs/API.md). The documentation
+comments in the source describe each declaration.
 
 | Library         | Role                                                                                                  | Axiom dependencies |
 | --------------- | ----------------------------------------------------------------------------------------------------- | ------------------ |

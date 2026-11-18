@@ -1,6 +1,29 @@
 import Prelude.Container.Core
 
-/-! Indexed containers with typed positions and type-preserving morphisms. -/
+/-!
+# Indexed containers
+
+Indexed containers with typed positions and type-preserving morphisms.
+
+`IndexedContainer I O` has a type of shapes at each output index, the positions of each shape,
+and an input index at each position. Its extension at a family `X` on the input indices is
+`C.Ext X o = (s : C.Shape o) × ((p : C.Pos s) → X (C.index s p))`. The input index of a position
+gives the type of the value at that position:
+
+```lean
+def resolve {Ty : Type} {Γ : List Ty} {V : Ty → Type}
+    (C : IndexedContainer Ty Ty) (env : All V Γ) {o : Ty}
+    (node : C.Ext (fun t => Elem t Γ) o) : C.Ext V o :=
+  C.map (fun _ ref => env.lookup ref) node
+```
+
+A morphism `Hom C D` also has a witness in `Type` that it preserves each input index, and its
+action transports each value along that witness. `Hom.Agreement` relates the shapes and the
+positions of two morphisms, and it has an identity of their composed index witnesses. The unit
+and associativity laws of composition are such agreements. For `C : IndexedContainer J O` and
+`D : IndexedContainer I J`, `C.comp D : IndexedContainer I O` has conversions between its
+extension and `C.Ext (D.Ext X)`.
+-/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -27,6 +50,7 @@ def Ext (C : IndexedContainer.{i, o, s, p} I O) (X : I → Type u) (o : O) :
 variable (C : IndexedContainer.{i, o, s, p} I O)
 variable {X : I → Type u} {Y : I → Type v} {Z : I → Type w} {o : O}
 
+/-- Relabel the positions by a function at each input index, with the same shape. -/
 def map (f : (i : I) → X i → Y i) (x : C.Ext X o) : C.Ext Y o :=
   ⟨x.1, fun p => f (C.index x.1 p) (x.2 p)⟩
 
@@ -51,6 +75,9 @@ def indexAlong {a b : C.Shape o} (shape : a ≡ b) (p : C.Pos a) :
       C.index a p ≡ C.index b (Identity.transport (fun s : C.Shape o => C.Pos s) shape p))
     .refl shape
 
+/-- Agreement of two elements of an extension: an identity of the shapes, and an identity of
+the values at each position, after the transport of the value along the identity of the two
+input indices. -/
 structure Agreement (x y : C.Ext X o) where
   shape : x.1 ≡ y.1
   values : (p : C.Pos x.1) →
@@ -173,20 +200,25 @@ def Agreement.apply {f g : Hom C D} (same : Agreement f g) (x : C.Ext X o) :
       (g.index x.1 q) (x.2 (f.position x.1 p))).trans
     (Identity.cong (Identity.transport X (g.index x.1 q)) (valueAlong x (same.position x.1 p)))))
 
+/-- The action of a morphism commutes with a map of the values, as an agreement of the typed
+values. -/
 def natural (f : Hom C D) (g : (i : I) → X i → Y i) (x : C.Ext X o) :
     Ext.Agreement D (f.apply (C.map g x)) (D.map g (f.apply x)) :=
   ⟨.refl, fun p => Identity.transportMap g (f.index x.1 p) (x.2 (f.position x.1 p))⟩
 
+/-- The identity morphism is a left unit of composition, as an agreement. -/
 def idTrans (f : Hom C D) : Agreement ((id C).trans f) f where
   shape _ _ := .refl
   position _ _ := .refl
   index s p := Identity.transRefl (f.index s p)
 
+/-- The identity morphism is a right unit of composition, as an agreement. -/
 def transId (f : Hom C D) : Agreement (f.trans (id D)) f where
   shape _ _ := .refl
   position _ _ := .refl
   index s p := (Identity.transRefl ((f.index s p).trans .refl)).trans (Identity.transRefl (f.index s p))
 
+/-- Composition of morphisms is associative, as an agreement. -/
 def transAssoc {F : IndexedContainer I O} (f : Hom C D) (g : Hom D E)
     (h : Hom E F) : Agreement ((f.trans g).trans h) (f.trans (g.trans h)) where
   shape _ _ := .refl
@@ -196,8 +228,10 @@ def transAssoc {F : IndexedContainer I O} (f : Hom C D) (g : Hom D E)
     (g.index (f.shape _ s) (h.position (g.shape _ (f.shape _ s)) p))
     (h.index (g.shape _ (f.shape _ s)) p))
 
+/-- The action of the identity morphism is the identity. -/
 def applyId (x : C.Ext X o) : (id C).apply x ≡ x := .refl
 
+/-- The action of a composite agrees with the composite of the actions. -/
 def applyTrans (f : Hom C D) (g : Hom D E) (x : C.Ext X o) :
     Ext.Agreement E ((f.trans g).apply x) (g.apply (f.apply x)) :=
   ⟨.refl, fun p => Identity.transportTrans X
@@ -230,16 +264,21 @@ def comp (C : IndexedContainer.{j, o, s, p} J O)
 variable {C : IndexedContainer.{j, o, s, p} J O}
 variable {D : IndexedContainer.{i, j, s', p'} I J}
 
+/-- Flatten two layers into the composite container. -/
 def flatten (x : C.Ext (D.Ext X) o) : (C.comp D).Ext X o :=
   ⟨⟨x.1, fun p => (x.2 p).1⟩, fun p => (x.2 p.1).2 p.2⟩
 
+/-- Recover the two layers of a composite extension. -/
 def unflatten (x : (C.comp D).Ext X o) : C.Ext (D.Ext X) o :=
   ⟨x.1.1, fun p => ⟨x.1.2 p, fun q => x.2 ⟨p, q⟩⟩⟩
 
+/-- The round trip from the two layers is the identity, by computation. -/
 def unflattenFlatten (x : C.Ext (D.Ext X) o) : unflatten (flatten x) ≡ x := .refl
 
+/-- The round trip from the composite is the identity, by computation. -/
 def flattenUnflatten (x : (C.comp D).Ext X o) : flatten (unflatten x) ≡ x := .refl
 
+/-- A map of the values of a composite is the map through the two layers. -/
 def flattenMap (f : (i : I) → X i → Y i) (x : C.Ext (D.Ext X) o) :
     flatten (C.map (fun _ => D.map f) x) ≡ (C.comp D).map f (flatten x) := .refl
 

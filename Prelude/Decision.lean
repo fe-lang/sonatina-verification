@@ -1,6 +1,11 @@
 import Prelude.Identity
 
-/-! Decisions carrying Type-valued evidence. -/
+/-!
+# Decisions with evidence in `Type`
+
+`Dec α` is a decision of a type: a witness, or a refutation. `DecEq α` is the class of the types
+with a decision of the identity of each two elements, and `decideEq` is its function.
+-/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -9,16 +14,21 @@ universe u v
 
 namespace Prelude
 
+/-- A refutation of a type: a function to `Empty`. -/
 abbrev Refute (α : Type u) := α → Empty
 
+/-- A decision of a type: a witness, or a refutation. -/
 inductive Dec (α : Type u) : Type u where
+  /-- The type has a witness. -/
   | yes : α → Dec α
+  /-- The type has a refutation. -/
   | no : Refute α → Dec α
 
 namespace Dec
 
 variable {α : Type u} {β : Type v}
 
+/-- `true` when the decision has a witness. -/
 def isYes : Dec α → Bool
   | .yes _ => true
   | .no _ => false
@@ -28,12 +38,14 @@ def map (f : α → β) (g : β → α) : Dec α → Dec β
   | .yes a => .yes (f a)
   | .no refute => .no (fun b => refute (g b))
 
+/-- The decision of a product, from the decisions of its two parts. -/
 def product (a : Dec α) (b : Dec β) : Dec (α × β) :=
   match a, b with
   | .yes x, .yes y => .yes (x, y)
   | .no refute, _ => .no (fun p => refute p.1)
   | _, .no refute => .no (fun p => refute p.2)
 
+/-- The decision of a sum, from the decisions of its two parts. -/
 def sum (a : Dec α) (b : Dec β) : Dec (Sum α β) :=
   match a, b with
   | .yes x, _ => .yes (.inl x)
@@ -42,18 +54,22 @@ def sum (a : Dec α) (b : Dec β) : Dec (Sum α β) :=
       | .inl x => na x
       | .inr y => nb y)
 
+/-- The decision of the refutations of a type. -/
 def negate : Dec α → Dec (Refute α)
   | .yes a => .no (fun refute => refute a)
   | .no refute => .yes refute
 
-/-- Decide inhabitation without extracting data from a Prop-valued existential. -/
+/-- Lean's decision of `Nonempty α`. It extracts no witness from a Prop-valued proof of
+existence. -/
 def toDecidable : Dec α → Decidable (Nonempty α)
   | .yes a => isTrue ⟨a⟩
   | .no refute => isFalse (fun ⟨a⟩ => (refute a).elim)
 
+/-- The decision of the lift of a decidable proposition. -/
 def ofDecidable (p : Prop) [Decidable p] : Dec (PLift p) :=
   if h : p then .yes ⟨h⟩ else .no (fun x => (h x.down).elim)
 
+/-- Lean's decision of a proposition, from a decision of its lift. -/
 def toPropDecidable {p : Prop} : Dec (PLift p) → Decidable p
   | .yes x => isTrue x.down
   | .no refute => isFalse (fun h => (refute ⟨h⟩).elim)
@@ -113,11 +129,14 @@ end Dec
 class DecEq (α : Type u) where
   decEq : (a b : α) → Dec (a ≡ b)
 
+/-- The decision of the identity of two elements of a type with a `DecEq` instance. -/
 def decideEq {α : Type u} [DecEq α] (a b : α) : Dec (a ≡ b) := DecEq.decEq a b
 
 /-! Instances by structural recursion. Each refutation transports an inhabitant
 of `Unit` into `Empty` along the offered identity. The `Nat` instance is unary:
-its cost is linear in the smaller argument. -/
+its cost is linear in the smaller argument. The witnesses of the instances for
+`Unit`, `Bool`, `Nat`, `Fin n`, `Option`, `Sum`, `Prod`, and `List` reduce in the
+kernel. -/
 
 namespace DecEq
 

@@ -1,12 +1,24 @@
 import Prelude.Container.Section
 
-/-! Computations that call a container interface, and implementations of one interface by
+/-!
+# Computations and implementations
+
+Computations that call a container interface, and implementations of one interface by
 calls to another. This is Aberlé's `Free` and `def:implementation`. A computation has
 functions as continuations, so its laws are structural agreements. A congruence is a relation
 of computations that has agreement and that each call keeps. Agreement is a congruence. A
 congruence of the target of an implementation gives a congruence of the source: the relation of
 two computations after the substitution. Agreement after the substitution is the case of
 agreement.
+
+`Free C α` is a computation with `bind`, and `Free.run` interprets its calls by a closed
+provider. `Impl C D` is an implementation of `C` by calls to `D`. `Free.subst` replaces each
+call with its implementation, `Impl.trans` is composition, and `Impl.run` gives a closed
+provider of `C` from a closed provider of `D`. The laws are the monad laws of `bind`, the laws
+of substitution and of composition, and the interpretation of each as an identity of returned
+values.
+
+## Implementation notes
 
 The functions on an agreement use `casesOn` with an explicit motive. A generated matcher on
 this family eliminates `Prop` equalities of the two computations, and the elaborator then
@@ -21,9 +33,12 @@ universe s p s' p' s'' p'' s''' p''' u v w z
 namespace Prelude.Container
 
 /-- A computation that returns an `α` after a well-founded sequence of calls to `C`. Each call
-selects a shape and continues with the response at a position of that shape. -/
+selects a shape and continues with the response at a position of that shape. The shapes, the
+positions, and the values have independent universe levels. -/
 inductive Free (C : Container.{s, p}) (α : Type u) : Type (max s p u) where
+  /-- Return a value. -/
   | pure (value : α) : Free C α
+  /-- Call a shape, and continue at each response. -/
   | request (shape : C.Shape) (next : C.Pos shape → Free C α) : Free C α
 
 namespace Free
@@ -39,6 +54,7 @@ def bind : Free C α → (α → Free C β) → Free C β
   | .pure a, f => f a
   | .request a k, f => .request a (fun i => (k i).bind f)
 
+/-- Relabel the returned value. -/
 def map (f : α → β) (x : Free C α) : Free C β := x.bind (fun a => .pure (f a))
 
 /-- Interpret each call by a closed provider. -/
@@ -47,7 +63,8 @@ def run (provider : Section C) : Free C α → α
   | .request a k => run provider (k (provider a))
 
 /-- Equal returned values, and the same call with agreement of the continuations at each
-response. -/
+response. A computation has functions as continuations, so agreement is the relation of the
+laws of computations. It is reflexive, symmetric, and transitive (`refl`, `symm`, `trans`). -/
 inductive Agreement : Free C α → Free C α → Type (max s p u) where
   | pure {a b : α} (value : a ≡ b) : Agreement (.pure a) (.pure b)
   | request (shape : C.Shape) {k k' : C.Pos shape → Free C α}
@@ -78,11 +95,15 @@ def Before : Free C α → Free C α → Type (max s p u)
       ((i : C.Pos shape) → (w : Free C α) → Agreement (k' i) w → Agreement (k i) w) →
       Agreement (.request shape k) z
 
+/-- An agreement of `y` with `z` gives an agreement with `z` for each computation that agrees
+with `y` in one step. -/
 def before {y z : Free C α} (h : Agreement y z) : Before y z :=
   Agreement.casesOn (motive := fun y z _ => Before y z) h
     (fun {_ _} e' _ e => .pure (e.trans e'))
     (fun shape {_ k''} next' _ step => .request shape (fun i => step i (k'' i) (next' i)))
 
+/-- Transitivity. It eliminates the first agreement, and `before` of the second agreement
+takes the first computation. -/
 def trans {x y z : Free C α} (h : Agreement x y) (second : Agreement y z) : Agreement x z :=
   Agreement.casesOn (motive := fun x y _ => (z : Free C α) → Agreement y z → Agreement x z) h
     (fun {a _} e _ second => second.before a e)
@@ -106,17 +127,21 @@ def run {f g : Section C} {x y : Free C α} (h : Agreement x y) (same : Homotopy
 
 end Agreement
 
+/-- The left unit law of `bind`. It holds by computation. -/
 def pureBind (a : α) (f : α → Free C β) : (Free.pure a).bind f ≡ f a := .refl
 
+/-- The right unit law of `bind`, as an agreement. -/
 def bindPure : (x : Free C α) → Agreement (x.bind .pure) x
   | .pure _ => .pure .refl
   | .request a k => .request a (fun i => bindPure (k i))
 
+/-- The associativity of `bind`, as an agreement. -/
 def bindAssoc (f : α → Free C β) (g : β → Free C γ) :
     (x : Free C α) → Agreement ((x.bind f).bind g) (x.bind (fun a => (f a).bind g))
   | .pure a => .refl ((f a).bind g)
   | .request a k => .request a (fun i => bindAssoc f g (k i))
 
+/-- The interpretation of a bind: the run of the continuation at the value of the first run. -/
 def runBind (provider : Section C) (f : α → Free C β) :
     (x : Free C α) → (x.bind f).run provider ≡ (f (x.run provider)).run provider
   | .pure _ => .refl
@@ -150,6 +175,7 @@ namespace Impl
 variable {C : Container.{s, p}} {D : Container.{s', p'}} {E : Container.{s'', p''}}
   {G : Container.{s''', p'''}}
 
+/-- The implementation with one call at each shape. -/
 def id (C : Container.{s, p}) : Impl C C := Free.call
 
 /-- Composition in traversal order: the calls of `f` are implemented by `g`. -/
@@ -166,9 +192,12 @@ def copair {ι : Type z} {F : ι → Container.{s, p}} (f : (i : ι) → Impl (F
 operation with such an implementation is pure. -/
 def ofSection (f : Section C) : Impl C D := fun a => .pure (f a)
 
+/-- The implementation without a call gives its closed provider, from each provider of the
+calls. -/
 def ofSectionRun (f : Section C) (provider : Section D) :
     Homotopy ((ofSection f).run provider) f := fun _ => .refl
 
+/-- Agreement of two implementations: agreement of their computations at each shape. -/
 def Agreement (f g : Impl C D) := (a : C.Shape) → Free.Agreement (f a) (g a)
 
 end Impl
@@ -185,6 +214,7 @@ def Agreement.subst {x y : Free C α} {g g' : Impl C D} (h : Agreement x y)
     (fun {_ _} e => .pure e)
     (fun a {_ _} next => (same a).bind (fun i => (next i).subst same))
 
+/-- Substitution preserves `bind`. -/
 def substBind (g : Impl C D) (f : α → Free C β) :
     (x : Free C α) →
       Agreement ((x.bind f).subst g) ((x.subst g).bind (fun a => (f a).subst g))
@@ -193,10 +223,12 @@ def substBind (g : Impl C D) (f : α → Free C β) :
       ((Agreement.refl (g a)).bind (fun i => substBind g f (k i))).trans
         (bindAssoc _ _ (g a)).symm
 
+/-- The substitution of the implementation with one call agrees with the computation. -/
 def substId : (x : Free C α) → Agreement (x.subst (Impl.id C)) x
   | .pure _ => .pure .refl
   | .request a k => .request a (fun i => substId (k i))
 
+/-- Two substitutions agree with one substitution of the composite. -/
 def substTrans (g : Impl C D) (h : Impl D E) :
     (x : Free C α) → Agreement ((x.subst g).subst h) (x.subst (g.trans h))
   | .pure _ => .pure .refl
@@ -204,6 +236,8 @@ def substTrans (g : Impl C D) (h : Impl D E) :
       (substBind h _ (g a)).trans
         ((Agreement.refl ((g a).subst h)).bind (fun i => substTrans g h (k i)))
 
+/-- The interpretation of a substitution: the run with the provider that the implementation
+gives. -/
 def runSubst (g : Impl C D) (provider : Section D) :
     (x : Free C α) → (x.subst g).run provider ≡ x.run (g.run provider)
   | .pure _ => .refl
@@ -234,21 +268,29 @@ def trans {f g k : Impl C D} (h : Agreement f g) (j : Agreement g k) : Agreement
 
 end Agreement
 
+/-- The implementation with one call is a left unit of composition. -/
 def idTrans (f : Impl C D) : Agreement ((id C).trans f) f := fun a => Free.bindPure (f a)
 
+/-- The implementation with one call is a right unit of composition. -/
 def transId (f : Impl C D) : Agreement (f.trans (id D)) f := fun a => Free.substId (f a)
 
+/-- Composition of implementations is associative. -/
 def transAssoc (f : Impl C D) (g : Impl D E) (h : Impl E G) :
     Agreement ((f.trans g).trans h) (f.trans (g.trans h)) :=
   fun a => Free.substTrans g h (f a)
 
+/-- Composition respects agreement of the two implementations. -/
 def transCongr {f f' : Impl C D} {g g' : Impl D E} (h : Agreement f f') (k : Agreement g g') :
     Agreement (f.trans g) (f'.trans g') := fun a => (h a).subst k
 
+/-- The interpretation of a composite: the provider of the first implementation, from the
+provider of the second implementation. -/
 def runTrans (f : Impl C D) (g : Impl D E) (provider : Section E) :
     Homotopy ((f.trans g).run provider) (f.run (g.run provider)) :=
   fun a => Free.runSubst g provider (f a)
 
+/-- Implementations that agree give providers that are identical at each shape, from providers
+that are identical at each shape. -/
 def runCongr {f g : Impl C D} {provider provider' : Section D} (h : Agreement f g)
     (k : Homotopy provider provider') : Homotopy (f.run provider) (g.run provider') :=
   fun a => (h a).run k
@@ -261,7 +303,8 @@ variable {C : Container.{s, p}} {D : Container.{s', p'}} {α : Type u}
 
 /-- A congruence of the computations of an interface: a relation that has each agreement, that
 is symmetric and transitive, and that holds for two calls of one shape when it holds for their
-continuations at each response. -/
+continuations at each response. A relation with these laws can relate two computations that
+have different calls. -/
 structure Congruence (C : Container.{s, p}) (α : Type u) where
   Rel : Free C α → Free C α → Type w
   agree : {x y : Free C α} → Agreement x y → Rel x y
@@ -309,11 +352,14 @@ namespace Hom
 
 variable {C : Container.{s, p}} {D : Container.{s', p'}} {E : Container.{s'', p''}}
 
+/-- `toImpl` preserves the identity. It holds by computation. -/
 def toImplId (C : Container.{s, p}) : (Hom.id C).toImpl ≡ Impl.id C := .refl
 
+/-- `toImpl` preserves composition. It holds by computation. -/
 def toImplTrans (f : Hom C D) (g : Hom D E) :
     (f.trans g).toImpl ≡ f.toImpl.trans g.toImpl := .refl
 
+/-- `toImpl` preserves interpretation. It holds by computation. -/
 def toImplRun (f : Hom C D) (provider : Section D) : f.toImpl.run provider ≡ f.run provider :=
   .refl
 

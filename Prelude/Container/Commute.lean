@@ -1,6 +1,7 @@
 import Prelude.Container.Verified
 
-/-! Calls that commute in a congruence of computations.
+/-!
+# Calls that commute in a congruence of computations
 
 Two calls commute in a congruence when the congruence relates the two orders of the calls, for
 each continuation. A call is central when it commutes with each call. A call is copyable when

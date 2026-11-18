@@ -1,6 +1,7 @@
 import Prelude.Container.Agreement
 
-/-! Comonoids for the composition product, and the state object.
+/-!
+# Comonoids for the composition product, and the state object
 
 The data of a comonoid for the composition product of containers is a counit and a
 comultiplication. A homomorphism of comonoids is a morphism with the counit square and the
@@ -14,6 +15,8 @@ has the next value as the next shape. A lens is lawful when it is a homomorphism
 comonoids. The counit square is the law of the update with the view. The inner shapes of the
 comultiplication square are the law of the view of an update, and its positions are the law of
 two updates.
+
+## References
 
 Ahman and Uustalu, *Directed Containers as Categories*, has the comonoids of containers. Niu
 and Spivak, *Polynomial Functors: A Mathematical Theory of Interaction*, has the comonoid of a
@@ -58,7 +61,8 @@ end Comonoid
 abbrev state (A : Type u) : Container.{u, u} := ⟨A, fun _ => A⟩
 
 /-- The comonoid of a state object. The counit keeps the value. The comultiplication has the
-next value as the next shape, and the second of two next values as its position. -/
+next value as the next shape, and the second of two next values as its position. Its three
+laws are `stateUnitLeft`, `stateUnitRight`, and `stateAssoc`, and each holds by computation. -/
 def Comonoid.state (A : Type u) : Comonoid (state A) where
   counit := ⟨fun _ => (), fun a _ => a⟩
   comult := ⟨fun a => ⟨a, fun b => b⟩, fun _ i => i.2⟩

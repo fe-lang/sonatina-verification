@@ -1,9 +1,24 @@
 import Init
 
-/-! Computational Type-valued identity and its eliminators.
+/-!
+# Identity in `Type`
+
+`Identity a b` is the identity type of two elements of a type, with the scoped notation `a ≡ b`.
+For `α : Type u`, it is a family in `Type u` with the constructor `Identity.refl`. Lean's `=`,
+`==`, and `Id` keep their standard meanings. A proof of an identity is a definition (`def`).
+Lean's `theorem` command is for propositions.
+
+The module has the path induction, the transport, the congruence, and the laws of identities. It
+has the identities of dependent pairs, and the constructor facts for `Option` and `Sum`. `Iso` is
+an isomorphism of two types with its two round-trip identities. `Homotopy` is the identity of two
+functions at each argument. `IsContr` and `IsProp` are the contractible types and the
+propositions.
+
+## Implementation notes
 
 Each function eliminates an identity by `ind` or `indEnd`, with an explicit motive. Its term
-has no eliminator of a `Prop` equality, so its reduction compares no two values. -/
+has no eliminator of a `Prop` equality, so its reduction compares no two values.
+-/
 
 set_option autoImplicit false
 set_option genInjectivity false
@@ -12,8 +27,10 @@ universe u v w z
 
 namespace Prelude
 
-/-- The identity type of two elements of `α`. -/
+/-- The identity type of two elements of `α`. It is a family in the universe of `α`, and its
+scoped notation is `a ≡ b`. -/
 inductive Identity {α : Type u} (a : α) : α → Type u where
+  /-- Each element is identical to itself. -/
   | refl : Identity a a
 
 scoped infix:50 " ≡ " => Identity
@@ -22,7 +39,8 @@ namespace Identity
 
 variable {α : Type u} {β : Type v} {γ : Type w} {a b c d : α}
 
-/-- Based path induction. Direct elimination avoids generated transports of the indices. -/
+/-- Based path induction. The motive is a function of the second element and of the identity.
+Direct elimination avoids generated transports of the indices. -/
 def ind {a : α} (motive : (b : α) → a ≡ b → Sort v)
     (base : motive a .refl) {b : α} (p : a ≡ b) : motive b p :=
   Identity.casesOn (motive := motive) p base
@@ -33,7 +51,8 @@ def indEnd {b : α} (motive : (a : α) → a ≡ b → Sort v)
   ind (fun b p => (motive : (a : α) → a ≡ b → Sort v) → motive b .refl → motive a p)
     (fun _ base => base) p motive base
 
-/-- An identity witness implies Lean equality. -/
+/-- An identity witness implies Lean equality. It supplies an equality premise from an
+identity. -/
 theorem toEq (p : a ≡ b) : a = b :=
   ind (fun b _ => a = b) rfl p
 
@@ -44,6 +63,7 @@ def symm (p : a ≡ b) : b ≡ a :=
 def trans (p : a ≡ b) (q : b ≡ c) : a ≡ c :=
   ind (fun b _ => b ≡ c → a ≡ c) (fun q => q) p q
 
+/-- A `calc` block composes identities with this instance. -/
 instance : Trans (@Identity α) (@Identity α) (@Identity α) := ⟨trans⟩
 
 def cong (f : α → β) (p : a ≡ b) : f a ≡ f b :=
@@ -53,7 +73,8 @@ def cong₂ (f : α → β → γ) {x y : β} (p : a ≡ b) (q : x ≡ y) :
     f a x ≡ f b y :=
   ind (fun b _ => f a x ≡ f b y) (cong (f a) q) p
 
-/-- Transport also accepts Prop-valued families at the Lean interface. -/
+/-- The transport of a value of a family along an identity. The family has its values in each
+`Sort`, so it can be a family of propositions. -/
 def transport (P : α → Sort v) (p : a ≡ b) (x : P a) : P b :=
   ind (fun b _ => P b) x p
 
@@ -117,6 +138,8 @@ def transportMap {P : α → Type v} {Q : α → Type w}
 def pair {x y : β} (p : a ≡ b) (q : x ≡ y) : (a, x) ≡ (b, y) :=
   cong₂ Prod.mk p q
 
+/-- The identity of two dependent pairs, from an identity of the first components and an
+identity of the second components after the transport along it. -/
 def sigma {P : α → Type v} {x : P a} {y : P b}
     (p : a ≡ b) (q : transport P p x ≡ y) :
     (⟨a, x⟩ : Sigma P) ≡ ⟨b, y⟩ :=
@@ -189,6 +212,8 @@ the first identity to the second. -/
 abbrev InlFiber (s : Sum α β) {x y : α} (p : s ≡ .inl x) (q : s ≡ .inl y) : Type (max u v) :=
   (e : x ≡ y) × (transport (fun z => s ≡ .inl z) e p ≡ q)
 
+/-- Two identities from one element to `inr` values: an identity of the values that carries
+the first identity to the second. -/
 abbrev InrFiber (s : Sum α β) {x y : β} (p : s ≡ .inr x) (q : s ≡ .inr y) : Type (max u v) :=
   (e : x ≡ y) × (transport (fun z => s ≡ .inr z) e p ≡ q)
 
@@ -206,13 +231,15 @@ def inrCode {x : β} : (t : Sum α β) → (Sum.inr x : Sum α β) ≡ t → Typ
 def inrEncode {x : β} (t : Sum α β) (q : (Sum.inr x : Sum α β) ≡ t) : inrCode t q :=
   ind (fun t q => inrCode t q) (⟨.refl, .refl⟩ : InrFiber (α := α) (.inr x) .refl .refl) q
 
-/-- `inl` has at most one value and one identity over each element of the sum. -/
+/-- `inl` has at most one value and one identity over each element of the sum: two identities
+from one element to `inl` values are one identity. -/
 def inlFiber {s : Sum α β} {x y : α} (p : s ≡ .inl x) (q : s ≡ .inl y) : InlFiber s p q :=
   indEnd (b := (Sum.inl x : Sum α β))
     (fun (s : Sum α β) (p : s ≡ .inl x) => (q : s ≡ .inl y) → InlFiber s p q)
     (fun (q : (Sum.inl x : Sum α β) ≡ .inl y) => inlEncode (.inl y) q) p q
 
-/-- `inr` has at most one value and one identity over each element of the sum. -/
+/-- `inr` has at most one value and one identity over each element of the sum: two identities
+from one element to `inr` values are one identity. -/
 def inrFiber {s : Sum α β} {x y : β} (p : s ≡ .inr x) (q : s ≡ .inr y) : InrFiber s p q :=
   indEnd (b := (Sum.inr x : Sum α β))
     (fun (s : Sum α β) (p : s ≡ .inr x) => (q : s ≡ .inr y) → InrFiber s p q)
@@ -222,9 +249,13 @@ end Identity
 
 /-- Maps in the two directions, with the round-trip identity at each element. -/
 structure Iso (α : Type u) (β : Type v) where
+  /-- The map from `α` to `β`. -/
   to : α → β
+  /-- The map from `β` to `α`. -/
   inv : β → α
+  /-- The round trip from `α`. -/
   invTo : (x : α) → inv (to x) ≡ x
+  /-- The round trip from `β`. -/
   toInv : (y : β) → to (inv y) ≡ y
 
 namespace Iso
@@ -249,13 +280,16 @@ abbrev Moved (e : Iso α β) (Q : α → Type w) : β → Type w := fun y => Q (
 def across (e : Iso α β) (Q : α → Type w) (x : α) (evidence : Q x) : e.Moved Q (e.to x) :=
   Identity.transport Q (e.invTo x).symm evidence
 
+/-- Evidence at `e.to x` in the moved family returns to evidence at `x`. -/
 def back (e : Iso α β) (Q : α → Type w) (x : α) (evidence : e.Moved Q (e.to x)) : Q x :=
   Identity.transport Q (e.invTo x) evidence
 
+/-- The round trip of evidence at `x`: across, and then back. -/
 def backAcross (e : Iso α β) (Q : α → Type w) (x : α) (evidence : Q x) :
     e.back Q x (e.across Q x evidence) ≡ evidence :=
   Identity.symmTransport Q (e.invTo x) evidence
 
+/-- The round trip of evidence at `e.to x`: back, and then across. -/
 def acrossBack (e : Iso α β) (Q : α → Type w) (x : α) (evidence : e.Moved Q (e.to x)) :
     e.across Q x (e.back Q x evidence) ≡ evidence :=
   Identity.transportSymm Q (e.invTo x) evidence
@@ -315,9 +349,10 @@ def sigmaBaseBack {B' : Type u} {B : Type v} (e : Iso B' B) (C : B → Type w) {
         ⟨b', c⟩)
     .refl p
 
-/-- An isomorphism of the bases gives an isomorphism of the sums of a family on the second
-base. The two maps and the second round trip use the second round trip of the bases. The
-first round trip uses the agreement of the two round trips of the bases. -/
+/-- An isomorphism `e` of the bases gives an isomorphism of the sums of a family `C` on the
+second base: the sum of `C` at the values of `e`, and the sum of `C`. The inverse map moves an
+element of the fibre along `e.toInv`, and the second round trip uses the same identity. The
+first round trip uses `coherence`, the agreement of the two round trips of the bases. -/
 def sigmaBase {B' : Type u} {B : Type v} (e : Iso B' B) (C : B → Type w) :
     Iso ((b' : B') × C (e.to b')) ((b : B) × C b) where
   to x := ⟨e.to x.1, x.2⟩
@@ -361,7 +396,8 @@ def Identity.contractAt {α : Type u} {a : α} (H : (b : α) → a ≡ b → Typ
   (Iso.sigmaFiber fun b => Iso.sigmaBase (lift b) (fun e => H b e.down)).trans
     (Identity.contract fun b e => H b e.down)
 
-/-- Pointwise identity of dependent functions. -/
+/-- Pointwise identity of dependent functions. It is reflexive, symmetric, and transitive
+(`refl`, `symm`, `trans`). -/
 abbrev Homotopy {α : Type u} {P : α → Type v} (f g : (x : α) → P x) :=
   (x : α) → f x ≡ g x
 

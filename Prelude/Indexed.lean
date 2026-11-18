@@ -1,7 +1,14 @@
 import Prelude.Identity
 import Prelude.Decision
 
-/-! Type-valued positions and dependent environments over ordinary Lean lists.
+/-!
+# Positions and environments over lists
+
+Type-valued positions and dependent environments over ordinary Lean lists. `Elem a xs` is a
+position of `a` in the list `xs`, and `All P xs` is an environment: one value of `P x` for each
+element `x` of `xs`.
+
+## Implementation notes
 
 The functions on a position and on an environment use `casesOn` with an explicit motive. A
 generated matcher on these families eliminates `Prop` equalities of the list and of the value,
@@ -18,20 +25,25 @@ namespace Prelude
 
 /-- A position occupied by `a`; repeated occurrences have distinct witnesses. -/
 inductive Elem {α : Type u} (a : α) : List α → Type u where
+  /-- The first position. -/
   | here {xs : List α} : Elem a (a :: xs)
+  /-- A position of the tail. -/
   | there {b : α} {xs : List α} : Elem a xs → Elem a (b :: xs)
 
 namespace Elem
 
 variable {α : Type u} {β : Type v} {a : α}
 
+/-- The number of a position. -/
 def toFin {xs : List α} (i : Elem a xs) : Fin xs.length :=
   Elem.casesOn (motive := fun xs _ => Fin xs.length) i ⟨0, Nat.zero_lt_succ _⟩
     (fun j => (toFin j).succ)
 
+/-- The position of the value of a function, in the list of the values. -/
 def map (f : α → β) {xs : List α} (i : Elem a xs) : Elem (f a) (xs.map f) :=
   Elem.casesOn (motive := fun xs _ => Elem (f a) (xs.map f)) i .here (fun j => .there (map f j))
 
+/-- A position gives Lean's membership. -/
 theorem toMem {xs : List α} (i : Elem a xs) : a ∈ xs := by
   induction i with
   | here => exact List.mem_cons_self
@@ -66,7 +78,7 @@ def consCases {b : α} {xs : List α} {motive : (c : α) → Elem c (b :: xs) �
   consCasesOn.{u, w} i motive here there
 
 /-- A position of a concatenation is a position of the first part or a position of the second
-part. -/
+part, with the identity of the position and its image in the concatenation. -/
 def split : (xs : List α) → {ys : List α} → {a : α} → (i : Elem a (xs ++ ys)) →
     ((j : Elem a xs) × (i ≡ j.left)) ⊕ ((j : Elem a ys) × (i ≡ j.right xs))
   | [], _, _, i => .inr ⟨i, .refl⟩
@@ -93,7 +105,7 @@ def ofNil {β : Type w} (i : Elem a ([] : List α)) : β :=
     i PUnit.unit (fun _ => PUnit.unit)
 
 set_option smartUnfolding false in
-/-- The part of a position of the second part of a concatenation. -/
+/-- The part of a position of the second part of a concatenation is that position. -/
 def splitRight : (xs : List α) → {ys : List α} → {a : α} → (i : Elem a ys) →
     split xs (i.right xs) ≡ .inr ⟨i, .refl⟩
   | [], _, _, _ => .refl
@@ -109,8 +121,8 @@ def splitRight : (xs : List α) → {ys : List α} → {a : α} → (i : Elem a 
         (splitRight xs i)
 
 set_option smartUnfolding false in
-/-- A position of an element of a list gives a position of its value in the list of the values
-of a partial function. -/
+/-- A position of an element `x` of a list gives a position of its value in the list of the
+values of a partial function, from an identity `f x ≡ some y`. -/
 def ofFilterMap {f : α → Option β} {x : α} {y : β} : {xs : List α} → Elem x xs →
     f x ≡ some y → Elem y (xs.filterMap f)
   | _ :: l, .here, q =>
@@ -134,7 +146,9 @@ def ofFlatMap {f : α → List β} {x : α} {y : β} : {xs : List α} → Elem x
   | b :: _, .there i, j => (ofFlatMap i j).right (f b)
 
 /-- Two lists have the same elements, each the same number of times: the positions of each
-element in the two lists correspond. -/
+element in the two lists correspond, with the two round trips. The relation is reflexive,
+symmetric, and transitive, and two identical lists have it (`refl`, `symm`, `trans`,
+`ofIdentity`). -/
 abbrev Same (xs ys : List α) : Type u := (x : α) → Iso (Elem x xs) (Elem x ys)
 
 namespace Same
@@ -253,7 +267,8 @@ def Distinct.cons {b : α} {xs : List α} (tail : Distinct xs) (fresh : Elem b x
 
 end Elem
 
-/-- The element at a number in a list, with the other elements in their order. -/
+/-- The element at the index `k` of a list, with the other elements in their order. A list
+with no element at that index has no result. -/
 def takeAt {α : Type u} : Nat → List α → Option (α × List α)
   | _, [] => none
   | 0, a :: rest => some (a, rest)
@@ -399,14 +414,17 @@ def head {a : α} {xs : List α} (env : All P (a :: xs)) : P a :=
 def tail {a : α} {xs : List α} (env : All P (a :: xs)) : All P xs :=
   consCases (motive := fun _ => All P xs) env (fun _ rest => rest)
 
+/-- The value at a position. -/
 def lookup {a : α} {xs : List α} (env : All P xs) (i : Elem a xs) : P a :=
   Elem.casesOn (motive := fun xs _ => All P xs → P a) i (fun env => env.head)
     (fun j env => env.tail.lookup j) env
 
+/-- The environment with the value of a function at each value. -/
 def map (f : (a : α) → P a → Q a) {xs : List α} (env : All P xs) : All Q xs :=
   All.casesOn (motive := fun xs _ => All Q xs) env .nil
     (fun x rest => .cons (f _ x) (rest.map f))
 
+/-- The concatenation of two environments. -/
 def append {xs ys : List α} (x : All P xs) (y : All P ys) : All P (xs ++ ys) :=
   All.casesOn (motive := fun xs _ => All P (xs ++ ys)) x y
     (fun v rest => .cons v (rest.append y))
@@ -433,10 +451,13 @@ def set {a : α} {xs : List α} (env : All P xs) (i : Elem a xs) (x : P a) : All
   Elem.casesOn (motive := fun xs _ => All P xs → All P xs) i (fun env => .cons x env.tail)
     (fun j env => .cons env.head (env.tail.set j x)) env
 
+/-- The table of a function of the positions: the environment with its value at each
+position. -/
 def tabulate : (xs : List α) → ((a : α) → Elem a xs → P a) → All P xs
   | [], _ => .nil
   | a :: xs, f => .cons (f a .here) (tabulate xs (fun b i => f b (.there i)))
 
+/-- The value of a table at a position is the value of its function. -/
 def lookupTabulate {a : α} {xs : List α} (f : (a : α) → Elem a xs → P a) (i : Elem a xs) :
     (tabulate xs f).lookup i ≡ f a i :=
   Elem.casesOn
@@ -482,6 +503,7 @@ def mapCongr {f g : (a : α) → P a → Q a} (same : (a : α) → (x : P a) →
   All.casesOn (motive := fun _ x => x.map f ≡ x.map g) x .refl
     (fun v rest => Identity.cong₂ All.cons (same _ v) (mapCongr same rest))
 
+/-- The map of a map is the map by the composite of the two functions. -/
 def mapMap (f : (a : α) → P a → Q a) (g : (a : α) → Q a → R a) {xs : List α}
     (x : All P xs) : (x.map f).map g ≡ x.map (fun a p => g a (f a p)) :=
   All.casesOn (motive := fun _ x => (x.map f).map g ≡ x.map (fun a p => g a (f a p))) x .refl
@@ -506,6 +528,7 @@ def tabulateAppend : (xs : List α) → {ys : List α} → (f : (a : α) → Ele
   | [], _, _ => .refl
   | _ :: xs, _, f => Identity.cong (All.cons _) (tabulateAppend xs (fun b i => f b (.there i)))
 
+/-- The map of a concatenation is the concatenation of the maps. -/
 def mapAppend (f : (a : α) → P a → Q a) {xs ys : List α} (x : All P xs) (y : All P ys) :
     (x.append y).map f ≡ (x.map f).append (y.map f) :=
   All.casesOn (motive := fun _ x => (x.append y).map f ≡ (x.map f).append (y.map f)) x .refl
