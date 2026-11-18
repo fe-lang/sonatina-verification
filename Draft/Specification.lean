@@ -108,6 +108,13 @@ private def Spec.exit {Γ : List Ty} {Qs : Exits Ty} (out : Qs.At (Port Γ)) :
   ⟨fun _ => PUnit,
     fun x _ o => Spec.Result (Sum.inr (out.select x.1, x.2) : E ⊕ (Qs.At X × R)) o⟩
 
+/-- The specification after a call returns, at its output case with its values in the environment. -/
+private def Spec.afterResponse {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty}
+    (next : (c : K.Case) → Spec.{a, b} (All X (c.1 ++ Γ) × R) (E ⊕ (Qs.At X × R)))
+    (env : All X Γ) : Spec.{a, b} (K.At X × R) (E ⊕ (Qs.At X × R)) :=
+  ⟨fun ⟨⟨c, vals⟩, runtime⟩ => (next c).Pre (vals.append env, runtime),
+    fun ⟨⟨c, vals⟩, runtime⟩ p o => (next c).Post (vals.append env, runtime) p o⟩
+
 private def Spec.step {Γ : List Ty} {Qs : Exits Ty} (call : (S.interface (Port Γ)).Shape)
     (next : (c : (S.output call.1).Case) →
       Spec.{max w (z + 1), z} (All X (c.1 ++ Γ) × R) (E ⊕ (Qs.At X × R))) :
@@ -115,14 +122,12 @@ private def Spec.step {Γ : List Ty} {Qs : Exits Ty} (call : (S.interface (Port 
   ⟨fun x =>
     (p : r.Pre (⟨call.1, x.1.select call.2⟩, x.2)) ×
       ((i : E ⊕ ((S.output call.1).At X × R)) → r.Post (⟨call.1, x.1.select call.2⟩, x.2) p i →
-        Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
-          (next y.1.1).Pre (y.1.2.append x.1, y.2)) i),
+        Spec.resumePre (Spec.afterResponse next x.1).Pre i),
     fun x pre o =>
       (i : E ⊕ ((S.output call.1).At X × R)) ×
         (post : r.Post (⟨call.1, x.1.select call.2⟩, x.2) pre.1 i) ×
           Spec.resumePost
-            (fun (y : (S.output call.1).At X × R) p o =>
-              (next y.1.1).Post (y.1.2.append x.1, y.2) p o) i (pre.2 i post) o⟩
+            (Spec.afterResponse next x.1).Post i (pre.2 i post) o⟩
 
 private def Spec.seq {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty}
     (first : Spec.{a, b} (All X Γ × R) (E ⊕ (Exits.At (K :: Qs) X × R)))
@@ -187,11 +192,13 @@ private def Spec.iteration {K : Boundary Ty} {Qs : Exits Ty}
 mutual
 
 /-- The specification of a diagram, from a specification of its calls with a runtime. -/
-def Diagram.spec : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs →
-    Spec.{max w (z + 1), z} (All X Γ × R) (E ⊕ (Qs.At X × R))
-  | _, _, .exit out => Spec.exit out
-  | _, _, .step call next => Spec.step r call fun c => (next c).spec
-  | _, _, .seq first next => Spec.seq first.spec next.spec
+def Diagram.spec {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) :
+    Spec.{max w (z + 1), z} (All X Γ × R) (E ⊕ (Qs.At X × R)) :=
+  Diagram.casesOn
+    (motive_1 := fun Γ Qs _ => Spec.{max w (z + 1), z} (All X Γ × R) (E ⊕ (Qs.At X × R))) d
+    (fun out => Spec.exit out)
+    (fun call next => Spec.step r call fun c => (next c).spec)
+    (fun first next => Spec.seq first.spec next.spec)
 
 /-- The specification of a continuation. -/
 def Continuation.spec : {P : Boundary Ty} → {Qs : Exits Ty} → Continuation S P Qs →
