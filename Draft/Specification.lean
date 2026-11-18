@@ -103,84 +103,109 @@ def Spec.loopInv {A B : Type} (F : Spec.{a, b} A (B ⊕ A)) :
 
 variable (r : DepPoly.{0, 0, w, z} ((S.interface X).runtime R E))
 
+private def Spec.exit {Γ : List Ty} {Qs : Exits Ty} (out : Qs.At (Port Γ)) :
+    Spec.{a, b} (All X Γ × R) (E ⊕ (Qs.At X × R)) :=
+  ⟨fun _ => PUnit,
+    fun x _ o => Spec.Result (Sum.inr (out.select x.1, x.2) : E ⊕ (Qs.At X × R)) o⟩
+
+private def Spec.step {Γ : List Ty} {Qs : Exits Ty} (call : (S.interface (Port Γ)).Shape)
+    (next : (c : (S.output call.1).Case) →
+      Spec.{max w (z + 1), z} (All X (c.1 ++ Γ) × R) (E ⊕ (Qs.At X × R))) :
+    Spec.{max w (z + 1), z} (All X Γ × R) (E ⊕ (Qs.At X × R)) :=
+  ⟨fun x =>
+    (p : r.Pre (⟨call.1, x.1.select call.2⟩, x.2)) ×
+      ((i : E ⊕ ((S.output call.1).At X × R)) → r.Post (⟨call.1, x.1.select call.2⟩, x.2) p i →
+        Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
+          (next y.1.1).Pre (y.1.2.append x.1, y.2)) i),
+    fun x pre o =>
+      (i : E ⊕ ((S.output call.1).At X × R)) ×
+        (post : r.Post (⟨call.1, x.1.select call.2⟩, x.2) pre.1 i) ×
+          Spec.resumePost
+            (fun (y : (S.output call.1).At X × R) p o =>
+              (next y.1.1).Post (y.1.2.append x.1, y.2) p o) i (pre.2 i post) o⟩
+
+private def Spec.seq {Γ : List Ty} {K : Boundary Ty} {Qs : Exits Ty}
+    (first : Spec.{a, b} (All X Γ × R) (E ⊕ (Exits.At (K :: Qs) X × R)))
+    (next : Spec.{a, b} (K.At X × R) (E ⊕ (Qs.At X × R))) :
+    Spec.{max a b, b} (All X Γ × R) (E ⊕ (Qs.At X × R)) :=
+  ⟨fun x =>
+    (p : first.Pre x) ×
+      ((m : E ⊕ (Exits.At (K :: Qs) X × R)) → first.Post x p m →
+        Spec.resumePre (fun (y : Exits.At (K :: Qs) X × R) =>
+          Spec.exitPre (fun k => next.Pre (k, y.2)) y.1) m),
+    fun x pre o =>
+      (m : E ⊕ (Exits.At (K :: Qs) X × R)) × (post : first.Post x pre.1 m) ×
+        Spec.resumePost
+          (fun (y : Exits.At (K :: Qs) X × R) p o =>
+            Spec.atExit (fun k => next.Pre (k, y.2))
+              (fun k p o => next.Post (k, y.2) p o)
+              (fun q o => Spec.Result (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) o) y.1 p o)
+          m (pre.2 m post) o⟩
+
+private def Spec.copair {P : Boundary Ty} {Qs : Exits Ty}
+    (each : (c : P.Case) → Spec.{a, b} (All X c.1 × R) (E ⊕ (Qs.At X × R))) :
+    Spec.{a, b} (P.At X × R) (E ⊕ (Qs.At X × R)) :=
+  ⟨fun x => (each x.1.1).Pre (x.1.2, x.2),
+    fun x p o => (each x.1.1).Post (x.1.2, x.2) p o⟩
+
+private def Spec.frame {P M K : Boundary Ty} {Δ : List Ty} {Qs : Exits Ty}
+    (kept : (c : P.Case) → M.At (Port c.1)) (args : (c : P.Case) → PortMap c.1 Δ)
+    (shared : Spec.{a, b} (All X Δ × R) (E ⊕ (Exits.At [K] X × R)))
+    (next : Spec.{a, b} ((M.product K).At X × R) (E ⊕ (Qs.At X × R))) :
+    Spec.{max a b, b} (P.At X × R) (E ⊕ (Qs.At X × R)) :=
+  ⟨fun x =>
+    (p : shared.Pre (x.1.2.select (args x.1.1), x.2)) ×
+      ((m : E ⊕ (Exits.At [K] X × R)) →
+        shared.Post (x.1.2.select (args x.1.1), x.2) p m →
+        Spec.resumePre (fun (y : Exits.At [K] X × R) =>
+          Spec.exitPre (fun out =>
+            next.Pre
+              (⟨Boundary.pair (kept x.1.1).1 out.1,
+                out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2)) y.1) m),
+    fun x pre o =>
+      (m : E ⊕ (Exits.At [K] X × R)) ×
+        (post : shared.Post (x.1.2.select (args x.1.1), x.2) pre.1 m) ×
+          Spec.resumePost
+            (fun (y : Exits.At [K] X × R) p o =>
+              Spec.atExit
+                (fun out =>
+                  next.Pre
+                    (⟨Boundary.pair (kept x.1.1).1 out.1,
+                      out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2))
+                (fun out p o =>
+                  next.Post
+                    (⟨Boundary.pair (kept x.1.1).1 out.1,
+                      out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2) p o)
+                (fun q _ => Exits.At.ofNil q) y.1 p o)
+            m (pre.2 m post) o⟩
+
+private def Spec.iteration {K : Boundary Ty} {Qs : Exits Ty}
+    (body : Spec.{a, b} (K.At X × R) (E ⊕ (Exits.At (K :: Qs) X × R))) :
+    Spec.{a, b} (K.At X × R) ((E ⊕ (Qs.At X × R)) ⊕ (K.At X × R)) :=
+  ⟨body.Pre, fun x p t => body.Post x p (unresult t)⟩
+
 mutual
 
 /-- The specification of a diagram, from a specification of its calls with a runtime. -/
 def Diagram.spec : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs →
     Spec.{max w (z + 1), z} (All X Γ × R) (E ⊕ (Qs.At X × R))
-  | _, Qs, .exit out =>
-      ⟨fun _ => PUnit,
-        fun x _ o => Spec.Result (Sum.inr (out.select x.1, x.2) : E ⊕ (Qs.At X × R)) o⟩
-  | _, _, .step call next =>
-      ⟨fun x =>
-        (p : r.Pre (⟨call.1, x.1.select call.2⟩, x.2)) ×
-          ((i : E ⊕ ((S.output call.1).At X × R)) → r.Post (⟨call.1, x.1.select call.2⟩, x.2) p i →
-            Spec.resumePre (fun (y : (S.output call.1).At X × R) =>
-              ((next y.1.1).spec).Pre (y.1.2.append x.1, y.2)) i),
-        fun x pre o =>
-          (i : E ⊕ ((S.output call.1).At X × R)) ×
-            (post : r.Post (⟨call.1, x.1.select call.2⟩, x.2) pre.1 i) ×
-              Spec.resumePost
-                (fun (y : (S.output call.1).At X × R) p o =>
-                  ((next y.1.1).spec).Post (y.1.2.append x.1, y.2) p o) i (pre.2 i post) o⟩
-  | _, Qs, .seq (K := K) first next =>
-      ⟨fun x =>
-        (p : (first.spec).Pre x) ×
-          ((m : E ⊕ (Exits.At (K :: Qs) X × R)) → (first.spec).Post x p m →
-            Spec.resumePre (fun (y : Exits.At (K :: Qs) X × R) =>
-              Spec.exitPre (fun k => (next.spec).Pre (k, y.2)) y.1) m),
-        fun x pre o =>
-          (m : E ⊕ (Exits.At (K :: Qs) X × R)) × (post : (first.spec).Post x pre.1 m) ×
-            Spec.resumePost
-              (fun (y : Exits.At (K :: Qs) X × R) p o =>
-                Spec.atExit (fun k => (next.spec).Pre (k, y.2))
-                  (fun k p o => (next.spec).Post (k, y.2) p o)
-                  (fun q o => Spec.Result (Sum.inr (q, y.2) : E ⊕ (Qs.At X × R)) o) y.1 p o)
-              m (pre.2 m post) o⟩
+  | _, _, .exit out => Spec.exit out
+  | _, _, .step call next => Spec.step r call fun c => (next c).spec
+  | _, _, .seq first next => Spec.seq first.spec next.spec
 
 /-- The specification of a continuation. -/
 def Continuation.spec : {P : Boundary Ty} → {Qs : Exits Ty} → Continuation S P Qs →
     Spec.{max w (z + 1), z} (P.At X × R) (E ⊕ (Qs.At X × R))
-  | _, _, .copair each =>
-      ⟨fun x => ((each x.1.1).spec).Pre (x.1.2, x.2),
-        fun x p o => ((each x.1.1).spec).Post (x.1.2, x.2) p o⟩
-  | _, _, .frame (K := K) kept args shared next =>
-      ⟨fun x =>
-        (p : (shared.spec).Pre (x.1.2.select (args x.1.1), x.2)) ×
-          ((m : E ⊕ (Exits.At [K] X × R)) →
-            (shared.spec).Post (x.1.2.select (args x.1.1), x.2) p m →
-            Spec.resumePre (fun (y : Exits.At [K] X × R) =>
-              Spec.exitPre (fun out =>
-                (next.spec).Pre
-                  (⟨Boundary.pair (kept x.1.1).1 out.1,
-                    out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2)) y.1) m),
-        fun x pre o =>
-          (m : E ⊕ (Exits.At [K] X × R)) ×
-            (post : (shared.spec).Post (x.1.2.select (args x.1.1), x.2) pre.1 m) ×
-              Spec.resumePost
-                (fun (y : Exits.At [K] X × R) p o =>
-                  Spec.atExit
-                    (fun out =>
-                      (next.spec).Pre
-                        (⟨Boundary.pair (kept x.1.1).1 out.1,
-                          out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2))
-                    (fun out p o =>
-                      (next.spec).Post
-                        (⟨Boundary.pair (kept x.1.1).1 out.1,
-                          out.2.append (x.1.2.select (kept x.1.1).2)⟩, y.2) p o)
-                    (fun q _ => Exits.At.ofNil q) y.1 p o)
-                m (pre.2 m post) o⟩
-  | _, Qs, .loop (K := K) body =>
-      Spec.loopInv (A := K.At X × R) (B := E ⊕ (Qs.At X × R))
-        ⟨fun x => (body.spec).Pre x, fun x p t => (body.spec).Post x p (unresult t)⟩
+  | _, _, .copair each => Spec.copair fun c => (each c).spec
+  | _, _, .frame kept args shared next => Spec.frame kept args shared.spec next.spec
+  | _, _, .loop body => Spec.loopInv (Spec.iteration body.spec)
 
 end
 
 /-- The specification of one iteration of a loop. -/
 abbrev iterSpec {K : Boundary Ty} {Qs : Exits Ty} (body : Continuation S K (K :: Qs)) :
     Spec.{max w (z + 1), z} (K.At X × R) ((E ⊕ (Qs.At X × R)) ⊕ (K.At X × R)) :=
-  ⟨fun x => (Continuation.spec r body).Pre x,
-    fun x p t => (Continuation.spec r body).Post x p (unresult t)⟩
+  Spec.iteration (Continuation.spec r body)
 
 end Draft
 
