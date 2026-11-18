@@ -953,9 +953,10 @@ the agreement of the loops of two bodies that agree. The two laws are in
 [Prelude/Identity.lean](Prelude/Identity.lean) and
 [Prelude/Relation.lean](Prelude/Relation.lean). The checks on the countdown
 loop have the two maps of the equivalence at a run, and its two round
-trips. These checks have a derivation from a loop to the same loop, with no
-rule. The second exit equation is a rule with a cartesian map in each
-direction, for each specification of the calls. One more check has that rule
+trips. In the empty rule set, the derivation composes a loop derivation with
+its symmetry. Both round trips compute for an arbitrary value and runtime.
+The second exit equation has a cartesian map in each direction, for each
+specification of the calls. One more check has that rule
 under a step, a copairing, and a loop, between two different loops: a loop
 whose exit is an exit past a continuation, and then that continuation, and
 the countdown loop. It has the two maps and the two round trips at a run.
@@ -1041,13 +1042,6 @@ These parts are open:
   each direction. The copy rule and the interchange rule are the first cases:
   the copy rule relates one response of a pure operation, with its evidence,
   to two, and the interchange rule relates the runs of the two orders.
-- The round trip at a run over the moved witness, for a derivation with two
-  loop forms. Its check by `.refl` is above the default limit of the
-  elaborator, and the kernel accepts the same term. The cause is the proof
-  that the two round trips of an isomorphism agree: the elaborator evaluates
-  it again at each iteration, and the composite of two equivalences gives it
-  a run that is not in normal form. The check passes for a derivation with
-  one loop form.
 - The least threshold of a run.
 - The two round trips of the connection for each diagram.
 

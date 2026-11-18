@@ -298,10 +298,10 @@ def coherence (e : Iso α β) (x : α) : Identity.cong e.to (e.invToOf x) ≡ e.
 /-- An isomorphism of the fibres at each element gives an isomorphism of the sums. -/
 def sigmaFiber {B : Type u} {C : B → Type v} {C' : B → Type w}
     (φ : (b : B) → Iso (C b) (C' b)) : Iso ((b : B) × C b) ((b : B) × C' b) where
-  to x := ⟨x.1, (φ x.1).to x.2⟩
-  inv y := ⟨y.1, (φ y.1).inv y.2⟩
-  invTo x := Identity.cong (Sigma.mk x.1) ((φ x.1).invTo x.2)
-  toInv y := Identity.cong (Sigma.mk y.1) ((φ y.1).toInv y.2)
+  to x := Sigma.casesOn x fun b c => ⟨b, (φ b).to c⟩
+  inv x := Sigma.casesOn x fun b c => ⟨b, (φ b).inv c⟩
+  invTo x := Sigma.casesOn x fun b c => Identity.cong (Sigma.mk b) ((φ b).invTo c)
+  toInv x := Sigma.casesOn x fun b c => Identity.cong (Sigma.mk b) ((φ b).toInv c)
 
 /-- An element of the fibre over the value of an isomorphism, moved back along the map of an
 identity. -/

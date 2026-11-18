@@ -375,10 +375,10 @@ end Draft.Checks.Specification.ExitEquations
 
 /-! The checks on the countdown loop, for an arbitrary value and an arbitrary runtime. A
 derivation with the forms of a loop, of transitivity, and of symmetry gives an equivalence of
-the runs over the moved witness and the runs over the first witness: the checks have its two
-maps at a run, and the round trip at the run over the first witness. A derivation with one
-loop form has the round trip at the run over the moved witness. A derivation with the form of
-a composite has the map back and the two round trips. -/
+the runs over the moved witness and the runs over the first witness. The checks have both
+maps and both round trips at a run. A derivation with one loop form has the round trip at
+the run over the moved witness. A derivation with the form of a composite has the map back
+and the two round trips. -/
 
 namespace Draft.Checks.Specification
 
@@ -435,6 +435,12 @@ set_option smartUnfolding false in
 /-- The round trip at the run over the first witness is the reflexivity. -/
 def movedRound (a s : Nat) :
     ((moved 2 a s).2 (.inr (runsS 2 a s).1)).toInv (runsS 2 a s).2 ≡ .refl := .refl
+
+set_option smartUnfolding false in
+/-- The round trip at the run over the moved witness is reflexivity for the composite
+of the two loop derivations. -/
+def movedRoundBack (a s : Nat) :
+    ((moved 2 a s).2 (.inr (runsM 2 a s).1)).invTo (runsM 2 a s).2 ≡ .refl := .refl
 
 /-- A derivation from the loop to the loop with one loop form. -/
 def single : Continuation.Derivation noRule loop loop :=
@@ -1466,6 +1472,10 @@ end Draft.Checks.Specification.Peel
 /-- info: 'Draft.Checks.Specification.movedRound' does not depend on any axioms -/
 #guard_msgs in
 #print axioms Draft.Checks.Specification.movedRound
+
+/-- info: 'Draft.Checks.Specification.movedRoundBack' does not depend on any axioms -/
+#guard_msgs in
+#print axioms Draft.Checks.Specification.movedRoundBack
 
 /-- info: 'Draft.Checks.Specification.roundOne' does not depend on any axioms -/
 #guard_msgs in

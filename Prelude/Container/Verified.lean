@@ -154,7 +154,7 @@ def Runs : (x : Free C α) → FreeDep r Q x → α → Type (max p z u)
 /-- The condition at the result of a run along the evidence. -/
 def atRun : (x : Free C α) → (h : FreeDep r Q x) → {o : α} → Runs x h o → Q o
   | .pure _, h, _, e => Identity.transport Q e.down h.result
-  | .request _ k, h, _, t => atRun (k t.1) (h.parts.2 t.1 t.2.1) t.2.2
+  | .request _ k, h, _, ⟨i, post, tail⟩ => atRun (k i) (h.parts.2 i post) tail
 
 /-- The evidence of another condition, from a map of the conditions. -/
 def mapQ {Q' : α → Type v'} (g : (a : α) → Q a → Q' a) :
