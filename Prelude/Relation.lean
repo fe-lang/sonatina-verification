@@ -541,8 +541,8 @@ def nextUnique {f : A → B ⊕ A} {a : A} {a₁ a₂ : A} (p : f a ≡ .inr a�
       Identity.transport (fun z => f a ≡ .inr z) e p ≡ p' → Domain.next p d ≡ Domain.next p' d')
     (fun _ d' h => Identity.cong₂ Domain.next h (ih d')) fiber.1 p' d' fiber.2
 
-/-- Two domain witnesses at one input are identical. -/
-def unique {f : A → B ⊕ A} : {a : A} → (d d' : Domain f a) → d ≡ d'
+/-- The domain evidence at an input is a proposition. -/
+def unique {f : A → B ⊕ A} : {a : A} → IsProp (Domain f a)
   | _, .exit p, .exit p' => exitUnique p p' (Identity.inlFiber p p')
   | _, .exit p, .next p' _ => (Identity.inlNotInr (p.symm.trans p')).elim
   | _, .next p _, .exit p' => (Identity.inlNotInr (p'.symm.trans p)).elim

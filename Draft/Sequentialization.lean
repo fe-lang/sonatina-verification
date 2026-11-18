@@ -111,15 +111,15 @@ def Diagram.Ready.derivation {R : Rules S} (inter : Rules.Map (Rules.interchange
         (.rule (inter.diagram (.swap a b central first second after))))
 
 /-- A step is ready past a first step whose output boundary has one case: the type of the
-cases has a center, and each case is identical to the center. The evidence in the rest at the
-center gives the evidence at each case. -/
+cases is contractible. The evidence in the rest at the center gives the evidence at each
+case. -/
 def Diagram.Ready.pastOne {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} (a : S.Op)
     (central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure))
     (first : PortMap Γ (S.input a)) (second : PortMap Γ (S.input b))
     {rest : (ca : (S.output a).Case) → Diagram S (ca.1 ++ Γ) Qs}
-    (center : (S.output a).Case) (only : (c : (S.output a).Case) → center ≡ c)
-    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (center.1 ++ Γ)) Qs}
-    (inner : Diagram.Ready b (rest center) (second.weaken center.1) after) :
+    (one : IsContr (S.output a).Case)
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (one.1.1 ++ Γ)) Qs}
+    (inner : Diagram.Ready b (rest one.1) (second.weaken one.1.1) after) :
     (afterEach : (ca : (S.output a).Case) → (cb : (S.output b).Case) →
         Diagram S (cb.1 ++ (ca.1 ++ Γ)) Qs) ×
       Diagram.Ready b (.step ⟨a, first⟩ rest) second
@@ -132,7 +132,7 @@ def Diagram.Ready.pastOne {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} (a : S.Op)
       (fun (c : (S.output a).Case) =>
         (aft : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) ×
           Diagram.Ready b (rest c) (second.weaken c.1) aft)
-      (only ca) ⟨after, inner⟩
+      (one.2 ca) ⟨after, inner⟩
   ⟨fun ca => (spread ca).1, .past a central first second fun ca => (spread ca).2⟩
 
 /-- The evidence that the diagram `e` is an order of the diagram `d`, by the constructors of
@@ -165,13 +165,13 @@ def Diagram.Ready.single {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram 
     {args : PortMap Γ (S.input b)}
     {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
     (r : Diagram.Ready b d args after) :
-    d.Straight → (center : (S.output b).Case) × ((c : (S.output b).Case) → center ≡ c) :=
+    d.Straight → IsContr (S.output b).Case :=
   Diagram.Ready.casesOn
     (motive := @fun _ _ d _ _ _ =>
-      d.Straight → (center : (S.output b).Case) × ((c : (S.output b).Case) → center ≡ c))
+      d.Straight → IsContr (S.output b).Case)
     r
-    (fun _ _ h => ⟨h.1, h.2.1⟩)
-    (@fun _ _ _ _ _ _ _ _ inner h => (inner h.1).single h.2.2)
+    (fun _ _ h => h.1)
+    (@fun _ _ _ _ _ _ _ _ inner h => (inner h.1.1).single h.2)
 
 /-- The diagram after a ready step of a diagram of the fragment is a diagram of the fragment,
 at each output case of the step. -/
@@ -184,18 +184,18 @@ def Diagram.Ready.straight {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagra
     (motive := @fun _ _ d _ after _ =>
       d.Straight → (cb : (S.output b).Case) → (after cb).Straight)
     r
-    (fun _ rest h cb => Identity.transport (fun c => (rest c).Straight) (h.2.1 cb) h.2.2)
+    (fun _ rest h cb => Identity.transport (fun c => (rest c).Straight) (h.1.2 cb) h.2)
     (@fun Γ _ _ _ _ _ _ after inner h cb =>
-      ⟨h.1, h.2.1,
-        Diagram.Straight.rename (PortMap.exchange h.1.1 cb.1 Γ) (after h.1 cb)
-          ((inner h.1).straight h.2.2 cb)⟩)
+      ⟨h.1,
+        Diagram.Straight.rename (PortMap.exchange h.1.1.1 cb.1 Γ) (after h.1.1 cb)
+          ((inner h.1.1).straight h.2 cb)⟩)
 
 /-- An order of a diagram of the fragment is a diagram of the fragment. -/
 def Diagram.Order.straight : {Γ : List Ty} → {Qs : Exits Ty} → (e d : Diagram S Γ Qs) →
     Diagram.Order e d → d.Straight → e.Straight
   | _, _, .exit _, _, _, _ => ()
   | _, _, .step _ rest, _, o, h =>
-      ⟨(o.2.1.single h).1, (o.2.1.single h).2,
+      ⟨o.2.1.single h,
         Diagram.Order.straight (rest (o.2.1.single h).1) (o.1 (o.2.1.single h).1)
           (o.2.2 (o.2.1.single h).1) (o.2.1.straight h (o.2.1.single h).1)⟩
   | _, _, .seq _ _, _, o, _ => nomatch o
@@ -216,29 +216,29 @@ abbrev Diagram.Choice {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) : Typ
 /-- The ready step of the diagram from a ready step of the rest of the first step, for a value
 of the decision of the kinds and a value of the decision of the operands. -/
 def Diagram.Choice.pastOf {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap Γ (S.input a))
-    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs) (center : (S.output a).Case)
-    (only : (c : (S.output a).Case) → center ≡ c) (b : S.Op)
-    (args : PortMap (center.1 ++ Γ) (S.input b))
-    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (center.1 ++ Γ)) Qs}
-    (r : Diagram.Ready b (rest center) args after)
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs)
+    (one : IsContr (S.output a).Case) (b : S.Op)
+    (args : PortMap (one.1.1 ++ Γ) (S.input b))
+    {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (one.1.1 ++ Γ)) Qs}
+    (r : Diagram.Ready b (rest one.1) args after)
     (v : Option ((S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure)))
-    (w : Option ((inner : PortMap Γ (S.input b)) × (args ≡ inner.weaken center.1))) :
+    (w : Option ((inner : PortMap Γ (S.input b)) × (args ≡ inner.weaken one.1.1))) :
     Option (Diagram.step ⟨a, first⟩ rest).Choice :=
   v.bind fun central =>
     w.map fun outer =>
       ⟨b, outer.1, _,
-        (Diagram.Ready.pastOne a central first outer.1 center only
-          (Identity.transport (fun x => Diagram.Ready b (rest center) x after) outer.2 r)).2⟩
+        (Diagram.Ready.pastOne a central first outer.1 one
+          (Identity.transport (fun x => Diagram.Ready b (rest one.1) x after) outer.2 r)).2⟩
 
 /-- A ready step of the rest of a first step is a ready step of the diagram when one of the
 two steps is pure, and its operands have no output port of the first step. The output boundary
 of the first step has one case. -/
 def Diagram.Choice.past {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap Γ (S.input a))
-    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs) (center : (S.output a).Case)
-    (only : (c : (S.output a).Case) → center ≡ c) (choice : (rest center).Choice) :
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs)
+    (one : IsContr (S.output a).Case) (choice : (rest one.1).Choice) :
     Option (Diagram.step ⟨a, first⟩ rest).Choice :=
-  Diagram.Choice.pastOf a first rest center only choice.1 choice.2.1 choice.2.2.2
-    (Kind.central (S.kind a) (S.kind choice.1)) (PortMap.strengthen center.1 choice.2.1)
+  Diagram.Choice.pastOf a first rest one choice.1 choice.2.1 choice.2.2.2
+    (Kind.central (S.kind a) (S.kind choice.1)) (PortMap.strengthen one.1.1 choice.2.1)
 
 /-- The ready steps of a diagram of the fragment, in the order of its steps. The first step is
 ready. A ready step of its rest is ready when one of the two steps is pure, and its operands
@@ -248,7 +248,7 @@ def Diagram.choices : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Q
   | _, _, .exit _, _ => []
   | _, _, .step ⟨a, first⟩ rest, h =>
       ⟨a, first, rest, .here first rest⟩ ::
-        (Diagram.choices (rest h.1) h.2.2).filterMap (Diagram.Choice.past a first rest h.1 h.2.1)
+        (Diagram.choices (rest h.1.1) h.2).filterMap (Diagram.Choice.past a first rest h.1)
   | _, _, .seq _ _, _ => []
 
 /-- A ready step as the ready step of a call. The decision of the identity of the two calls
@@ -313,16 +313,15 @@ case. -/
 def Diagram.Order.pick {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S Γ Qs} (b : S.Op)
     {args : PortMap Γ (S.input b)}
     {after : (cb : (S.output b).Case) → Diagram S (cb.1 ++ Γ) Qs}
-    (ready : Diagram.Ready b d args after) (center : (S.output b).Case)
-    (only : (c : (S.output b).Case) → center ≡ c)
-    (tail : (e : Diagram S (center.1 ++ Γ) Qs) × Diagram.Order e (after center)) :
+    (ready : Diagram.Ready b d args after) (one : IsContr (S.output b).Case)
+    (tail : (e : Diagram S (one.1.1 ++ Γ) Qs) × Diagram.Order e (after one.1)) :
     (e : Diagram S Γ Qs) × Diagram.Order e d :=
   let spread (cb : (S.output b).Case) :
       (e : Diagram S (cb.1 ++ Γ) Qs) × Diagram.Order e (after cb) :=
     Identity.transport
       (fun (c : (S.output b).Case) =>
         (e : Diagram S (c.1 ++ Γ) Qs) × Diagram.Order e (after c))
-      (only cb) tail
+      (one.2 cb) tail
   ⟨.step ⟨b, args⟩ fun cb => (spread cb).1, after, ready, fun cb => (spread cb).2⟩
 
 /-- The orders of a diagram of the fragment that has at most a given number of steps: one
@@ -337,8 +336,7 @@ def Diagram.ordersWithin : Nat → {Γ : List Ty} → {Qs : Exits Ty} → (d : D
       (Diagram.choices (.step call rest) h).flatMap fun choice =>
         (Diagram.ordersWithin n (choice.2.2.1 (choice.2.2.2.single h).1)
             (choice.2.2.2.straight h (choice.2.2.2.single h).1)).map fun tail =>
-          Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h).1
-            (choice.2.2.2.single h).2 tail
+          Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h) tail
   | _ + 1, _, _, .seq _ _, _ => []
 
 /-- The orders of a diagram of the fragment. -/
@@ -353,7 +351,7 @@ def Diagram.Ready.depth {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagram S
     (r : Diagram.Ready b d args after) : d.Straight → Nat :=
   Diagram.Ready.casesOn (motive := @fun _ _ d _ _ _ => d.Straight → Nat) r
     (fun _ _ _ => 0)
-    (@fun _ _ _ _ _ _ _ _ inner h => (inner h.1).depth h.2.2 + 1)
+    (@fun _ _ _ _ _ _ _ _ inner h => (inner h.1.1).depth h.2 + 1)
 
 /-- The step of a move past one step: the occurrences of the two steps and of the rest do not
 change. -/
@@ -445,16 +443,16 @@ def Diagram.Ready.moved {Γ₀ : List Ty} {b : S.Op} {Γ : List Ty} {Qs : Exits 
     (fun args rest h env last =>
       Identity.cong
         (fun tail => some ((⟨b, Call.at b args env last⟩ : S.Occurrence Γ₀), tail))
-        (Diagram.occurrencesCase rest (h.2.1 h.1) h.2.2 (Call.at b args env last) env
+        (Diagram.occurrencesCase rest (h.1.2 h.1.1) h.2 (Call.at b args env last) env
           ((Call.at b args env last).next last)))
     (@fun _ _ a central first second rest after inner h env last =>
-      Diagram.movedPast a b central first second h.1 ((inner h.1).single h.2.2).1
-        (after h.1 ((inner h.1).single h.2.2).1)
-        ((inner h.1).straight h.2.2 ((inner h.1).single h.2.2).1) env last
-        (takeAt ((inner h.1).depth h.2.2)
-          ((rest h.1).occurrences h.2.2 ((Call.at a first env last).outputs h.1 env)
+      Diagram.movedPast a b central first second h.1.1 ((inner h.1.1).single h.2).1
+        (after h.1.1 ((inner h.1.1).single h.2).1)
+        ((inner h.1.1).straight h.2 ((inner h.1.1).single h.2).1) env last
+        (takeAt ((inner h.1.1).depth h.2)
+          ((rest h.1.1).occurrences h.2 ((Call.at a first env last).outputs h.1.1 env)
             ((Call.at a first env last).next last)))
-        ((inner h.1).moved h.2.2 ((Call.at a first env last).outputs h.1 env)
+        ((inner h.1.1).moved h.2 ((Call.at a first env last).outputs h.1.1 env)
           ((Call.at a first env last).next last)))
 
 /-! The occurrences along a derivation of the interchange equation set. -/
@@ -488,17 +486,17 @@ def step (call : (S.interface (Port Γ)).Shape)
     {rest rest' : (c : (S.output call.1).Case) → Diagram S (c.1 ++ Γ) Qs}
     (each : (c : (S.output call.1).Case) → Diagram.Kept Γ₀ (rest c) (rest' c)) :
     Diagram.Kept Γ₀ (.step call rest) (.step call rest') :=
-  ⟨fun h => ⟨h.1, h.2.1, (each h.1).1 h.2.2⟩, fun h => ⟨h.1, h.2.1, (each h.1).2.1 h.2.2⟩,
+  ⟨fun h => ⟨h.1, (each h.1.1).1 h.2⟩, fun h => ⟨h.1, (each h.1.1).2.1 h.2⟩,
     fun h h' env last =>
       Elem.Same.cons _
         (Identity.ind
-          (fun (c : (S.output call.1).Case) (_ : h.1 ≡ c) => (t : (rest' c).Straight) →
+          (fun (c : (S.output call.1).Case) (_ : h.1.1 ≡ c) => (t : (rest' c).Straight) →
             Elem.Same
-              ((rest h.1).occurrences h.2.2 ((Call.at call.1 call.2 env last).outputs h.1 env)
+              ((rest h.1.1).occurrences h.2 ((Call.at call.1 call.2 env last).outputs h.1.1 env)
                 ((Call.at call.1 call.2 env last).next last))
               ((rest' c).occurrences t ((Call.at call.1 call.2 env last).outputs c env)
                 ((Call.at call.1 call.2 env last).next last)))
-          (fun t => (each h.1).2.2 h.2.2 t _ _) (h.2.1 h'.1) h'.2.2)⟩
+          (fun t => (each h.1.1).2.2 h.2 t _ _) (h.1.2 h'.1.1) h'.2)⟩
 
 end Diagram.Kept
 
@@ -519,16 +517,16 @@ def Diagram.Kept.ofInterchange {Γ : List Ty} {Qs : Exits Ty} :
           Diagram.step ⟨b, second.weaken _⟩ fun cb => rest ca cb).Straight) :
           (Diagram.step ⟨b, second⟩ fun cb => Diagram.step ⟨a, first.weaken _⟩ fun ca =>
             Diagram.rename (PortMap.exchange _ _ Γ) (rest ca cb)).Straight :=
-        ⟨h.2.2.1, h.2.2.2.1, h.1, h.2.1,
-          Diagram.Straight.rename (PortMap.exchange _ _ Γ) (rest h.1 h.2.2.1) h.2.2.2.2⟩
+        ⟨h.2.1, h.1,
+          Diagram.Straight.rename (PortMap.exchange _ _ Γ) (rest h.1.1 h.2.1.1) h.2.2⟩
       ⟨fwd,
-        fun h => ⟨h.2.2.1, h.2.2.2.1, h.1, h.2.1,
-          Diagram.Straight.ofRename (PortMap.exchange _ _ Γ) (rest h.2.2.1 h.1) h.2.2.2.2⟩,
+        fun h => ⟨h.2.1, h.1,
+          Diagram.Straight.ofRename (PortMap.exchange _ _ Γ) (rest h.2.1.1 h.1.1) h.2.2⟩,
         fun h h' env last =>
           let moved :=
             Identity.someInject
-              (Diagram.movedPast a b central first second h.1 h.2.2.1 (rest h.1 h.2.2.1)
-                h.2.2.2.2 env last _ .refl)
+              (Diagram.movedPast a b central first second h.1.1 h.2.1.1 (rest h.1.1 h.2.1.1)
+                h.2.2 env last _ .refl)
           ((Elem.Same.swap _ _ _).trans
               (Elem.Same.ofIdentity
                 (Identity.cong
@@ -682,9 +680,9 @@ def Diagram.Ready.depthSame {b : S.Op} {Γ : List Ty} {Qs : Exits Ty} {d : Diagr
     (@fun _ _ _ _ _ _ rest _ inner s s' =>
       Identity.cong Nat.succ
         (Identity.ind
-          (fun (c : _) (_ : s.1 ≡ c) => (sc : (rest c).Straight) →
-            (inner s.1).depth s.2.2 ≡ (inner c).depth sc)
-          (fun sc => (inner s.1).depthSame s.2.2 sc) (s.2.1 s'.1) s'.2.2))
+          (fun (c : _) (_ : s.1.1 ≡ c) => (sc : (rest c).Straight) →
+            (inner s.1.1).depth s.2 ≡ (inner c).depth sc)
+          (fun sc => (inner s.1.1).depthSame s.2 sc) (s.1.2 s'.1.1) s'.2))
 
 /-- A ready step of a diagram of the fragment that passes a given number of steps. -/
 abbrev Diagram.ReadyAt {Γ : List Ty} {Qs : Exits Ty} (d : Diagram S Γ Qs) (h : d.Straight)
@@ -704,26 +702,26 @@ def Diagram.readyPast {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap
     (fresh : Elem (⟨a, Call.at a first env last⟩ : S.Occurrence Γ₀) done → Empty)
     (k : Nat) (found : S.Occurrence Γ₀ × List (S.Occurrence Γ₀))
     (taken : takeAt k
-        ((rest h.1).occurrences h.2.2 ((Call.at a first env last).outputs h.1 env)
+        ((rest h.1.1).occurrences h.2 ((Call.at a first env last).outputs h.1.1 env)
           ((Call.at a first env last).next last)) ≡ some found)
     (operands : (t : Ty) → (p : Port (S.input found.1.1) t) →
       History.Produced done (found.1.2.args.lookup p))
     (effect : Effect.Produced done found.1.2.before)
-    (ih : (rest h.1).ReadyAt h.2.2 k) :
+    (ih : (rest h.1.1).ReadyAt h.2 k) :
     (Diagram.step ⟨a, first⟩ rest).ReadyAt h (k + 1) :=
   let A : Call S Γ₀ a := Call.at a first env last
-  let env' : All (History S Γ₀) (h.1.1 ++ Γ) := A.outputs h.1 env
+  let env' : All (History S Γ₀) (h.1.1.1 ++ Γ) := A.outputs h.1.1 env
   let last' : Option (Effect S Γ₀) := A.next last
   let b : S.Op := ih.1
-  let args' : PortMap (h.1.1 ++ Γ) (S.input b) := ih.2.1
+  let args' : PortMap (h.1.1.1 ++ Γ) (S.input b) := ih.2.1
   let r' := ih.2.2.2.1
   let sameOcc : found.1 ≡ (⟨b, Call.at b args' env' last'⟩ : S.Occurrence Γ₀) :=
     Identity.cong Prod.fst
       (Identity.someInject
         (taken.symm.trans
           ((Identity.cong
-              (fun n => takeAt n ((rest h.1).occurrences h.2.2 env' last')) ih.2.2.2.2).symm.trans
-            (r'.moved h.2.2 env' last'))))
+              (fun n => takeAt n ((rest h.1.1).occurrences h.2 env' last')) ih.2.2.2.2).symm.trans
+            (r'.moved h.2 env' last'))))
   let ops : (t : Ty) → (p : Port (S.input b) t) →
       History.Produced done (All.lookup (env'.select args') p) :=
     Identity.transport
@@ -733,13 +731,13 @@ def Diagram.readyPast {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap
   let eff : Effect.Produced done (Kind.before (S.kind b) last') :=
     Identity.transport (fun (x : S.Occurrence Γ₀) => Effect.Produced done x.2.before) sameOcc
       effect
-  let strong := PortMap.strengthenBy h.1.1 args' fun t i j e =>
+  let strong := PortMap.strengthenBy h.1.1.1 args' fun t i j e =>
     fresh
       (Identity.transport (History.Produced done)
         ((All.lookupMap (fun _ q => env'.lookup q) args' i).trans
           ((Identity.cong (fun q => env'.lookup q) e).trans
-            ((All.lookupLeft (All.tabulate h.1.1 fun _ q => History.output A h.1 q) env j).trans
-              (All.lookupTabulate (fun _ q => History.output A h.1 q) j))))
+            ((All.lookupLeft (All.tabulate h.1.1.1 fun _ q => History.output A h.1.1 q) env j).trans
+              (All.lookupTabulate (fun _ q => History.output A h.1.1 q) j))))
         (ops t i))
   let central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure) :=
     match Kind.cases (S.kind a) with
@@ -753,25 +751,25 @@ def Diagram.readyPast {Γ : List Ty} {Qs : Exits Ty} (a : S.Op) (first : PortMap
                 (fun k => Effect.Produced done (Kind.last k last (.after A))) ea
                 (Identity.transport (fun k => Effect.Produced done (Kind.before k last')) eb
                   eff))).elim
-  let r'' : Diagram.Ready b (rest h.1) (PortMap.weaken h.1.1 strong.1) ih.2.2.1 :=
-    Identity.transport (fun x => Diagram.Ready b (rest h.1) x ih.2.2.1) strong.2 r'
-  let sameDepth : r''.depth h.2.2 ≡ r'.depth h.2.2 :=
+  let r'' : Diagram.Ready b (rest h.1.1) (PortMap.weaken h.1.1.1 strong.1) ih.2.2.1 :=
+    Identity.transport (fun x => Diagram.Ready b (rest h.1.1) x ih.2.2.1) strong.2 r'
+  let sameDepth : r''.depth h.2 ≡ r'.depth h.2 :=
     Identity.ind (a := args')
-      (fun (x : PortMap (h.1.1 ++ Γ) (S.input b)) (q : args' ≡ x) =>
-        (Identity.transport (fun x => Diagram.Ready b (rest h.1) x ih.2.2.1) q r').depth h.2.2 ≡
-          r'.depth h.2.2)
+      (fun (x : PortMap (h.1.1.1 ++ Γ) (S.input b)) (q : args' ≡ x) =>
+        (Identity.transport (fun x => Diagram.Ready b (rest h.1.1) x ih.2.2.1) q r').depth h.2 ≡
+          r'.depth h.2)
       .refl strong.2
-  ⟨b, strong.1, _, (Diagram.Ready.pastOne a central first strong.1 h.1 h.2.1 r'').2,
+  ⟨b, strong.1, _, (Diagram.Ready.pastOne a central first strong.1 h.1 r'').2,
     Identity.cong Nat.succ
-      (Identity.ind (a := h.1)
-        (fun (c : (S.output a).Case) (p : h.1 ≡ c) => (s' : (rest c).Straight) →
+      (Identity.ind (a := h.1.1)
+        (fun (c : (S.output a).Case) (p : h.1.1 ≡ c) => (s' : (rest c).Straight) →
           ((Identity.transport
             (fun (c : (S.output a).Case) =>
               (aft : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) ×
                 Diagram.Ready b (rest c) (PortMap.weaken c.1 strong.1) aft)
             p ⟨ih.2.2.1, r''⟩).2).depth s' ≡ k)
-        (fun s' => (r''.depthSame s' h.2.2).trans (sameDepth.trans ih.2.2.2.2))
-        (h.2.1 h.1) h.2.2)⟩
+        (fun s' => (r''.depthSame s' h.2).trans (sameDepth.trans ih.2.2.2.2))
+        (h.1.2 h.1.1) h.2)⟩
 
 /-- The step of a diagram of the fragment at a number is ready, when no occurrence of the
 diagram is done, the call of each operand of the step is done, and the effectful call before
@@ -794,7 +792,7 @@ def Diagram.readyAt : (k : Nat) → {Γ : List Ty} → {Qs : Exits Ty} → (d : 
   | k + 1, _, _, .step ⟨a, first⟩ rest, h, env, last, done, fresh, _, taken, operands,
       effect =>
       let m := Identity.ofMapSome
-        (takeAt k ((rest h.1).occurrences h.2.2 ((Call.at a first env last).outputs h.1 env)
+        (takeAt k ((rest h.1.1).occurrences h.2 ((Call.at a first env last).outputs h.1.1 env)
           ((Call.at a first env last).next last))) taken
       let operands' := Identity.transport
         (fun (f : S.Occurrence Γ₀ × List (S.Occurrence Γ₀)) => (t : Ty) →
@@ -806,7 +804,7 @@ def Diagram.readyAt : (k : Nat) → {Γ : List Ty} → {Qs : Exits Ty} → (d : 
         m.2.2.symm effect
       Diagram.readyPast a first rest h env last done (fresh _ .here) k m.1 m.2.1 operands'
         effect'
-        (Diagram.readyAt k (rest h.1) h.2.2 ((Call.at a first env last).outputs h.1 env)
+        (Diagram.readyAt k (rest h.1.1) h.2 ((Call.at a first env last).outputs h.1.1 env)
           ((Call.at a first env last).next last) done (fun x i j => fresh x (.there i) j) m.1
           m.2.1 operands' effect')
 
@@ -851,7 +849,7 @@ def Diagram.Order.ofAdmissible : (w : List Nat) → {Γ : List Ty} → {Qs : Exi
           ((FreeDep.parts ev).2 (.inr ((), (pre.1.2, pre.1.1 :: done))) .refl))
       let tail : (e : Diagram S (c.1 ++ Γ) Qs) × Diagram.Order e (ra.2.2.1 c) :=
         ⟨rec'.1, rec'.2.1⟩
-      let picked := Diagram.Order.pick b r c (r.single h).2 tail
+      let picked := Diagram.Order.pick b r (r.single h) tail
       ⟨picked.1, picked.2,
         Identity.cong₂ List.cons ra.2.2.2.2
           ((Identity.ind (a := c)
@@ -888,16 +886,15 @@ the context before the first step, when one of the two steps is pure. -/
 def Diagram.Choice.pastSome {Γ : List Ty} {Qs : Exits Ty} (a b : S.Op)
     (central : (S.kind a ≡ .pure) ⊕ (S.kind b ≡ .pure))
     (first : PortMap Γ (S.input a)) (second : PortMap Γ (S.input b))
-    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs) (center : (S.output a).Case)
-    (only : (c : (S.output a).Case) → center ≡ c)
-    {after₁ : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (center.1 ++ Γ)) Qs}
-    (r₁ : Diagram.Ready b (rest center) (second.weaken center.1) after₁) :
-    Diagram.Choice.past a first rest center only ⟨b, second.weaken center.1, after₁, r₁⟩ ≡
+    (rest : (c : (S.output a).Case) → Diagram S (c.1 ++ Γ) Qs) (one : IsContr (S.output a).Case)
+    {after₁ : (cb : (S.output b).Case) → Diagram S (cb.1 ++ (one.1.1 ++ Γ)) Qs}
+    (r₁ : Diagram.Ready b (rest one.1) (second.weaken one.1.1) after₁) :
+    Diagram.Choice.past a first rest one ⟨b, second.weaken one.1.1, after₁, r₁⟩ ≡
       some ⟨b, second, _,
-        (Diagram.Ready.pastOne a (Kind.centralOf central).1 first second center only r₁).2⟩ :=
+        (Diagram.Ready.pastOne a (Kind.centralOf central).1 first second one r₁).2⟩ :=
   Identity.cong₂
-    (Diagram.Choice.pastOf a first rest center only b (second.weaken center.1) r₁)
-    (Kind.centralOf central).2 (PortMap.strengthenWeaken center.1 second)
+    (Diagram.Choice.pastOf a first rest one b (second.weaken one.1.1) r₁)
+    (Kind.centralOf central).2 (PortMap.strengthenWeaken one.1.1 second)
 
 /-- A ready step is in a list of ready steps of the diagram: a ready step of the list with the
 same operation and operands, and a diagram after it that agrees at each case. -/
@@ -928,16 +925,16 @@ def Diagram.Ready.listed {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} → {d 
       h' =>
       same.view (fun d' => (h' : d'.Straight) → Diagram.Ready.Listed b d' second _ h')
         (fun rest' each h' =>
-          let ih := Diagram.Ready.listed (inner h'.1) (rest' h'.1) (each h'.1) h'.2.2
-          let po := Diagram.Ready.pastOne a (Kind.centralOf central).1 first second h'.1 h'.2.1
+          let ih := Diagram.Ready.listed (inner h'.1.1) (rest' h'.1.1) (each h'.1.1) h'.2
+          let po := Diagram.Ready.pastOne a (Kind.centralOf central).1 first second h'.1
             ih.2.1
           ⟨_, po.2,
             .there (Elem.ofFilterMap ih.2.2.1
-              (Diagram.Choice.pastSome a b central first second rest' h'.1 h'.2.1 ih.2.1)),
+              (Diagram.Choice.pastSome a b central first second rest' h'.1 ih.2.1)),
             fun cb => .step _ fun ca =>
               Diagram.Agreement.rename (PortMap.exchange ca.1 cb.1 Γ)
                 (Identity.ind
-                  (fun (c : (S.output a).Case) (p : h'.1 ≡ c) =>
+                  (fun (c : (S.output a).Case) (p : h'.1.1 ≡ c) =>
                     (cb : (S.output b).Case) →
                     Diagram.Agreement (after c cb)
                       ((Identity.transport
@@ -946,7 +943,7 @@ def Diagram.Ready.listed {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} → {d 
                               Diagram S (cb.1 ++ (c.1 ++ Γ)) _) ×
                             Diagram.Ready b (rest' c) (second.weaken c.1) aft)
                         p ⟨ih.1, ih.2.1⟩).1 cb))
-                  (fun cb => ih.2.2.2 cb) (h'.2.1 ca) cb)⟩)
+                  (fun cb => ih.2.2.2 cb) (h'.1.2 ca) cb)⟩)
         h'
 
 /-- A ready step is the ready step of its own call, with its own evidence. -/
@@ -1005,16 +1002,16 @@ def Diagram.Ready.opsAfter {b : S.Op} : {Γ : List Ty} → {Qs : Exits Ty} →
   | _, _, _, _, _, .here _ rest, h =>
       Identity.cong (fun k => k + 1)
         (Identity.ind
-          (fun (c : (S.output b).Case) (p : h.1 ≡ c) =>
-            ((rest c).ops (Identity.transport (fun c => (rest c).Straight) p h.2.2)).length ≡
-              ((rest h.1).ops h.2.2).length)
-          .refl (h.2.1 h.1))
+          (fun (c : (S.output b).Case) (p : h.1.1 ≡ c) =>
+            ((rest c).ops (Identity.transport (fun c => (rest c).Straight) p h.2)).length ≡
+              ((rest h.1.1).ops h.2).length)
+          .refl (h.1.2 h.1.1))
   | Γ, _, _, _, _, @Diagram.Ready.past _ _ _ _ _ _ _ _ _ _ after inner, h =>
       Identity.cong (fun k => k + 1)
         ((Identity.cong (fun (l : List S.Op) => l.length + 1)
-            (Diagram.opsRename (PortMap.exchange h.1.1 _ Γ) (after h.1 _)
-              ((inner h.1).straight h.2.2 _))).trans
-          (Diagram.Ready.opsAfter (inner h.1) h.2.2))
+            (Diagram.opsRename (PortMap.exchange h.1.1.1 _ Γ) (after h.1.1 _)
+              ((inner h.1.1).straight h.2 _))).trans
+          (Diagram.Ready.opsAfter (inner h.1.1) h.2))
 
 /-- The order with a ready step of the list first, and then an order of the list of the diagram
 after that step, is an order of the list. -/
@@ -1026,16 +1023,14 @@ def Diagram.Order.pickListed : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagr
       (Diagram.ordersWithin m (choice.2.2.1 (choice.2.2.2.single h).1)
         (choice.2.2.2.straight h (choice.2.2.2.single h).1)) →
     Elem
-      (Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h).1
-        (choice.2.2.2.single h).2 tail)
+      (Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h) tail)
       (Diagram.ordersWithin (m + 1) d h)
   | _, _, .exit _, _, _, mem, _, _, _ => mem.ofNil
   | _, _, .step _ _, h, choice, mem, _, _, memTail =>
       Elem.ofFlatMap mem
         (Elem.map
           (fun tail =>
-            Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h).1
-              (choice.2.2.2.single h).2 tail)
+            Diagram.Order.pick choice.1 choice.2.2.2 (choice.2.2.2.single h) tail)
           memTail)
   | _, _, .seq _ _, h, _, _, _, _, _ => nomatch h
 
@@ -1071,7 +1066,7 @@ def Diagram.Order.listedWithin : {Γ : List Ty} → {Qs : Exits Ty} → (e d : D
         (found.2.2.2 c) (found.2.1.straight h' c) _ .refl
       Identity.transport (fun n => Diagram.Order.Listed (.step call rest) d' h' n)
         ((found.2.1.opsAfter h').trans fuel)
-        ⟨Diagram.Order.pick call.1 found.2.1 c only ih.1,
+        ⟨Diagram.Order.pick call.1 found.2.1 (found.2.1.single h') ih.1,
           Diagram.Order.pickListed d' h' ⟨call.1, call.2, found.1, found.2.1⟩ found.2.2.1 _ ih.1
             ih.2.1,
           .step call fun cb =>

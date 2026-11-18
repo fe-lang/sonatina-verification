@@ -563,7 +563,10 @@ each step.
 [Draft/Source.lean](Draft/Source.lean) has the diagrams of the fragment with
 fixed occurrences: one sequence of steps and one exit. The evidence is a
 function of the diagram. The output boundary of each step has one case: the
-type of its cases has a center, and each case is identical to the center. The
+type of its cases is contractible. It has a center, and each case is
+identical to the center. [Prelude/Identity.lean](Prelude/Identity.lean) has
+the contractible types and the propositions. Each function that needs one
+case takes the evidence of contractibility as one argument. The
 action of a port map keeps the fragment. For a diagram of the fragment, the
 ready steps are a list, and the orders are a list: one order for each choice
 of a ready step at each point. A step of the rest of the first step is ready

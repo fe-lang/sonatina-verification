@@ -95,9 +95,9 @@ def unshared : Diagram sig input [value] := .step ⟨none, p⟩ path
 def straight (c : (sig.output none).Case) : (path c).Straight :=
   match c with
   | ⟨_, .here⟩ | ⟨_, .there .here⟩ =>
-      ⟨Boundary.only _, (fun | ⟨_, .here⟩ => .refl),
-        Boundary.only _, (fun | ⟨_, .here⟩ => .refl),
-        Boundary.only _, (fun | ⟨_, .here⟩ => .refl), ()⟩
+      ⟨⟨Boundary.only _, fun | ⟨_, .here⟩ => .refl⟩,
+        ⟨Boundary.only _, fun | ⟨_, .here⟩ => .refl⟩,
+        ⟨Boundary.only _, fun | ⟨_, .here⟩ => .refl⟩, ()⟩
 
 /-- The list of the ready steps of the source diagram. -/
 def choices : List unshared.Choice :=
@@ -331,8 +331,8 @@ def ready (k : Kind) (l : PortMap ([(), ()] ++ input) [()]) (r : PortMap ([()] +
     | ⟨_, .there .here⟩ => twice k r
   let straight : (c : ((signature k).output false).Case) → (arms c).Straight
     | ⟨_, .here⟩ | ⟨_, .there .here⟩ =>
-        ⟨Boundary.only _, (fun | ⟨_, .here⟩ => .refl),
-          Boundary.only _, (fun | ⟨_, .here⟩ => .refl), ()⟩
+        ⟨⟨Boundary.only _, fun | ⟨_, .here⟩ => .refl⟩,
+          ⟨Boundary.only _, fun | ⟨_, .here⟩ => .refl⟩, ()⟩
   (Diagram.binaryChoices (S := signature k) (Γ := input) false .nil arms (.pair _ _) straight).map
     fun choice => choice.1
 

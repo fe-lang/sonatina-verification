@@ -370,4 +370,10 @@ def trans (p : Homotopy f g) (q : Homotopy g h) : Homotopy f h := fun x => (p x)
 
 end Homotopy
 
+/-- A type is contractible: it has a center, and each element is identical to the center. -/
+abbrev IsContr (α : Type u) : Type u := (center : α) × ((x : α) → center ≡ x)
+
+/-- A type is a proposition: each two elements are identical. -/
+abbrev IsProp (α : Type u) : Type u := (x y : α) → x ≡ y
+
 end Prelude

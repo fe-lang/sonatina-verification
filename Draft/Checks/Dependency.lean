@@ -111,19 +111,19 @@ def source : Diagram sig [(), ()] Two :=
 /-- The one case of an output boundary with one port. -/
 def center : (Boundary.one [()] : Boundary Unit).Case := ⟨_, .here⟩
 
-/-- Each case of that boundary is the one case. -/
-def only : (c : (Boundary.one [()] : Boundary Unit).Case) → center ≡ c
-  | ⟨_, .here⟩ => .refl
+/-- The type of the cases of that boundary is contractible: each case is the one case. -/
+def oneCase : IsContr (Boundary.one [()] : Boundary Unit).Case :=
+  ⟨center, fun | ⟨_, .here⟩ => .refl⟩
 
 /-- `C` is ready after `A`: it moves past `B`. -/
 def pastB := Diagram.Ready.pastOne (S := sig) (b := Op.emit) (Qs := Two) Op.add (.inl .refl)
   (.cons .here (.cons (.there (.there .here)) .nil)) (.cons (.there .here) .nil)
-  (rest := fun | ⟨_, .here⟩ => stepC) center only (.here _ _)
+  (rest := fun | ⟨_, .here⟩ => stepC) oneCase (.here _ _)
 
 /-- `C` is ready in the source diagram: it moves past `B` and then past `A`. -/
 def pastA := Diagram.Ready.pastOne (S := sig) (b := Op.emit) (Qs := Two) Op.add (.inl .refl)
   (.cons .here (.cons (.there .here) .nil)) (.cons .here .nil)
-  (rest := fun | ⟨_, .here⟩ => stepB) center only pastB.2
+  (rest := fun | ⟨_, .here⟩ => stepB) oneCase pastB.2
 
 /-- The source diagram is an order of itself: each step is the first step. -/
 def sourceOrder : Diagram.Order source source :=
@@ -168,7 +168,7 @@ def frontOrder : Diagram.Order front source :=
 
 /-- The source diagram is a diagram of the fragment: each of its three steps has one output
 case. -/
-def straight : source.Straight := ⟨center, only, center, only, center, only, ()⟩
+def straight : source.Straight := ⟨oneCase, oneCase, oneCase, ()⟩
 
 set_option smartUnfolding false in
 /-- Each order is a diagram of the fragment, and it has its steps in its order. -/
@@ -551,7 +551,7 @@ def diamond : Diagram sig [(), ()] Two :=
 
 /-- The diagram is a diagram of the fragment. -/
 def diamondStraight : diamond.Straight :=
-  ⟨center, only, center, only, center, only, center, only, ()⟩
+  ⟨oneCase, oneCase, oneCase, oneCase, ()⟩
 
 set_option smartUnfolding false in
 /-- The list of the orders has the two orders of `B` and `C`. Each order has four steps: `A`
@@ -580,7 +580,7 @@ def discarded : Diagram sig [(), ()] Two :=
       | ⟨_, .here⟩ => .exit ⟨_, .here, Boundary.only _, .cons .here (.cons .here .nil)⟩
 
 /-- The diagram is a diagram of the fragment. -/
-def discardedStraight : discarded.Straight := ⟨center, only, center, only, ()⟩
+def discardedStraight : discarded.Straight := ⟨oneCase, oneCase, ()⟩
 
 set_option smartUnfolding false in
 /-- The list of the orders has the two orders. -/
@@ -683,7 +683,7 @@ def longPayload (flag : Bool) (u v x y : Nat) :
       ⟨u + (x + y + (x + y)), Nat.lt_succ_self _⟩).val ≡ u + (x + y + (x + y)) := .refl
 
 /-- The diagram with two calls is a diagram of the fragment. -/
-def twiceStraight : twice.Straight := ⟨center, only, center, only, center, only, ()⟩
+def twiceStraight : twice.Straight := ⟨oneCase, oneCase, oneCase, ()⟩
 
 /-- The call of `A` at the histories of the two inputs. -/
 def callA : Call sig [(), ()] Op.add :=
@@ -859,7 +859,7 @@ def apart : Diagram sig [(), ()] Two :=
                 .exit ⟨_, .here, Boundary.only _, .cons .here (.cons (.there .here) .nil)⟩
 
 /-- The diagram is a diagram of the fragment. -/
-def apartStraight : apart.Straight := ⟨center, only, center, only, center, only, ()⟩
+def apartStraight : apart.Straight := ⟨oneCase, oneCase, oneCase, ()⟩
 
 set_option smartUnfolding false in
 /-- The merged diagram has one call of `A`. -/

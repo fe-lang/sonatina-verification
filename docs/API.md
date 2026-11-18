@@ -27,7 +27,7 @@ The Prelude imports Lean's `Init` and supplies the following modules:
 
 | Module | Contents |
 | --- | --- |
-| [`Prelude.Identity`](../Prelude/Identity.lean) | Internal identity, path induction, transport, congruence, identity laws, dependent pair identities, constructor facts for `Option` and `Sum`, and `toEq`; `Iso` with its transport of dependent evidence and its sums over fibres and bases; `Homotopy` with `refl`, `symm`, and `trans` |
+| [`Prelude.Identity`](../Prelude/Identity.lean) | Internal identity, path induction, transport, congruence, identity laws, dependent pair identities, constructor facts for `Option` and `Sum`, and `toEq`; `Iso` with its transport of dependent evidence and its sums over fibres and bases; `Homotopy` with `refl`, `symm`, and `trans`; the contractible types and the propositions (`IsContr`, `IsProp`) |
 | [`Prelude.Decision`](../Prelude/Decision.lean) | `Refute`, `Dec`, `DecEq`, `decideEq`, decision combinators, and structural `DecEq` instances; `Dec.unique` gives one identity proof for each two elements of a type with a decision of identity |
 | [`Prelude.Indexed`](../Prelude/Indexed.lean) | `Elem` positions and `All` dependent environments over `List`, with lookup, update at a position, mapping, concatenation, tabulation, the positions of a concatenation, and selection, with their laws |
 | [`Prelude.Relation`](../Prelude/Relation.lean) | `Steps` with composition, mapping, and length; `Accessible` and `TypeWellFounded` for Type-valued relations; `Rel` computations with graph, composition, copairing, and agreement; `Loop` with its initial property, laws, domain evidence, and function with fuel |

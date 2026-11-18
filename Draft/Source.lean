@@ -3,10 +3,10 @@ import Draft.Diagram
 /-! Source diagrams of the fragment with fixed occurrences.
 
 A diagram of the fragment is one sequence of steps and one exit. The output boundary of each
-step has one case: the type of its cases has a center, and each case is identical to the
-center. The evidence is a function of the diagram, by a recursion on it. The action of a port
-map keeps the fragment. The operations of a diagram of the fragment are a list, in the order of
-its steps.
+step has one case: the type of its cases is contractible. It has a center, and each case is
+identical to the center. The evidence is a function of the diagram, by a recursion on it. The
+action of a port map keeps the fragment. The operations of a diagram of the fragment are a
+list, in the order of its steps.
 
 The dependency graph of a diagram of the fragment has no names. A value is its history: an
 input of the diagram, or an output port of the call that made it. A call has the histories of
@@ -70,35 +70,34 @@ namespace Draft
 
 variable {Ty : Type} {S : Signature Ty}
 
-/-- The evidence that a diagram is one sequence of steps and one exit. A step has the center
-of the cases of its output boundary, the identity of each case with the center, and the
-evidence of its rest at the center. -/
+/-- The evidence that a diagram is one sequence of steps and one exit. A step has the evidence
+that the type of the cases of its output boundary is contractible, and the evidence of its rest
+at the center. -/
 def Diagram.Straight : {Γ : List Ty} → {Qs : Exits Ty} → Diagram S Γ Qs → Type
   | _, _, .exit _ => Unit
   | _, _, .step call rest =>
-      (center : (S.output call.1).Case) ×
-        (((c : (S.output call.1).Case) → center ≡ c) × Diagram.Straight (rest center))
+      (one : IsContr (S.output call.1).Case) × Diagram.Straight (rest one.1)
   | _, _, .seq _ _ => Empty
 
 /-- The action of a port map keeps the fragment. -/
 def Diagram.Straight.rename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap Γ Δ) →
     (d : Diagram S Δ Qs) → d.Straight → (d.rename ρ).Straight
   | _, _, _, _, .exit _, _ => ()
-  | _, _, _, ρ, .step _ rest, h => ⟨h.1, h.2.1, rename (ρ.lift h.1.1) (rest h.1) h.2.2⟩
+  | _, _, _, ρ, .step _ rest, h => ⟨h.1, rename (ρ.lift h.1.1.1) (rest h.1.1) h.2⟩
   | _, _, _, _, .seq _ _, h => nomatch h
 
 /-- A diagram is a diagram of the fragment when its diagram with renamed ports is. -/
 def Diagram.Straight.ofRename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap Γ Δ) →
     (d : Diagram S Δ Qs) → (d.rename ρ).Straight → d.Straight
   | _, _, _, _, .exit _, _ => ()
-  | _, _, _, ρ, .step _ rest, h => ⟨h.1, h.2.1, ofRename (ρ.lift h.1.1) (rest h.1) h.2.2⟩
+  | _, _, _, ρ, .step _ rest, h => ⟨h.1, ofRename (ρ.lift h.1.1.1) (rest h.1.1) h.2⟩
   | _, _, _, _, .seq _ _, h => nomatch h
 
 /-- The operations of a diagram of the fragment, in the order of its steps. -/
 def Diagram.ops : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S Γ Qs) → d.Straight →
     List S.Op
   | _, _, .exit _, _ => []
-  | _, _, .step call rest, h => call.1 :: Diagram.ops (rest h.1) h.2.2
+  | _, _, .step call rest, h => call.1 :: Diagram.ops (rest h.1.1) h.2
   | _, _, .seq _ _, _ => []
 
 /-- The operations of a diagram with renamed ports are the operations of the diagram. -/
@@ -107,7 +106,7 @@ def Diagram.opsRename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : PortMap 
     (d.rename ρ).ops (Diagram.Straight.rename ρ d h) ≡ d.ops h
   | _, _, _, _, .exit _, _ => .refl
   | _, _, _, ρ, .step call rest, h =>
-      Identity.cong (fun l => call.1 :: l) (Diagram.opsRename (ρ.lift h.1.1) (rest h.1) h.2.2)
+      Identity.cong (fun l => call.1 :: l) (Diagram.opsRename (ρ.lift h.1.1.1) (rest h.1.1) h.2)
   | _, _, _, _, .seq _ _, h => nomatch h
 
 /-! The dependency graph. -/
@@ -211,8 +210,8 @@ def Diagram.occurrences : {Γ : List Ty} → {Qs : Exits Ty} → (d : Diagram S 
   | _, _, .exit _, _, _, _ => []
   | _, _, .step call rest, h, env, last =>
       ⟨call.1, Call.at call.1 call.2 env last⟩ ::
-        Diagram.occurrences (rest h.1) h.2.2
-          ((Call.at call.1 call.2 env last).outputs h.1 env)
+        Diagram.occurrences (rest h.1.1) h.2
+          ((Call.at call.1 call.2 env last).outputs h.1.1 env)
           ((Call.at call.1 call.2 env last).next last)
   | _, _, .seq _ _, _, _, _ => []
 
@@ -238,19 +237,19 @@ def Diagram.occurrencesRename : {Γ Δ : List Ty} → {Qs : Exits Ty} → (ρ : 
       (Identity.cong
           (fun tail =>
             (⟨call.1, Call.at call.1 (ρ.select call.2) env last⟩ : S.Occurrence Γ₀) :: tail)
-          ((Diagram.occurrencesRename (ρ.lift h.1.1) (rest h.1) h.2.2
-              ((Call.at call.1 (ρ.select call.2) env last).outputs h.1 env)
+          ((Diagram.occurrencesRename (ρ.lift h.1.1.1) (rest h.1.1) h.2
+              ((Call.at call.1 (ρ.select call.2) env last).outputs h.1.1 env)
               ((Call.at call.1 (ρ.select call.2) env last).next last)).trans
             (Identity.cong
               (fun vals =>
-                Diagram.occurrences (rest h.1) h.2.2 vals
+                Diagram.occurrences (rest h.1.1) h.2 vals
                   ((Call.at call.1 (ρ.select call.2) env last).next last))
               (PortMap.selectLift _ env ρ)))).trans
         (Identity.cong
           (fun (args : All (History S Γ₀) (S.input call.1)) =>
             ((⟨call.1, .mk args (Kind.before (S.kind call.1) last)⟩ : S.Occurrence Γ₀) ::
-              Diagram.occurrences (rest h.1) h.2.2
-                ((Call.mk args (Kind.before (S.kind call.1) last)).outputs h.1
+              Diagram.occurrences (rest h.1.1) h.2
+                ((Call.mk args (Kind.before (S.kind call.1) last)).outputs h.1.1
                   (env.select ρ))
                 ((Call.mk args (Kind.before (S.kind call.1) last)).next last)))
           (All.selectSelect env ρ call.2))
@@ -430,14 +429,14 @@ def Signature.ran {Q : Empty ⊕ (Unit × S.Progress Γ₀) → Type} (k : Nat)
 /-! The merge of the equal calls. -/
 
 /-- An available call: a call of a pure operation in the steps before a point, with its ports,
-the one case of its output boundary, and its output ports. -/
+the evidence that the type of the cases of its output boundary is contractible, and its output
+ports. -/
 structure Available (S : Signature Ty) (Γ : List Ty) where
   op : S.Op
   pure : S.kind op ≡ .pure
   args : PortMap Γ (S.input op)
-  center : (S.output op).Case
-  only : (c : (S.output op).Case) → center ≡ c
-  outs : PortMap Γ center.1
+  one : IsContr (S.output op).Case
+  outs : PortMap Γ one.1.1
 
 /-- The data of a call that a later step can use: an operation, its ports, a case of its output
 boundary, and the output ports of that case. -/
@@ -449,28 +448,28 @@ namespace Available
 variable {Γ : List Ty}
 
 /-- The data of an available call. -/
-def used (e : Available S Γ) : Used S Γ := ⟨e.op, e.args, e.center, e.outs⟩
+def used (e : Available S Γ) : Used S Γ := ⟨e.op, e.args, e.one.1, e.outs⟩
 
 /-- An available call in a context with more ports. -/
 def weaken (Ξ : List Ty) (e : Available S Γ) : Available S (Ξ ++ Γ) :=
-  ⟨e.op, e.pure, e.args.weaken Ξ, e.center, e.only, PortMap.weaken Ξ e.outs⟩
+  ⟨e.op, e.pure, e.args.weaken Ξ, e.one, PortMap.weaken Ξ e.outs⟩
 
 /-- The call of a step with a pure operation, in the context after the step. -/
 def ofStep (f : S.Op) (pure : S.kind f ≡ .pure) (args : PortMap Γ (S.input f))
-    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c) :
-    Available S (center.1 ++ Γ) :=
-  ⟨f, pure, args.weaken center.1, center, only,
-    All.tabulate (P := Port (center.1 ++ Γ)) center.1 fun _ i => i.left⟩
+    (one : IsContr (S.output f).Case) :
+    Available S (one.1.1 ++ Γ) :=
+  ⟨f, pure, args.weaken one.1.1, one,
+    All.tabulate (P := Port (one.1.1 ++ Γ)) one.1.1 fun _ i => i.left⟩
 
 /-- The available calls after a step: the call of the step when its operation is pure, and
 then the calls before the step. -/
 def after (table : List (Available S Γ)) (f : S.Op) (args : PortMap Γ (S.input f))
-    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c) :
-    List (Available S (center.1 ++ Γ)) :=
-  Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ)))
+    (one : IsContr (S.output f).Case) :
+    List (Available S (one.1.1 ++ Γ)) :=
+  Sum.casesOn (motive := fun _ => List (Available S (one.1.1 ++ Γ)))
     (Kind.cases (S.kind f))
-    (fun pure => ofStep f pure args center only :: table.map (weaken center.1))
-    (fun _ => table.map (weaken center.1))
+    (fun pure => ofStep f pure args one :: table.map (weaken one.1.1))
+    (fun _ => table.map (weaken one.1.1))
 
 /-- The case and the output ports of an available call, as a call of an operation at given
 ports. -/
@@ -484,7 +483,7 @@ def usePorts (e : Available S Γ) (args : PortMap Γ (S.input e.op)) :
   | .no _ => none
   | .yes samePorts =>
       Identity.ind (fun (args : PortMap Γ (S.input e.op)) _ => Option (e.Use e.op args))
-        (some ⟨e.center, e.outs, .refl⟩) samePorts
+        (some ⟨e.one.1, e.outs, .refl⟩) samePorts
 
 /-- The use of an available call for an operation, for a decision that its operation is that
 operation, and then the decision of the identity of the ports. -/
@@ -532,10 +531,10 @@ end Available
 
 /-- The step with one output case, with a diagram at the center of the cases as its rest. -/
 def Diagram.under {Γ : List Ty} {Qs : Exits Ty} (f : S.Op) (args : PortMap Γ (S.input f))
-    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c)
-    (D : Diagram S (center.1 ++ Γ) Qs) : Diagram S Γ Qs :=
+    (one : IsContr (S.output f).Case)
+    (D : Diagram S (one.1.1 ++ Γ) Qs) : Diagram S Γ Qs :=
   .step ⟨f, args⟩ fun c =>
-    Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) (only c) D
+    Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) (one.2 c) D
 
 /-- The merge of a diagram of the fragment at a list of available calls and a port map to the
 context of the merged diagram. -/
@@ -545,12 +544,12 @@ def Diagram.mergeWith [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} →
   | Γ, _, Qs, table, ρ, .step call rest, h =>
       Option.casesOn (motive := fun _ => Diagram S Γ Qs)
         (Available.find call.1 (ρ.select call.2) table)
-        (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
-          (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-            (ρ.lift h.1.1) (rest h.1) h.2.2))
+        (Diagram.under call.1 (ρ.select call.2) h.1
+          (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1)
+            (ρ.lift h.1.1.1) (rest h.1.1) h.2))
         (fun found =>
           Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-            (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2))
+            (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center) h.2))
   | _, _, _, _, _, .seq _ _, h => nomatch h
 
 /-- The merge of the equal calls of a diagram of the fragment. -/
@@ -573,82 +572,80 @@ def Absorbed (R : Rules S) {Γ Γ₀ : List Ty} {Qs : Exits Ty}
 
 /-- The derivations are a congruence for the step with one output case. -/
 def Diagram.Derivation.under {Γ : List Ty} {Qs : Exits Ty} (f : S.Op)
-    (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
-    (only : (c : (S.output f).Case) → center ≡ c) {D D' : Diagram S (center.1 ++ Γ) Qs}
+    (args : PortMap Γ (S.input f)) (one : IsContr (S.output f).Case)
+    {D D' : Diagram S (one.1.1 ++ Γ) Qs}
     (der : Diagram.Derivation R D D') :
-    Diagram.Derivation R (Diagram.under f args center only D)
-      (Diagram.under f args center only D') :=
+    Diagram.Derivation R (Diagram.under f args one D)
+      (Diagram.under f args one D') :=
   .step ⟨f, args⟩ fun c =>
     Identity.ind
-      (fun (c : (S.output f).Case) (p : center ≡ c) =>
+      (fun (c : (S.output f).Case) (p : one.1 ≡ c) =>
         Diagram.Derivation R
           (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p D)
           (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p D'))
-      der (only c)
+      der (one.2 c)
 
 /-- A step with one output case agrees with the step that has the diagram of the center as its
 rest. -/
 def Diagram.Agreement.under {Γ : List Ty} {Qs : Exits Ty} (f : S.Op)
-    (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
-    (only : (c : (S.output f).Case) → center ≡ c)
+    (args : PortMap Γ (S.input f)) (one : IsContr (S.output f).Case)
     (rest : (c : (S.output f).Case) → Diagram S (c.1 ++ Γ) Qs) :
-    Diagram.Agreement (.step ⟨f, args⟩ rest) (Diagram.under f args center only (rest center)) :=
+    Diagram.Agreement (.step ⟨f, args⟩ rest) (Diagram.under f args one (rest one.1)) :=
   .step ⟨f, args⟩ fun c =>
     Identity.ind
-      (fun (c : (S.output f).Case) (p : center ≡ c) =>
+      (fun (c : (S.output f).Case) (p : one.1 ≡ c) =>
         Diagram.Agreement (rest c)
           (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
-            (rest center)))
-      (Diagram.Agreement.refl _) (only c)
+            (rest one.1)))
+      (Diagram.Agreement.refl _) (one.2 c)
 
 section
 
 variable {Γ Γ₀ : List Ty} {Qs : Exits Ty} {K : Diagram S Γ Qs → Diagram S Γ₀ Qs}
   (cong : {D D' : Diagram S Γ Qs} → Diagram.Derivation R D D' →
     Diagram.Derivation R (K D) (K D'))
-  (f : S.Op) (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
-  (only : (c : (S.output f).Case) → center ≡ c)
+  (f : S.Op) (args : PortMap Γ (S.input f)) (one : IsContr (S.output f).Case)
 
 /-- The context under a step absorbs the call of the step, by the copy rule. -/
 def Absorbed.ofStep (copy : Rules.Map (Rules.copy S) R) (pure : S.kind f ≡ .pure) :
-    Absorbed R (fun D => K (Diagram.under f args center only D))
-      (Available.ofStep f pure args center only).used :=
+    Absorbed R (fun D => K (Diagram.under f args one D))
+      (Available.ofStep f pure args one).used :=
   fun D =>
     (cong (.agree (.step ⟨f, args⟩ fun ca =>
         Identity.ind
-          (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+          (fun (ca : (S.output f).Case) (p : one.1 ≡ ca) =>
             Diagram.Agreement
               (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
-                (.step ⟨f, args.weaken center.1⟩ D))
+                (.step ⟨f, args.weaken one.1.1⟩ D))
               (.step ⟨f, args.weaken ca.1⟩ fun c' =>
                 Identity.transport
                   (fun (c : (S.output f).Case) => Diagram S (c'.1 ++ (c.1 ++ Γ)) Qs) p (D c')))
-          (Diagram.Agreement.refl _) (only ca)))).trans
+          (Diagram.Agreement.refl _) (one.2 ca)))).trans
       ((cong (.rule (copy.diagram (.copy f pure args fun ca c' =>
           Identity.transport
-            (fun (c : (S.output f).Case) => Diagram S (c'.1 ++ (c.1 ++ Γ)) Qs) (only ca)
+            (fun (c : (S.output f).Case) => Diagram S (c'.1 ++ (c.1 ++ Γ)) Qs) (one.2 ca)
             (D c'))))).trans
         (cong (.agree (.step ⟨f, args⟩ fun ca =>
           Identity.ind
-            (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+            (fun (ca : (S.output f).Case) (p : one.1 ≡ ca) =>
               Diagram.Agreement
                 (Diagram.rename (PortMap.copy ca.1 Γ)
                   (Identity.transport
                     (fun (c : (S.output f).Case) => Diagram S (ca.1 ++ (c.1 ++ Γ)) Qs) p
                     (D ca)))
                 (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
-                  (Diagram.rename (PortMap.copy center.1 Γ) (D center))))
-            (Diagram.Agreement.refl _) (only ca)))))
+                  (Diagram.rename (PortMap.copy one.1.1 Γ) (D one.1))))
+            (Diagram.Agreement.refl _) (one.2 ca)))))
 
 /-- The ports of an available call under more ports, after the exchange with those ports. -/
 def Available.underPorts (Ξ : List Ty) (e : Available S Γ) :
-    (PortMap.lift Ξ (e.outs.append (PortMap.id Γ))).select (PortMap.exchange Ξ e.center.1 Γ) ≡
+    (PortMap.lift Ξ (e.outs.append (PortMap.id Γ))).select (PortMap.exchange Ξ e.one.1.1 Γ) ≡
       (PortMap.weaken Ξ e.outs).append (PortMap.id (Ξ ++ Γ)) :=
   (Identity.cong
-      (fun (m : PortMap (Ξ ++ Γ) (e.center.1 ++ Γ)) =>
+      (fun (m : PortMap (Ξ ++ Γ) (e.one.1.1 ++ Γ)) =>
         All.select
           ((All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left)).append m)
-          (PortMap.exchange Ξ e.center.1 Γ))
+          (PortMap.exchange Ξ e.one.1.1 Γ))
       (All.mapAppend (fun (t : Ty) (i : Port Γ t) => (i.right Ξ : Port (Ξ ++ Γ) t)) e.outs
         (PortMap.id Γ))).trans
     ((PortMap.selectExchange (All.tabulate (P := Port (Ξ ++ Γ)) Ξ (fun _ i => i.left))
@@ -659,67 +656,67 @@ def Available.underPorts (Ξ : List Ty) (e : Available S Γ) :
 call moves before the step of the context by one interchange. -/
 def Absorbed.under (inter : Rules.Map (Rules.interchange S) R) (e : Available S Γ)
     (absorbed : Absorbed R K e.used) :
-    Absorbed R (fun D => K (Diagram.under f args center only D)) (e.weaken center.1).used :=
+    Absorbed R (fun D => K (Diagram.under f args one D)) (e.weaken one.1.1).used :=
   fun D =>
     (cong (.agree (.step ⟨f, args⟩ fun ca =>
         Identity.ind
-          (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+          (fun (ca : (S.output f).Case) (p : one.1 ≡ ca) =>
             Diagram.Agreement
               (Identity.transport (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
-                (.step ⟨e.op, e.args.weaken center.1⟩ D))
+                (.step ⟨e.op, e.args.weaken one.1.1⟩ D))
               (.step ⟨e.op, e.args.weaken ca.1⟩ fun cb =>
                 Identity.transport
                   (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) p (D cb)))
-          (Diagram.Agreement.refl _) (only ca)))).trans
+          (Diagram.Agreement.refl _) (one.2 ca)))).trans
       ((cong (.rule (inter.diagram (.swap f e.op (.inr e.pure) args e.args fun ca cb =>
           Identity.transport
-            (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) (only ca)
+            (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) (one.2 ca)
             (D cb))))).trans
         ((absorbed fun cb => .step ⟨f, args.weaken cb.1⟩ fun ca =>
             Diagram.rename (PortMap.exchange ca.1 cb.1 Γ)
               (Identity.transport
-                (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) (only ca)
+                (fun (c : (S.output f).Case) => Diagram S (cb.1 ++ (c.1 ++ Γ)) Qs) (one.2 ca)
                 (D cb))).trans
           (cong (.agree (.stepPorts f
             ((PortMap.selectWeaken e.outs (PortMap.id Γ) args).trans (PortMap.idSelect args))
             fun ca =>
               Identity.ind
-                (fun (ca : (S.output f).Case) (p : center ≡ ca) =>
+                (fun (ca : (S.output f).Case) (p : one.1 ≡ ca) =>
                   Diagram.Agreement
                     (Diagram.rename (PortMap.lift ca.1 (e.outs.append (PortMap.id Γ)))
-                      (Diagram.rename (PortMap.exchange ca.1 e.center.1 Γ)
+                      (Diagram.rename (PortMap.exchange ca.1 e.one.1.1 Γ)
                         (Identity.transport
                           (fun (c : (S.output f).Case) =>
-                            Diagram S (e.center.1 ++ (c.1 ++ Γ)) Qs) p (D e.center))))
+                            Diagram S (e.one.1.1 ++ (c.1 ++ Γ)) Qs) p (D e.one.1))))
                     (Identity.transport
                       (fun (c : (S.output f).Case) => Diagram S (c.1 ++ Γ) Qs) p
                       (Diagram.rename
-                        ((PortMap.weaken center.1 e.outs).append (PortMap.id (center.1 ++ Γ)))
-                        (D e.center))))
-                (Diagram.renameCompose (D e.center) _ _ _ (e.underPorts center.1))
-                (only ca))))))
+                        ((PortMap.weaken one.1.1 e.outs).append (PortMap.id (one.1.1 ++ Γ)))
+                        (D e.one.1))))
+                (Diagram.renameCompose (D e.one.1) _ _ _ (e.underPorts one.1.1))
+                (one.2 ca))))))
 
 /-- The context under a step absorbs each available call after the step. -/
 def Absorbed.after (inter : Rules.Map (Rules.interchange S) R)
     (copy : Rules.Map (Rules.copy S) R) (table : List (Available S Γ))
     (absorbed : All (fun e => Absorbed R K e.used) table) :
-    All (fun e => Absorbed R (fun D => K (Diagram.under f args center only D)) e.used)
-      (Available.after table f args center only) :=
+    All (fun e => Absorbed R (fun D => K (Diagram.under f args one D)) e.used)
+      (Available.after table f args one) :=
   Sum.casesOn
     (motive := fun kind =>
-      All (fun e => Absorbed R (fun D => K (Diagram.under f args center only D)) e.used)
-        (Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) kind
+      All (fun e => Absorbed R (fun D => K (Diagram.under f args one D)) e.used)
+        (Sum.casesOn (motive := fun _ => List (Available S (one.1.1 ++ Γ))) kind
           (fun pure =>
-            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))
-          (fun _ => table.map (Available.weaken center.1))))
+            Available.ofStep f pure args one :: table.map (Available.weaken one.1.1))
+          (fun _ => table.map (Available.weaken one.1.1))))
     (Kind.cases (S.kind f))
     (fun pure =>
-      .cons (Absorbed.ofStep cong f args center only copy pure)
-        (All.image (Available.weaken center.1)
-          (fun e a => Absorbed.under cong f args center only inter e a) absorbed))
+      .cons (Absorbed.ofStep cong f args one copy pure)
+        (All.image (Available.weaken one.1.1)
+          (fun e a => Absorbed.under cong f args one inter e a) absorbed))
     (fun _ =>
-      All.image (Available.weaken center.1)
-        (fun e a => Absorbed.under cong f args center only inter e a) absorbed)
+      All.image (Available.weaken one.1.1)
+        (fun e a => Absorbed.under cong f args one inter e a) absorbed)
 
 end
 
@@ -740,22 +737,22 @@ def Diagram.mergeWithDerivation [DecEq S.Op] (inter : Rules.Map (Rules.interchan
           Diagram.Derivation R
             (K (.step ⟨call.1, ρ.select call.2⟩ fun c => Diagram.rename (ρ.lift c.1) (rest c)))
             (K (Option.casesOn (motive := fun _ => Diagram S Γ Qs) found
-              (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
-                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                  (ρ.lift h.1.1) (rest h.1) h.2.2))
+              (Diagram.under call.1 (ρ.select call.2) h.1
+                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1)
+                  (ρ.lift h.1.1.1) (rest h.1.1) h.2))
               (fun found =>
                 Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                    h.2.2)))))
+                  (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                    h.2)))))
         (Available.find call.1 (ρ.select call.2) table)
-        ((cong (.agree (Diagram.Agreement.under call.1 (ρ.select call.2) h.1 h.2.1
+        ((cong (.agree (Diagram.Agreement.under call.1 (ρ.select call.2) h.1
             fun c => Diagram.rename (ρ.lift c.1) (rest c)))).trans
           (Diagram.mergeWithDerivation inter copy
-            (fun D => K (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1 D))
-            (fun der => cong (der.under call.1 (ρ.select call.2) h.1 h.2.1))
-            (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-            (Absorbed.after cong call.1 (ρ.select call.2) h.1 h.2.1 inter copy table absorbed)
-            (ρ.lift h.1.1) (rest h.1) h.2.2))
+            (fun D => K (Diagram.under call.1 (ρ.select call.2) h.1 D))
+            (fun der => cong (der.under call.1 (ρ.select call.2) h.1))
+            (Available.after table call.1 (ρ.select call.2) h.1)
+            (Absorbed.after cong call.1 (ρ.select call.2) h.1 inter copy table absorbed)
+            (ρ.lift h.1.1.1) (rest h.1.1) h.2))
         (fun found =>
           ((Identity.transport (Absorbed R K) found.same (absorbed.lookup found.mem))
               fun c => Diagram.rename (ρ.lift c.1) (rest c)).trans
@@ -764,7 +761,7 @@ def Diagram.mergeWithDerivation [DecEq S.Op] (inter : Rules.Map (Rules.interchan
                   (Identity.cong (All.append found.outs) (PortMap.idSelect ρ)))))).trans
               (Diagram.mergeWithDerivation inter copy K cong table absorbed
                 (found.outs.append ρ) (rest found.center)
-                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2))))
+                (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center) h.2))))
   | _, _, _, _, _, _, _, _, .seq _ _, h => nomatch h
 
 /-- The merged diagram of a diagram of the fragment has a derivation from the diagram, in each
@@ -849,8 +846,8 @@ def usePortsSelf (e : Available S Γ) :
         (fun (args : PortMap Γ (S.input e.op)) (q : e.args ≡ args) =>
           (m : e.Use e.op args) ×
             (Identity.ind (fun (args : PortMap Γ (S.input e.op)) _ => Option (e.Use e.op args))
-              (some ⟨e.center, e.outs, .refl⟩) q ≡ some m))
-        ⟨⟨e.center, e.outs, .refl⟩, .refl⟩ same
+              (some ⟨e.one.1, e.outs, .refl⟩) q ≡ some m))
+        ⟨⟨e.one.1, e.outs, .refl⟩, .refl⟩ same
 
 /-- An available call has a use at its own operation and ports, for each decision. The proof of
 the decision is the reflexivity proof, because the type of the operations has one identity
@@ -971,28 +968,28 @@ def Merged.fresh [DecEq S.Op] (m : Merged table env last prior) (f : S.Op)
 
 /-- The state after a step of the merged diagram whose call is not a call of a step before. -/
 def Merged.after (m : Merged table env last prior) (f : S.Op) (args : PortMap Γ (S.input f))
-    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c)
+    (one : IsContr (S.output f).Case)
     (fresh : Elem (⟨f, Call.at f args env last⟩ : S.Occurrence Γ₀) prior → Empty) :
-    Merged (Available.after table f args center only)
-      ((Call.at f args env last).outputs center env) ((Call.at f args env last).next last)
+    Merged (Available.after table f args one)
+      ((Call.at f args env last).outputs one.1 env) ((Call.at f args env last).next last)
       (⟨f, Call.at f args env last⟩ :: prior) :=
   let A : Call S Γ₀ f := Call.at f args env last
-  let outs : All (History S Γ₀) center.1 :=
-    All.tabulate center.1 fun _ q => History.output A center q
-  let newAt {t : Ty} (p : Port (center.1 ++ Γ) t) (j : Elem t center.1) (e : p ≡ j.left) :
-      All.lookup (outs.append env) p ≡ History.output A center j :=
+  let outs : All (History S Γ₀) one.1.1 :=
+    All.tabulate one.1.1 fun _ q => History.output A one.1 q
+  let newAt {t : Ty} (p : Port (one.1.1 ++ Γ) t) (j : Elem t one.1.1) (e : p ≡ j.left) :
+      All.lookup (outs.append env) p ≡ History.output A one.1 j :=
     (Identity.cong (fun q => All.lookup (outs.append env) q) e).trans
       ((All.lookupLeft outs env j).trans
-        (All.lookupTabulate (fun _ q => History.output A center q) j))
-  let oldAt {t : Ty} (p : Port (center.1 ++ Γ) t) (j : Port Γ t) (e : p ≡ j.right center.1) :
+        (All.lookupTabulate (fun _ q => History.output A one.1 q) j))
+  let oldAt {t : Ty} (p : Port (one.1.1 ++ Γ) t) (j : Port Γ t) (e : p ≡ j.right one.1.1) :
       All.lookup (outs.append env) p ≡ env.lookup j :=
     (Identity.cong (fun q => All.lookup (outs.append env) q) e).trans
       (All.lookupRight outs env j)
-  let known : (t : Ty) → (p : Port (center.1 ++ Γ) t) → (x : S.Occurrence Γ₀) →
+  let known : (t : Ty) → (p : Port (one.1.1 ++ Γ) t) → (x : S.Occurrence Γ₀) →
       History.source (All.lookup (outs.append env) p) ≡ some x →
       Elem x ((⟨f, A⟩ : S.Occurrence Γ₀) :: prior) :=
     fun t p x src =>
-      match Elem.split center.1 p with
+      match Elem.split one.1.1 p with
       | .inl found =>
           Identity.transport (fun y => Elem y ((⟨f, A⟩ : S.Occurrence Γ₀) :: prior))
             (Identity.someInject
@@ -1001,13 +998,13 @@ def Merged.after (m : Merged table env last prior) (f : S.Op) (args : PortMap Γ
       | .inr found =>
           .there (m.known t found.1 x
             ((Identity.cong History.source (oldAt p found.1 found.2)).symm.trans src))
-  let apart : (t : Ty) → (p q : Port (center.1 ++ Γ) t) →
+  let apart : (t : Ty) → (p q : Port (one.1.1 ++ Γ) t) →
       All.lookup (outs.append env) p ≡ All.lookup (outs.append env) q → p ≡ q :=
     fun t p q same =>
-      match Elem.split center.1 p, Elem.split center.1 q with
+      match Elem.split one.1.1 p, Elem.split one.1.1 q with
       | .inl a, .inl b =>
           a.2.trans
-            ((Identity.cong (fun (i : Elem t center.1) => (i.left : Elem t (center.1 ++ Γ)))
+            ((Identity.cong (fun (i : Elem t one.1.1) => (i.left : Elem t (one.1.1 ++ Γ)))
                 (Elem.sameNumber a.1 b.1
                   (Identity.cong History.number
                     ((newAt p a.1 a.2).symm.trans (same.trans (newAt q b.1 b.2)))))).trans
@@ -1022,22 +1019,22 @@ def Merged.after (m : Merged table env last prior) (f : S.Op) (args : PortMap Γ
               ((oldAt p a.1 a.2).symm.trans (same.trans (newAt q b.1 b.2)))))).elim
       | .inr a, .inr b =>
           a.2.trans
-            ((Identity.cong (Elem.right center.1)
+            ((Identity.cong (Elem.right one.1.1)
                 (m.apart t a.1 b.1
                   ((oldAt p a.1 a.2).symm.trans (same.trans (oldAt q b.1 b.2))))).trans
               b.2.symm)
   let weak (x : S.Occurrence Γ₀) (e : Available S Γ)
       (same : S.pureAt env ⟨e.op, e.args⟩ ≡ x) :
-      S.pureAt (outs.append env) ⟨e.op, e.args.weaken center.1⟩ ≡ x :=
+      S.pureAt (outs.append env) ⟨e.op, e.args.weaken one.1.1⟩ ≡ x :=
     (Identity.cong (fun a => (⟨e.op, Call.mk a none⟩ : S.Occurrence Γ₀))
       (PortMap.selectWeaken outs env e.args)).trans same
   Sum.casesOn
     (motive := fun kind =>
       Merged
-        (Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) kind
+        (Sum.casesOn (motive := fun _ => List (Available S (one.1.1 ++ Γ))) kind
           (fun pure =>
-            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))
-          (fun _ => table.map (Available.weaken center.1)))
+            Available.ofStep f pure args one :: table.map (Available.weaken one.1.1))
+          (fun _ => table.map (Available.weaken one.1.1)))
         (outs.append env) (A.next last) ((⟨f, A⟩ : S.Occurrence Γ₀) :: prior))
     (Kind.cases (S.kind f))
     (fun pure =>
@@ -1046,7 +1043,7 @@ def Merged.after (m : Merged table env last prior) (f : S.Op) (args : PortMap Γ
         listed := fun x i px =>
           match Elem.uncons i with
           | .inl isNew =>
-              ⟨Available.ofStep f pure args center only, .here,
+              ⟨Available.ofStep f pure args one, .here,
                 (Identity.cong (fun a => (⟨f, Call.mk a none⟩ : S.Occurrence Γ₀))
                     (PortMap.selectWeaken outs env args)).trans
                   ((Identity.cong
@@ -1056,7 +1053,7 @@ def Merged.after (m : Merged table env last prior) (f : S.Op) (args : PortMap Γ
                       pure).symm.trans isNew.symm)⟩
           | .inr j =>
               let e := m.listed x j px
-              ⟨e.1.weaken center.1, .there (Elem.map (Available.weaken center.1) e.2.1),
+              ⟨e.1.weaken one.1.1, .there (Elem.map (Available.weaken one.1.1) e.2.1),
                 weak x e.1 e.2.2⟩
         ranked := fun x i ex =>
           match Elem.uncons i with
@@ -1081,7 +1078,7 @@ def Merged.after (m : Merged table env last prior) (f : S.Op) (args : PortMap Γ
                     effectful))).elim
           | .inr j =>
               let e := m.listed x j px
-              ⟨e.1.weaken center.1, Elem.map (Available.weaken center.1) e.2.1,
+              ⟨e.1.weaken one.1.1, Elem.map (Available.weaken one.1.1) e.2.1,
                 weak x e.1 e.2.2⟩
         ranked := fun x i ex =>
           match Elem.uncons i with
@@ -1117,30 +1114,29 @@ def Diagram.mergeWithStraight [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits T
       Option.casesOn
         (motive := fun o =>
           (Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
-            (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
-              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                (ρ.lift h.1.1) (rest h.1) h.2.2))
+            (Diagram.under call.1 (ρ.select call.2) h.1
+              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1)
+                (ρ.lift h.1.1.1) (rest h.1.1) h.2))
             (fun found =>
               Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                  h.2.2))).Straight)
+                (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                  h.2))).Straight)
         (Available.find call.1 (ρ.select call.2) table)
         (Sigma.mk h.1
-          (Prod.mk h.2.1
-            (Identity.ind (a := h.1)
-              (fun (c : (S.output call.1).Case) (p : h.1 ≡ c) =>
-                (Identity.transport
-                  (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
-                  (Diagram.mergeWith
-                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                    (ρ.lift h.1.1) (rest h.1) h.2.2)).Straight)
-              (Diagram.mergeWithStraight
-                (Available.after table call.1 (ρ.select call.2) h.1 h.2.1) (ρ.lift h.1.1)
-                (rest h.1) h.2.2)
-              (h.2.1 h.1))))
+          (Identity.ind (a := h.1.1)
+            (fun (c : (S.output call.1).Case) (p : h.1.1 ≡ c) =>
+              (Identity.transport
+                (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
+                (Diagram.mergeWith
+                  (Available.after table call.1 (ρ.select call.2) h.1)
+                  (ρ.lift h.1.1.1) (rest h.1.1) h.2)).Straight)
+            (Diagram.mergeWithStraight
+              (Available.after table call.1 (ρ.select call.2) h.1) (ρ.lift h.1.1.1)
+              (rest h.1.1) h.2)
+            (h.1.2 h.1.1)))
         (fun found =>
           Diagram.mergeWithStraight table (found.outs.append ρ) (rest found.center)
-            (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2))
+            (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center) h.2))
   | _, _, _, _, _, .seq _ _, h => nomatch h
 
 /-- The occurrences of the merged diagram have no element at two positions, and no occurrence
@@ -1156,57 +1152,57 @@ def Diagram.mergeWithSeparate [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits T
       Option.casesOn
         (motive := fun o => (Available.find call.1 (ρ.select call.2) table ≡ o) →
           (hM : (Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
-            (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
-              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                (ρ.lift h.1.1) (rest h.1) h.2.2))
+            (Diagram.under call.1 (ρ.select call.2) h.1
+              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1)
+                (ρ.lift h.1.1.1) (rest h.1.1) h.2))
             (fun found =>
               Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                  h.2.2))).Straight) →
+                (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                  h.2))).Straight) →
           Separate
             ((Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
-              (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
-                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                  (ρ.lift h.1.1) (rest h.1) h.2.2))
+              (Diagram.under call.1 (ρ.select call.2) h.1
+                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1)
+                  (ρ.lift h.1.1.1) (rest h.1.1) h.2))
               (fun found =>
                 Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                    h.2.2))).occurrences hM env last)
+                  (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                    h.2))).occurrences hM env last)
             prior)
         (Available.find call.1 (ρ.select call.2) table)
         (fun missing hM =>
           let A : Call S Γ₀ call.1 := Call.at call.1 (ρ.select call.2) env last
           let fresh := m.fresh call.1 (ρ.select call.2) missing
           let inner :=
-            Identity.ind (a := h.1)
-              (fun (c : (S.output call.1).Case) (p : h.1 ≡ c) =>
+            Identity.ind (a := h.1.1)
+              (fun (c : (S.output call.1).Case) (p : h.1.1 ≡ c) =>
                 (s : (Identity.transport
                   (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
                   (Diagram.mergeWith
-                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                    (ρ.lift h.1.1) (rest h.1) h.2.2)).Straight) →
+                    (Available.after table call.1 (ρ.select call.2) h.1)
+                    (ρ.lift h.1.1.1) (rest h.1.1) h.2)).Straight) →
                 Separate
                   ((Identity.transport
                     (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
                     (Diagram.mergeWith
-                      (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                      (ρ.lift h.1.1) (rest h.1) h.2.2)).occurrences s (A.outputs c env)
+                      (Available.after table call.1 (ρ.select call.2) h.1)
+                      (ρ.lift h.1.1.1) (rest h.1.1) h.2)).occurrences s (A.outputs c env)
                     (A.next last))
                   ((⟨call.1, A⟩ : S.Occurrence Γ₀) :: prior))
               (fun s =>
                 Diagram.mergeWithSeparate
-                  (Available.after table call.1 (ρ.select call.2) h.1 h.2.1) (ρ.lift h.1.1)
-                  (rest h.1) h.2.2 (A.outputs h.1 env) (A.next last)
+                  (Available.after table call.1 (ρ.select call.2) h.1) (ρ.lift h.1.1.1)
+                  (rest h.1.1) h.2 (A.outputs h.1.1 env) (A.next last)
                   ((⟨call.1, A⟩ : S.Occurrence Γ₀) :: prior)
-                  (m.after call.1 (ρ.select call.2) h.1 h.2.1 fresh) s)
-              (h.2.1 hM.1) hM.2.2
+                  (m.after call.1 (ρ.select call.2) h.1 fresh) s)
+              (h.1.2 hM.1.1) hM.2
           (Elem.Distinct.cons inner.1 (fun i => inner.2 _ i .here), fun x i j =>
             match Elem.uncons i with
             | .inl isNew => fresh (Identity.transport (fun y => Elem y prior) isNew j)
             | .inr i' => inner.2 x i' (.there j)))
         (fun found _ hM =>
           Diagram.mergeWithSeparate table (found.outs.append ρ) (rest found.center)
-            (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2)
+            (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center) h.2)
             env last prior m hM)
         .refl hM
   | _, _, _, _, _, .seq _ _, h, _, _, _, _, _ => nomatch h
@@ -1292,22 +1288,22 @@ def Available.Linked.weaken {env : All (History S Γ₀) Γ} {prior : List (S.Oc
         ((All.lookupRight outs env (All.lookup (P := Port Γ) e.outs q)).trans
           ((l.2 t q).trans
             (Identity.cong
-              (fun a => History.output (Call.mk a none : Call S Γ₀ e.op) e.center q)
+              (fun a => History.output (Call.mk a none : Call S Γ₀ e.op) e.one.1 q)
               (PortMap.selectWeaken outs env e.args).symm))))
 
 /-- The call of a step with a pure operation has its link after the step. -/
 def Available.Linked.ofStep (f : S.Op) (pure : S.kind f ≡ .pure) (args : PortMap Γ (S.input f))
-    (center : (S.output f).Case) (only : (c : (S.output f).Case) → center ≡ c)
+    (one : IsContr (S.output f).Case)
     (env : All (History S Γ₀) Γ) (last : Option (Effect S Γ₀))
     (prior : List (S.Occurrence Γ₀)) :
-    (Available.ofStep f pure args center only).Linked
-      ((Call.at f args env last).outputs center env)
+    (Available.ofStep f pure args one).Linked
+      ((Call.at f args env last).outputs one.1 env)
       (⟨f, Call.at f args env last⟩ :: prior) :=
   let A : Call S Γ₀ f := Call.at f args env last
-  let outs : All (History S Γ₀) center.1 :=
-    All.tabulate center.1 fun _ q => History.output A center q
+  let outs : All (History S Γ₀) one.1.1 :=
+    All.tabulate one.1.1 fun _ q => History.output A one.1 q
   let pureEq :
-      (Call.mk (All.select (outs.append env) (args.weaken center.1)) none : Call S Γ₀ f) ≡ A :=
+      (Call.mk (All.select (outs.append env) (args.weaken one.1.1)) none : Call S Γ₀ f) ≡ A :=
     (Identity.cong (fun a => (Call.mk a none : Call S Γ₀ f))
         (PortMap.selectWeaken outs env args)).trans
       (Identity.cong (fun k => (Call.mk (env.select args) (Kind.before k last) : Call S Γ₀ f))
@@ -1316,37 +1312,37 @@ def Available.Linked.ofStep (f : S.Op) (pure : S.kind f ≡ .pure) (args : PortM
       (Identity.cong (fun a => (⟨f, a⟩ : S.Occurrence Γ₀)) pureEq).symm .here,
     fun _ q =>
       (Identity.cong (fun p => All.lookup (outs.append env) p)
-          (All.lookupTabulate (fun (t : Ty) (i : Elem t center.1) =>
-            (i.left : Port (center.1 ++ Γ) t)) q)).trans
+          (All.lookupTabulate (fun (t : Ty) (i : Elem t one.1.1) =>
+            (i.left : Port (one.1.1 ++ Γ) t)) q)).trans
         ((All.lookupLeft outs env q).trans
-          ((All.lookupTabulate (fun _ q => History.output A center q) q).trans
-            (Identity.cong (fun a => History.output a center q) pureEq.symm))))
+          ((All.lookupTabulate (fun _ q => History.output A one.1 q) q).trans
+            (Identity.cong (fun a => History.output a one.1 q) pureEq.symm))))
 
 /-- Each available call after a step has its link. -/
 def Available.Linked.after {env : All (History S Γ₀) Γ} {prior : List (S.Occurrence Γ₀)}
     (table : List (Available S Γ)) (linked : All (fun e => e.Linked env prior) table)
-    (f : S.Op) (args : PortMap Γ (S.input f)) (center : (S.output f).Case)
-    (only : (c : (S.output f).Case) → center ≡ c) (last : Option (Effect S Γ₀)) :
+    (f : S.Op) (args : PortMap Γ (S.input f)) (one : IsContr (S.output f).Case)
+    (last : Option (Effect S Γ₀)) :
     All
       (fun e =>
-        e.Linked ((Call.at f args env last).outputs center env)
+        e.Linked ((Call.at f args env last).outputs one.1 env)
           (⟨f, Call.at f args env last⟩ :: prior))
-      (Available.after table f args center only) :=
+      (Available.after table f args one) :=
   Sum.casesOn
     (motive := fun kind =>
       All
         (fun e =>
-          e.Linked ((Call.at f args env last).outputs center env)
+          e.Linked ((Call.at f args env last).outputs one.1 env)
             (⟨f, Call.at f args env last⟩ :: prior))
-        (Sum.casesOn (motive := fun _ => List (Available S (center.1 ++ Γ))) kind
+        (Sum.casesOn (motive := fun _ => List (Available S (one.1.1 ++ Γ))) kind
           (fun pure =>
-            Available.ofStep f pure args center only :: table.map (Available.weaken center.1))
-          (fun _ => table.map (Available.weaken center.1))))
+            Available.ofStep f pure args one :: table.map (Available.weaken one.1.1))
+          (fun _ => table.map (Available.weaken one.1.1))))
     (Kind.cases (S.kind f))
     (fun pure =>
-      .cons (Available.Linked.ofStep f pure args center only env last prior)
-        (All.image (Available.weaken center.1) (fun _ l => l.weaken _ _) linked))
-    (fun _ => All.image (Available.weaken center.1) (fun _ l => l.weaken _ _) linked)
+      .cons (Available.Linked.ofStep f pure args one env last prior)
+        (All.image (Available.weaken one.1.1) (fun _ l => l.weaken _ _) linked))
+    (fun _ => All.image (Available.weaken one.1.1) (fun _ l => l.weaken _ _) linked)
 
 end
 
@@ -1372,54 +1368,54 @@ def Diagram.mergeWithLink [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} �
       Option.casesOn
         (motive := fun o =>
           (hM : (Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
-            (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
-              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                (ρ.lift h.1.1) (rest h.1) h.2.2))
+            (Diagram.under call.1 (ρ.select call.2) h.1
+              (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1)
+                (ρ.lift h.1.1.1) (rest h.1.1) h.2))
             (fun found =>
               Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                  h.2.2))).Straight) →
+                (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                  h.2))).Straight) →
           Link
             ((⟨call.1, Ad⟩ : S.Occurrence Γ₀) ::
-              (rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last))
+              (rest h.1.1).occurrences h.2 (Ad.outputs h.1.1 (env.select ρ)) (Ad.next last))
             ((Option.casesOn (motive := fun _ => Diagram S Γ Qs) o
-              (Diagram.under call.1 (ρ.select call.2) h.1 h.2.1
-                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                  (ρ.lift h.1.1) (rest h.1) h.2.2))
+              (Diagram.under call.1 (ρ.select call.2) h.1
+                (Diagram.mergeWith (Available.after table call.1 (ρ.select call.2) h.1)
+                  (ρ.lift h.1.1.1) (rest h.1.1) h.2))
               (fun found =>
                 Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                    h.2.2))).occurrences hM env last)
+                  (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                    h.2))).occurrences hM env last)
             prior)
         (Available.find call.1 (ρ.select call.2) table)
         (fun hM =>
           let sourceSame :
-              (rest h.1).occurrences h.2.2 ((A'.outputs h.1 env).select (ρ.lift h.1.1))
+              (rest h.1.1).occurrences h.2 ((A'.outputs h.1.1 env).select (ρ.lift h.1.1.1))
                   (A'.next last) ≡
-                (rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last) :=
-            (Identity.cong (fun vals => (rest h.1).occurrences h.2.2 vals (A'.next last))
-                (PortMap.selectLift (All.tabulate h.1.1 fun _ q => History.output A' h.1 q) env
+                (rest h.1.1).occurrences h.2 (Ad.outputs h.1.1 (env.select ρ)) (Ad.next last) :=
+            (Identity.cong (fun vals => (rest h.1.1).occurrences h.2 vals (A'.next last))
+                (PortMap.selectLift (All.tabulate h.1.1.1 fun _ q => History.output A' h.1.1 q) env
                   ρ)).trans
               (Identity.cong
                 (fun (a : Call S Γ₀ call.1) =>
-                  (rest h.1).occurrences h.2.2 (a.outputs h.1 (env.select ρ)) (a.next last))
+                  (rest h.1.1).occurrences h.2 (a.outputs h.1.1 (env.select ρ)) (a.next last))
                 sameCall)
           Link.cons
             (Identity.cong (fun a => (⟨call.1, a⟩ : S.Occurrence Γ₀)) sameCall.symm)
-            (Identity.ind (a := h.1)
-              (fun (c : (S.output call.1).Case) (p : h.1 ≡ c) =>
+            (Identity.ind (a := h.1.1)
+              (fun (c : (S.output call.1).Case) (p : h.1.1 ≡ c) =>
                 (s : (Identity.transport
                   (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
                   (Diagram.mergeWith
-                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                    (ρ.lift h.1.1) (rest h.1) h.2.2)).Straight) →
+                    (Available.after table call.1 (ρ.select call.2) h.1)
+                    (ρ.lift h.1.1.1) (rest h.1.1) h.2)).Straight) →
                 Link
-                  ((rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last))
+                  ((rest h.1.1).occurrences h.2 (Ad.outputs h.1.1 (env.select ρ)) (Ad.next last))
                   ((Identity.transport
                     (fun (c : (S.output call.1).Case) => Diagram S (c.1 ++ Γ) Qs) p
                     (Diagram.mergeWith
-                      (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                      (ρ.lift h.1.1) (rest h.1) h.2.2)).occurrences s (A'.outputs c env)
+                      (Available.after table call.1 (ρ.select call.2) h.1)
+                      (ρ.lift h.1.1.1) (rest h.1.1) h.2)).occurrences s (A'.outputs c env)
                     (A'.next last))
                   ((⟨call.1, A'⟩ : S.Occurrence Γ₀) :: prior))
               (fun s =>
@@ -1427,18 +1423,18 @@ def Diagram.mergeWithLink [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} �
                   (fun (L : List (S.Occurrence Γ₀)) =>
                     Link L
                       ((Diagram.mergeWith
-                        (Available.after table call.1 (ρ.select call.2) h.1 h.2.1)
-                        (ρ.lift h.1.1) (rest h.1) h.2.2).occurrences s (A'.outputs h.1 env)
+                        (Available.after table call.1 (ρ.select call.2) h.1)
+                        (ρ.lift h.1.1.1) (rest h.1.1) h.2).occurrences s (A'.outputs h.1.1 env)
                         (A'.next last))
                       ((⟨call.1, A'⟩ : S.Occurrence Γ₀) :: prior))
                   sourceSame
                   (Diagram.mergeWithLink
-                    (Available.after table call.1 (ρ.select call.2) h.1 h.2.1) (ρ.lift h.1.1)
-                    (rest h.1) h.2.2 (A'.outputs h.1 env) (A'.next last)
+                    (Available.after table call.1 (ρ.select call.2) h.1) (ρ.lift h.1.1.1)
+                    (rest h.1.1) h.2 (A'.outputs h.1.1 env) (A'.next last)
                     ((⟨call.1, A'⟩ : S.Occurrence Γ₀) :: prior)
-                    (Available.Linked.after table linked call.1 (ρ.select call.2) h.1 h.2.1 last)
+                    (Available.Linked.after table linked call.1 (ρ.select call.2) h.1 last)
                     s))
-              (h.2.1 hM.1) hM.2.2))
+              (h.1.2 hM.1.1) hM.2))
         (fun found hM =>
           let l := All.lookup linked found.mem
           let pure : S.kind call.1 ≡ .pure :=
@@ -1471,17 +1467,17 @@ def Diagram.mergeWithLink [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} �
           let lastSame : Ad.next last ≡ last :=
             Identity.cong (fun k => Kind.last k last (.after Ad)) pure
           let sourceSame :
-              (rest h.1).occurrences h.2.2 (Ad.outputs h.1 (env.select ρ)) (Ad.next last) ≡
+              (rest h.1.1).occurrences h.2 (Ad.outputs h.1.1 (env.select ρ)) (Ad.next last) ≡
                 (rest found.center).occurrences
-                  (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2)
+                  (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center) h.2)
                   (env.select (found.outs.append ρ)) last :=
-            (Diagram.occurrencesCase rest (h.2.1 found.center) h.2.2 Ad (env.select ρ)
+            (Diagram.occurrencesCase rest (h.1.2 found.center) h.2 Ad (env.select ρ)
                 (Ad.next last)).trans
               (Identity.cong₂
                 (fun vals l =>
                   (rest found.center).occurrences
-                    (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                      h.2.2)
+                    (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                      h.2)
                     vals l)
                 outsSame lastSame)
           Link.skip known
@@ -1489,12 +1485,12 @@ def Diagram.mergeWithLink [DecEq S.Op] : {Γ Δ : List Ty} → {Qs : Exits Ty} �
               (fun (L : List (S.Occurrence Γ₀)) =>
                 Link L
                   ((Diagram.mergeWith table (found.outs.append ρ) (rest found.center)
-                    (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center)
-                      h.2.2)).occurrences hM env last)
+                    (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center)
+                      h.2)).occurrences hM env last)
                   prior)
               sourceSame.symm
               (Diagram.mergeWithLink table (found.outs.append ρ) (rest found.center)
-                (Identity.transport (fun c => (rest c).Straight) (h.2.1 found.center) h.2.2)
+                (Identity.transport (fun c => (rest c).Straight) (h.1.2 found.center) h.2)
                 env last prior linked hM)))
         hM
   | _, _, _, _, _, .seq _ _, h, _, _, _, _, _ => nomatch h

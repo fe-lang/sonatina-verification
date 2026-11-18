@@ -76,8 +76,8 @@ def pathSplit (dec : (x y : α) → Dec (x ≡ y)) {a b : α} (p : a ≡ b) :
     (fun (b : α) (p : a ≡ b) => p ≡ (path (dec a a) .refl).symm.trans (path (dec a b) p))
     (Identity.symmTrans (path (dec a a) .refl)).symm p
 
-/-- A type with a decision of identity has one identity proof for each two elements. -/
-def unique (dec : (x y : α) → Dec (x ≡ y)) {a b : α} (p q : a ≡ b) : p ≡ q :=
+/-- Each identity type of a type with a decision of identity is a proposition. -/
+def unique (dec : (x y : α) → Dec (x ≡ y)) {a b : α} : IsProp (a ≡ b) := fun p q =>
   (pathSplit dec p).trans
     ((Identity.cong (fun r => (path (dec a a) .refl).symm.trans r)
         (pathSame (dec a b) p q)).trans
