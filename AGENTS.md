@@ -34,6 +34,10 @@ Two guidelines to follow:
 For a more general and easy to follow heuristic: we work under the subset of
 Lean that has a faithful translation to Idris2.
 
+(Note: in the event that the human authors will consider using axioms,
+such infrastructure is housed in Prelude.Axiom and is reserved solely
+for their discretionary use.)
+
 ## Construction method
 
 Foundational types, operations, and reusable laws belong in Prelude. Inspect and
